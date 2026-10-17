@@ -3,11 +3,13 @@
 
 import SwiftUI
 
-/// Settings (⌘,). Sources are added through the same verify-then-add
-/// connector the tvOS and iOS forms use.
+/// Settings (⌘,). Live TV sources are added through the shared
+/// verify-then-add connector.
 struct MacSettingsView: View {
     var body: some View {
         TabView {
+            MacPlexSettings()
+                .tabItem { Label("Plex", systemImage: "person.crop.circle") }
             MacSourcesSettings()
                 .tabItem { Label("Sources", systemImage: "antenna.radiowaves.left.and.right") }
             MacPlaybackSettings()
@@ -23,6 +25,7 @@ private struct MacSourcesSettings: View {
     @ObservedObject private var store = LiveTVDataStore.shared
     @State private var adding: AddKind?
     @State private var removing: LiveTVDataStore.LiveTVSourceInfo?
+    @State private var plexFailure: LiveTVConnectError?
 
     enum AddKind: String, Identifiable {
         case playlist, server
@@ -54,8 +57,13 @@ private struct MacSourcesSettings: View {
                 Text("Live TV Sources")
             } footer: {
                 HStack {
-                    Button("Add Playlist…") { adding = .playlist }
-                    Button("Add Dispatcharr Server…") { adding = .server }
+                    Menu("Add Source") {
+                        Button("M3U Playlist…") { adding = .playlist }
+                        Button("Dispatcharr Server…") { adding = .server }
+                        Button("Plex Live TV") { addPlex() }
+                            .disabled(PlexAuthManager.shared.selectedServerToken == nil)
+                    }
+                    .fixedSize()
                     Spacer()
                     Button("Refresh Channels") {
                         Task {
@@ -97,6 +105,22 @@ private struct MacSourcesSettings: View {
             }
         } message: {
             Text("Its channels and favourites leave the list. You can add it again later.")
+        }
+        .alert(plexFailure?.title ?? "", isPresented: Binding(get: { plexFailure != nil }, set: { if !$0 { plexFailure = nil } })) {
+            Button("OK", role: .cancel) { plexFailure = nil }
+        } message: {
+            Text(plexFailure?.message ?? "")
+        }
+    }
+
+    /// The signed-in Plex server's tuners, when it has any.
+    private func addPlex() {
+        Task {
+            do {
+                try await LiveTVSourceConnector().connect(LiveTVSourceConnector.plexRequest())
+            } catch {
+                plexFailure = error as? LiveTVConnectError ?? .plex(error.localizedDescription)
+            }
         }
     }
 
@@ -239,6 +263,98 @@ private struct MacFormButtons: ViewModifier {
         } message: {
             Text(failure?.message ?? "")
         }
+    }
+}
+
+// MARK: - Plex
+
+private struct MacPlexSettings: View {
+    @EnvironmentObject private var plex: MacPlexSession
+    @ObservedObject private var profiles = PlexUserProfileManager.shared
+    @AppStorage(StreamingQuality.homeKey) private var homeQuality = StreamingQuality.homeDefault.rawValue
+    @AppStorage(StreamingQuality.awayKey) private var awayQuality = StreamingQuality.awayDefault.rawValue
+    @AppStorage("autoSkipIntro") private var skipIntro = false
+    @AppStorage("autoSkipRecap") private var skipRecap = false
+    @AppStorage("autoSkipCredits") private var skipCredits = false
+    @AppStorage("autoSkipAds") private var skipAds = false
+    @AppStorage("useIntroDB") private var useIntroDB = false
+    @State private var servers: [PlexDevice] = []
+    @State private var switchingID: String?
+    @State private var showingSignIn = false
+    @State private var switchFailed = false
+
+    var body: some View {
+        Form {
+            Section("Account") {
+                if plex.isSignedIn {
+                    LabeledContent("Signed In As", value: profiles.selectedUser?.displayName ?? plex.profileDisplayName ?? "Plex")
+                    Button("Sign Out of Plex", role: .destructive) { plex.signOut() }
+                } else {
+                    Button("Sign In to Plex…") { showingSignIn = true }
+                }
+            }
+
+            if plex.isSignedIn {
+                Section("Server") {
+                    if servers.isEmpty {
+                        LabeledContent("Current", value: plex.selectedServerName ?? "None")
+                    }
+                    ForEach(servers) { server in
+                        Button {
+                            switchingID = server.id
+                            Task {
+                                let connected = await plex.switchServer(to: server)
+                                switchFailed = !connected
+                                switchingID = nil
+                            }
+                        } label: {
+                            MacServerRow(server: server, isCurrent: plex.isCurrentServer(server),
+                                         isConnecting: switchingID == server.id)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(switchingID != nil)
+                    }
+                }
+            }
+
+            Section {
+                Picker("On Your Network", selection: $homeQuality) { qualityChoices }
+                Picker("Away From Home", selection: $awayQuality) { qualityChoices }
+            } header: {
+                Text("Streaming Quality")
+            } footer: {
+                Text("Original plays the file as it is. Auto measures the connection and picks a quality that will not stall.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Skip Intros", isOn: $skipIntro)
+                Toggle("Skip Recaps", isOn: $skipRecap)
+                Toggle("Skip Credits", isOn: $skipCredits)
+                Toggle("Skip Commercials", isOn: $skipAds)
+                Toggle("Use Community Markers", isOn: $useIntroDB)
+            } header: {
+                Text("Skipping")
+            } footer: {
+                Text("Community markers fill in intros and credits Plex has not marked, from IntroDB. Only the show's IMDb ID and the episode number are sent.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .task(id: plex.isSignedIn) {
+            servers = plex.isSignedIn ? ((try? await plex.accountServers()) ?? []) : []
+        }
+        .sheet(isPresented: $showingSignIn) { MacPlexSignInSheet() }
+        .alert("Couldn't Connect", isPresented: $switchFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("That server didn't answer. Rivulet is still using the previous one.")
+        }
+    }
+
+    @ViewBuilder
+    private var qualityChoices: some View {
+        ForEach(StreamingQuality.allChoices, id: \.self) { Text($0.label).tag($0.rawValue) }
     }
 }
 

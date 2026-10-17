@@ -246,7 +246,7 @@ private struct MacPlayerControls: View {
 
 /// Captions in the system caption style (System Settings > Accessibility >
 /// Captions), sized from the picture's height as the tvOS renderer does.
-private struct MacCaptionOverlay: View {
+struct MacCaptionOverlay: View {
     @ObservedObject var player: AetherPlayer
     let container: CGSize
     @State private var style = CaptionAppearance.current()

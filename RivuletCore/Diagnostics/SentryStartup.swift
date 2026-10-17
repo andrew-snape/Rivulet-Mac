@@ -92,10 +92,8 @@ public enum SentryStartup {
             // dSYMs upload for each App Store build so the frames resolve.
             options.enableAppHangTracking = true
             options.appHangTimeoutInterval = 2
-            // Also report non-fully-blocking hangs (partial main-thread
-            // stalls), not just fully-blocked ones. Defaults true in 9.x;
-            // set explicitly so a future SDK default flip can't silence them.
-            options.enableReportNonFullyBlockingAppHangs = true
+            // Non-fully-blocking hangs are reported by default in 9.x. The
+            // explicit opt-in is gone: the option does not exist on macOS.
 
             options.beforeSend = { event in
                 // Drop cancelled URL request errors — these are normal when

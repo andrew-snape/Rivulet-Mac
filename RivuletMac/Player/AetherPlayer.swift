@@ -5,12 +5,12 @@
 //  AetherPlayer.swift
 //  Rivulet Mac
 //
-//  Live TV host for AetherEngine on the Mac. A trimmed sibling of the iOS
-//  adapter of the same name: the engine calls and the source predicates are
-//  the iOS ones, minus the parts macOS has no counterpart for (the audio
-//  session, Picture in Picture, and the background teardown the engine only
-//  performs on iOS and tvOS). This is the only Mac file that names engine
-//  types; views draw video through `surface`.
+//  Host for AetherEngine on the Mac, for Live TV and Plex video on demand. A
+//  sibling of the iOS adapter of the same name: the engine calls and the
+//  source predicates are the iOS ones, minus the parts macOS has no
+//  counterpart for (the audio session, Picture in Picture, and the background
+//  teardown the engine only performs on iOS and tvOS). This is the only Mac
+//  file that names engine types; views draw video through `surface`.
 //
 
 @preconcurrency import AVFoundation
@@ -75,7 +75,19 @@ final class AetherPlayer: ObservableObject {
         let body: Body
     }
 
-    /// The live rewind window on the session axis, the one `seekLive` takes.
+    /// A sidecar subtitle file registered at load (Plex external streams).
+    struct SidecarSubtitle {
+        let url: URL
+        let name: String?
+        let language: String?
+        let isForced: Bool
+        let isHearingImpaired: Bool
+        let isDefault: Bool
+        /// "srt", "ass", "vtt": Plex stream keys carry no extension.
+        let formatHint: String?
+    }
+
+    /// The live rewind window on the session axis, the one `skip` uses live.
     struct LiveWindow: Equatable {
         var seekableRange: ClosedRange<Double>?
         var edgeTime: Double
@@ -110,6 +122,17 @@ final class AetherPlayer: ObservableObject {
     /// Lines AVPlayer is showing right now (remote HLS WebVTT / CEA-608).
     @Published private(set) var nativeCaptions: [Caption] = []
     @Published private(set) var sourceTime: Double = 0
+    /// Media timeline position (VOD scrubber, markers, Plex reports).
+    @Published private(set) var currentTime: Double = 0
+    @Published private(set) var duration: TimeInterval = 0
+    /// Where an in-flight seek is headed, so repeated skips stack and the
+    /// scrubber does not snap back while the engine lands.
+    @Published private(set) var pendingSeekTarget: Double?
+    /// A VOD load whose clock has not moved yet.
+    @Published private(set) var isStarting = false
+    /// Playback starving for data; never a seek or the startup load.
+    @Published private(set) var isStalled = false
+    @Published private(set) var rate: Float = 1
     @Published private(set) var videoSize: CGSize = .zero
     @Published private(set) var liveWindow: LiveWindow = .idle
     @Published private(set) var isMuted = false
@@ -119,8 +142,15 @@ final class AetherPlayer: ObservableObject {
         didSet { engine.videoGravity = fillsWindow ? .resizeAspectFill : .resizeAspect }
     }
 
-    private var isLive = false
-    private var lastLoad: (url: URL, headers: [String: String], forceEngineDemux: Bool)?
+    @Published private(set) var isLive = false
+    /// Whether the viewer wants playback running, so a reload keeps a pause.
+    private var userIntendsToPlay = false
+    private var lastLoad: LoadRequest?
+
+    private enum LoadRequest {
+        case vod(url: URL, headers: [String: String], subtitles: [SidecarSubtitle])
+        case live(url: URL, headers: [String: String], forceEngineDemux: Bool)
+    }
 
     /// AVPlayerLayer does not paint remote HLS captions when the host draws
     /// its own controls, so forward native legible output to the overlay.
@@ -179,6 +209,33 @@ final class AetherPlayer: ObservableObject {
         engine.$isLive
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.isLive = $0 }
+            .store(in: &cancellables)
+
+        engine.$playbackPhase
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] phase in
+                guard let self else { return }
+                let starving = switch phase {
+                case .rebuffering, .stalled: true
+                default: false
+                }
+                let stalled = starving && !self.isStarting && self.pendingSeekTarget == nil
+                if stalled != self.isStalled { self.isStalled = stalled }
+            }
+            .store(in: &cancellables)
+
+        engine.$duration
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.duration = $0 }
+            .store(in: &cancellables)
+
+        engine.seekEvents
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] event in
+                guard let self, event.isTerminal, let pending = self.pendingSeekTarget,
+                      abs(pending - event.target) < 0.5 else { return }
+                self.pendingSeekTarget = nil
+            }
             .store(in: &cancellables)
 
         engine.$audioTracks
@@ -285,6 +342,11 @@ final class AetherPlayer: ObservableObject {
     }
 
     private func clockTicked(_ time: Double) {
+        currentTime = time
+        if isStarting, time > 0 {
+            isStarting = false
+            pendingSeekTarget = nil
+        }
         guard isLive else { return }
         let clock = engine.clock
         let window = LiveWindow(
@@ -302,7 +364,7 @@ final class AetherPlayer: ObservableObject {
     /// the engine's demux. `forceEngineDemux` is for Plex `/livetv/sessions/`
     /// grants, whose broadcast mp2 and teletext AVPlayer cannot decode.
     func loadLive(url: URL, headers: [String: String]? = nil, forceEngineDemux: Bool = false) async throws {
-        lastLoad = (url, headers ?? [:], forceEngineDemux)
+        lastLoad = .live(url: url, headers: headers ?? [:], forceEngineDemux: forceEngineDemux)
         try await performLiveLoad(url: url, headers: headers ?? [:], forceEngineDemux: forceEngineDemux)
     }
 
@@ -358,24 +420,107 @@ final class AetherPlayer: ObservableObject {
         }
     }
 
-    /// Reloads the last source at the live edge.
-    func retry() async {
-        guard let lastLoad else { return }
-        try? await performLiveLoad(url: lastLoad.url, headers: lastLoad.headers,
-                                   forceEngineDemux: lastLoad.forceEngineDemux)
+    /// Plex video on demand. Sidecars are registered at load so they appear
+    /// as ordinary subtitle tracks. `keepingTransport` (a quality reload) keeps
+    /// the speed and a paused session paused.
+    func load(
+        url: URL,
+        headers: [String: String]? = nil,
+        startTime: TimeInterval? = nil,
+        externalSubtitles: [SidecarSubtitle] = [],
+        keepingTransport: Bool = false
+    ) async throws {
+        lastLoad = .vod(url: url, headers: headers ?? [:], subtitles: externalSubtitles)
+        try await performVODLoad(
+            url: url, headers: headers ?? [:], startTime: startTime, subtitles: externalSubtitles,
+            keepingTransport: keepingTransport
+        )
     }
 
-    private func beginLoad() {
+    private func performVODLoad(
+        url: URL,
+        headers: [String: String],
+        startTime: TimeInterval?,
+        subtitles: [SidecarSubtitle],
+        keepingTransport: Bool = false
+    ) async throws {
+        beginLoad(keepingTransport: keepingTransport)
+        pendingSeekTarget = startTime
+        isStarting = true
+        var options = LoadOptions(
+            suppressDisplayCriteria: false,
+            httpHeaders: headers,
+            matchContentEnabled: true,
+            panelIsInHDRMode: false,
+            audioBridgeMode: .lossless,
+            isLive: false,
+            dvrWindowSeconds: 0,
+            nativeRemoteHLS: Self.isHLSURL(url),
+            preserveASSMarkup: false,
+            probesize: 8 * 1024 * 1024,
+            maxAnalyzeDuration: 8_000_000,
+            preferredAudioLanguages: [],
+            preferredSubtitleLanguages: [],
+            externalSubtitles: subtitles.map {
+                ExternalSubtitleTrack(
+                    url: $0.url,
+                    name: $0.name,
+                    language: $0.language,
+                    isForced: $0.isForced,
+                    isHearingImpaired: $0.isHearingImpaired,
+                    isDefault: $0.isDefault,
+                    httpHeaders: nil,
+                    formatHint: $0.formatHint
+                )
+            },
+            teletextPage: Self.regionTeletextPage()
+        )
+        options.autoplay = userIntendsToPlay
+
+        do {
+            try await engine.load(url: url, startPosition: startTime, options: options)
+            engine.volume = isMuted ? 0 : volume
+            if userIntendsToPlay, rate != 1 { engine.setRate(rate) }
+            seedVideoSize()
+        } catch {
+            failLoad(error)
+            throw error
+        }
+    }
+
+    /// Reloads the last source: VOD at the last position, live at the edge.
+    func retry() async {
+        guard let lastLoad else { return }
+        let position = currentTime
+        switch lastLoad {
+        case .vod(let url, let headers, let subtitles):
+            try? await performVODLoad(url: url, headers: headers, startTime: position > 1 ? position : nil,
+                                      subtitles: subtitles)
+        case .live(let url, let headers, let forceEngineDemux):
+            try? await performLiveLoad(url: url, headers: headers, forceEngineDemux: forceEngineDemux)
+        }
+    }
+
+    private func beginLoad(keepingTransport: Bool = false) {
         state = .loading
         canRetry = true
         videoSize = .zero
         liveWindow = .idle
+        pendingSeekTarget = nil
+        isStarting = false
+        isStalled = false
         captions = []
         clearNativeSubtitleText()
+        // The engine forgets the speed when the source changes; a reload reapplies it.
+        if !keepingTransport {
+            rate = 1
+            userIntendsToPlay = true
+        }
     }
 
     private func failLoad(_ error: Error) {
         guard !Self.isCancellation(error) else { return }
+        isStarting = false
         canRetry = engine.errorInfo?.kind != .dolbyVisionRequiresHardware
         state = .failed(Self.userFacingFailure(engine.errorInfo))
     }
@@ -390,11 +535,20 @@ final class AetherPlayer: ObservableObject {
     // MARK: - Transport
 
     func play() {
+        userIntendsToPlay = true
         engine.play()
+        // A rate set while paused is applied on resume; setRate would start playback.
+        if rate != 1 { engine.setRate(rate) }
     }
 
     func pause() {
+        userIntendsToPlay = false
         engine.pause()
+    }
+
+    func setRate(_ newRate: Float) {
+        rate = newRate
+        if state == .playing { engine.setRate(newRate) }
     }
 
     func togglePlayPause() {
@@ -412,19 +566,43 @@ final class AetherPlayer: ObservableObject {
         engine.volume = isMuted ? 0 : volume
     }
 
-    /// Skip within the rewind window. Landing within a second of the edge snaps to live.
+    /// VOD seek on the media timeline.
+    func seek(to time: TimeInterval) async {
+        let upper = duration > 0 ? duration : .greatestFiniteMagnitude
+        await performSeek(to: min(max(0, time), upper))
+    }
+
+    /// Skip relative to where the last skip was headed, so rapid presses stack.
+    /// Live, within the rewind window; landing within a second of the edge snaps to live.
     func skip(by seconds: Double) async {
+        guard isLive else {
+            await seek(to: (pendingSeekTarget ?? currentTime) + seconds)
+            return
+        }
         let window = liveWindow
         guard let range = window.seekableRange else { return }
-        let target = min(max(window.playhead + seconds, range.lowerBound), window.edgeTime)
+        let target = min(max((pendingSeekTarget ?? window.playhead) + seconds, range.lowerBound), window.edgeTime)
         if window.edgeTime - target < 1 {
             await seekToLiveEdge()
         } else {
-            await engine.seek(to: target)
+            await performSeek(to: target)
         }
     }
 
+    /// Seek events clear the pending target; the timeout covers a seek the
+    /// engine drops without one (no session yet).
+    private func performSeek(to target: Double) async {
+        isStarting = false
+        pendingSeekTarget = target
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            if self?.pendingSeekTarget == target { self?.pendingSeekTarget = nil }
+        }
+        await engine.seek(to: target)
+    }
+
     func seekToLiveEdge() async {
+        pendingSeekTarget = nil
         await engine.seekToLiveEdge()
     }
 
@@ -456,6 +634,10 @@ final class AetherPlayer: ObservableObject {
 
     func stop() {
         lastLoad = nil
+        userIntendsToPlay = false
+        pendingSeekTarget = nil
+        isStarting = false
+        rate = 1
         clearNativeMediaSelection()
         nativeVideoSizeObservation = nil
         videoSize = .zero
