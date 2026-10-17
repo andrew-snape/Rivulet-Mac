@@ -10,7 +10,6 @@
 
 import Foundation
 import Combine
-import UIKit
 
 @MainActor
 class LiveTVDataStore: ObservableObject {
@@ -251,11 +250,17 @@ class LiveTVDataStore: ObservableObject {
         staleRefreshTask = nil
     }
 
+    /// The notification that means "the app is back in front". Defaults to
+    /// UIKit's `willEnterForegroundNotification` (its raw name, since shared
+    /// code cannot import UIKit); the Mac app sets AppKit's
+    /// `didBecomeActiveNotification` before first touching `shared`.
+    static var foregroundNotification = Notification.Name("UIApplicationWillEnterForegroundNotification")
+
     /// Refresh the guide when the app returns to the foreground. tvOS suspends
     /// for long stretches, so this is the most common way the grid goes stale.
     private func observeAppLifecycle() {
         NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
+            forName: Self.foregroundNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in

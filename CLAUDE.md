@@ -63,6 +63,11 @@ RivuletiOS/             # iOS/iPadOS app (SwiftUI). Shell/ (tabs, Account sheet,
 │                       #   AetherPlayer, IOSPlaybackController: PiP, Now Playing),
 │                       #   Downloads/ (background transfer, download center, list;
 │                       #   records + offline progress live in RivuletCore/Downloads).
+RivuletMac/             # macOS app (SwiftUI, Apple silicon only, macOS 15+). Live TV
+│                       #   (IPTV) only: MacRootView (sidebar, channel list, player),
+│                       #   MacSettingsView (sources via LiveTVSourceConnector),
+│                       #   Player/ (Mac AetherPlayer, the only Mac file naming engine
+│                       #   types; MacLivePlayback). Signs to run locally, no team.
 Rivulet/                # The tvOS app — everything below.
 ├── Models/
 │   ├── Plex/           # (moved to RivuletCore/Models/Plex)
@@ -208,6 +213,13 @@ references to per-platform types:
   libraries the tvOS sidebar needs on its first build.
 - `SentryStartup.start(platform:)` takes the platform from the caller for the
   same reason.
+- `LiveTVDataStore.foregroundNotification` defaults to UIKit's
+  will-enter-foreground name; the Mac app sets AppKit's did-become-active
+  before touching the store. `CaptionStyle` holds `CGColor`s, and each app
+  builds its own caption font (`font(ofSize:)` lives beside each renderer).
+
+`RivuletCore/` also compiles into the `Rivulet Mac` target, so shared code must
+build on macOS too: no UIKit types in it. `build-macos.yml` checks that.
 
 RivuletCore is compiled into each app target, not built as a module, so
 `internal` visibility spans the whole target and no `public` is needed. That

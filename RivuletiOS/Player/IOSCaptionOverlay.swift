@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
+import CoreText
 import SwiftUI
 import UIKit
 
@@ -135,7 +136,7 @@ struct IOSAetherSubtitleOverlay: View {
             .background(
                 style.edge == .uniform
                     ? Color.clear
-                    : Color(uiColor: style.backgroundColor).opacity(style.backgroundOpacity),
+                    : Color(cgColor: style.backgroundColor).opacity(style.backgroundOpacity),
                 in: RoundedRectangle(cornerRadius: pointSize * 0.25)
             )
             .modifier(IOSCaptionEdgeModifier(style: style.edge, pointSize: pointSize))
@@ -145,7 +146,7 @@ struct IOSAetherSubtitleOverlay: View {
         _ body: AetherPlayer.SubtitleCue.Body,
         pointSize: CGFloat
     ) -> Text {
-        let userColor = Color(uiColor: style.foreground).opacity(style.foregroundOpacity)
+        let userColor = Color(cgColor: style.foreground).opacity(style.foregroundOpacity)
         switch body {
         case .text(let string):
             return Text(string)
@@ -415,5 +416,15 @@ private struct IOSCaptionEdgeModifier: ViewModifier {
                 .shadow(color: .black, radius: 0, x: 0, y: depth)
                 .shadow(color: .black, radius: 0, x: 0, y: -depth)
         }
+    }
+}
+
+extension CaptionStyle {
+    /// The system caption font at `size`; the tvOS renderer builds the same.
+    func font(ofSize size: CGFloat) -> UIFont {
+        if let fontDescriptor {
+            return CTFontCreateWithFontDescriptor(fontDescriptor, size, nil) as UIFont
+        }
+        return .systemFont(ofSize: size, weight: .medium)
     }
 }

@@ -1,0 +1,68 @@
+name: macOS Build
+
+# Compiles the "Rivulet Mac" scheme, the Live TV app for Apple silicon Macs.
+# Like build-ios.yml it guards the platform boundary: a RivuletCore change that
+# only breaks the Mac target would otherwise stay invisible.
+#
+# Runs on GitHub's standard macOS image with the newest Xcode it carries, so it
+# also works in a fork that has no access to the xcode-27 runner the other two
+# build checks use. Build-check only, unsigned.
+
+on:
+  pull_request:
+    paths:
+      - 'RivuletCore/**'
+      - 'RivuletMac/**'
+      - 'Rivulet.xcodeproj/**'
+      - '.github/workflows/build-macos.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'RivuletCore/**'
+      - 'RivuletMac/**'
+      - 'Rivulet.xcodeproj/**'
+      - '.github/workflows/build-macos.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select the newest Xcode
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      # Every app target reads Secrets.swift; placeholders compile fine.
+      - name: Generate placeholder Secrets.swift
+        run: cp RivuletCore/Config/Secrets.swift.template RivuletCore/Config/Secrets.swift
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: SourcePackages
+          key: spm-macos-${{ runner.os }}-${{ hashFiles('Rivulet.xcodeproj/project.pbxproj') }}
+          restore-keys: spm-macos-${{ runner.os }}-
+
+      - name: Build Rivulet Mac (Debug)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Rivulet.xcodeproj \
+            -scheme "Rivulet Mac" \
+            -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            -clonedSourcePackagesDirPath SourcePackages \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            ARCHS=arm64 \
+            build

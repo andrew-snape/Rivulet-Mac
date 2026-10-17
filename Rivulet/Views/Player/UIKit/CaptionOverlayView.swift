@@ -40,6 +40,7 @@
 //
 
 import Combine
+import CoreText
 import UIKit
 
 // MARK: - CaptionOverlayView
@@ -738,7 +739,7 @@ private final class CaptionBoxView: UIView {
         if style.edge == .uniform {
             backgroundColor = .clear
         } else {
-            backgroundColor = style.backgroundColor.withAlphaComponent(style.backgroundOpacity)
+            backgroundColor = UIColor(cgColor: style.backgroundColor).withAlphaComponent(style.backgroundOpacity)
         }
     }
 
@@ -781,7 +782,7 @@ private final class CaptionBoxView: UIView {
     /// A gated-off or content-silent attribute renders the system value. The
     /// system foreground opacity applies either way.
     private func attributedText(pointSize: CGFloat) -> NSAttributedString {
-        let userColor = style.foreground.withAlphaComponent(style.foregroundOpacity)
+        let userColor = UIColor(cgColor: style.foreground).withAlphaComponent(style.foregroundOpacity)
         let baseFont = style.font(ofSize: pointSize)
 
         let paragraph = NSMutableParagraphStyle()
@@ -929,5 +930,17 @@ private final class CaptionBoxView: UIView {
         let ratio = CGFloat(size) / Self.assNominalFontSize
         guard abs(ratio - 1) > 0.01 else { return nil }
         return min(max(ratio, 0.5), 2.0)
+    }
+}
+
+extension CaptionStyle {
+    /// Builds the caption font for the system settings at a concrete point size.
+    /// Uses the configured caption font descriptor when available. `CTFont` and
+    /// `UIFont` are toll-free bridged, so the descriptor path costs no copy.
+    func font(ofSize size: CGFloat) -> UIFont {
+        if let fontDescriptor {
+            return CTFontCreateWithFontDescriptor(fontDescriptor, size, nil) as UIFont
+        }
+        return .systemFont(ofSize: size, weight: .medium)
     }
 }
