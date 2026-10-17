@@ -1,12 +1,10 @@
 name: macOS Build
 
-# Compiles the "Rivulet Mac" scheme, the Live TV app for Apple silicon Macs.
-# Like build-ios.yml it guards the platform boundary: a RivuletCore change that
-# only breaks the Mac target would otherwise stay invisible.
+# Compiles the "Rivulet Mac" scheme, the app for Apple silicon Macs. There is
+# no local hook, so this is what catches a change that does not build.
 #
-# Runs on GitHub's standard macOS image with the newest Xcode it carries, so it
-# also works in a fork that has no access to the xcode-27 runner the other two
-# build checks use. Build-check only, unsigned.
+# Runs on GitHub's standard macOS image with the newest Xcode it carries.
+# Build-check only, unsigned.
 
 on:
   pull_request:

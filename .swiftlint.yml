@@ -4,63 +4,24 @@
 # regex engine for Rivulet's own architectural rules and nothing else. It has no
 # opinion here about force casts, line length, or naming.
 #
-# Why no stock rules: a full run of the default set produced 129 violations and
-# zero bugs. All 43 force_cast hits were `dequeueReusableCell(...) as! Cell` or
-# `layer as! CAGradientLayer` behind a `layerClass` override, and all 14
-# force_try hits were test fixtures. Enabling them would fight the house style.
-#
 # The bar for adding a rule here: when it fires, the response is to fix the code,
 # not to suppress the rule.
 
 excluded:
   - RivuletCore/OpenSourceLicenses.swift   # license text, not code
   - RivuletCore/Config/Secrets.swift       # generated in CI
-  - RivuletTests/Fixtures
 
 only_rules:
   - custom_rules
 
 custom_rules:
-  swiftui_import_on_uikit_surface:
-    name: "SwiftUI on a UIKit surface"
-    included: ".*/Views/.*/UIKit/.*\\.swift"
-    # Settings is the one deliberate SwiftUI seam on a UIKit surface: the bridge
-    # declares the nav shell, and modal flows host real SwiftUI sheets.
-    # Nothing outside Settings gets an exemption.
-    excluded: ".*/Settings/UIKit/(SettingsUIKitBridge|SettingsModalFlows|SettingsPageModels)\\.swift"
-    regex: "import SwiftUI"
-    match_kinds: [keyword, identifier]
-    message: "Primary surfaces are UIKit. See CLAUDE.md."
-    severity: error
-
-  hosting_controller_in_cell:
-    name: "UIHostingController in a cell"
-    included: ".*/Views/.*/UIKit/.*(Cell|Card|Poster|Row)\\w*\\.swift"
-    regex: "UIHostingController"
-    match_kinds: [identifier, typeidentifier]
-    message: "Per-cell hosting is the measured hitch cost the UIKit migration removed."
-    severity: error
-
   platform_conditional_in_shared_code:
     name: "#if os() in shared code"
-    # RivuletCore compiles into BOTH app targets; the no-conditionals rule is
-    # the whole platform boundary. Anchored to line start because a real
-    # directive begins its line, while comments in shared files legitimately
-    # DISCUSS `#if os(...)` mid-sentence when documenting why a value is
-    # host-injected instead. (match_kinds is avoided on purpose: wrong kind
-    # names silently disable a custom rule, verified with probe files.)
+    # RivuletCore holds the Plex and Live TV logic, kept apart from the Mac
+    # views in RivuletMac. A platform branch in it means the code belongs in
+    # RivuletMac, or the value should be injected by the app at launch.
+    # Anchored to line start so comments may discuss the directive.
     included: ".*RivuletCore/.*"
     regex: "^\\s*#(if|elseif)[^\\n]*\\bos\\s*\\("
-    message: "Shared code carries no platform conditionals. Lift the platform-specific part into Rivulet/ or RivuletiOS/, or inject it from the host at launch (CLAUDE.md, Platform Boundary)."
-    severity: error
-
-  tvos_context_menu_is_dead:
-    name: "UIKit context menus do not work on tvOS 26"
-    # tvOS only. Context menus work fine on iOS 26, so this must not fire on
-    # RivuletiOS. Matched as a substring rather than an anchored path so the
-    # exclusion holds whether SwiftLint reports relative or absolute paths.
-    excluded: ".*RivuletiOS/.*"
-    regex: "UIContextMenuInteraction|contextMenuConfigurationForItemsAt"
-    match_kinds: [identifier, typeidentifier]
-    message: "Dead on tvOS 26. Use a long-press plus TileMenuPopupViewController."
+    message: "RivuletCore carries no platform conditionals. Move the platform-specific part into RivuletMac, or inject it from the app at launch (CLAUDE.md)."
     severity: error

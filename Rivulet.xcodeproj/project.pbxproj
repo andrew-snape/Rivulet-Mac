@@ -7,88 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A70B443B2F05AF3200DEF5ED /* TVServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A70B443A2F05AF3200DEF5ED /* TVServices.framework */; };
-		A70B44422F05AF3200DEF5ED /* TopShelfExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A70B44392F05AF3200DEF5ED /* TopShelfExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		A740D1192F59C56300B9820B /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A740D1182F59C56300B9820B /* AVKit.framework */; };
-		A7F159552F04124A001B2177 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = A7F159542F04124A001B2177 /* Sentry */; };
-		B2000001AAAA000000000001 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B2000010AAAA000000000001 /* AetherEngine */; };
-		B2000001AAAA000000000002 /* Libass in Frameworks */ = {isa = PBXBuildFile; productRef = B2000010AAAA000000000002 /* Libass */; };
-		B30000190000000000000019 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B2000010AAAA000000000001 /* AetherEngine */; };
-		B30000210000000000000021 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = A7F159542F04124A001B2177 /* Sentry */; };
 		B40000190000000000000019 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B2000010AAAA000000000001 /* AetherEngine */; };
 		B40000210000000000000021 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = A7F159542F04124A001B2177 /* Sentry */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		A70B44402F05AF3200DEF5ED /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A72E03D22EDA297D003A73DA /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A70B44382F05AF3200DEF5ED;
-			remoteInfo = TopShelfExtension;
-		};
-		A784830E2F062C2000F9E6D0 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A72E03D22EDA297D003A73DA /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A72E03D92EDA297D003A73DA;
-			remoteInfo = Rivulet;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		A70B44472F05AF3200DEF5ED /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				A70B44422F05AF3200DEF5ED /* TopShelfExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
-		A70B44392F05AF3200DEF5ED /* TopShelfExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TopShelfExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A70B443A2F05AF3200DEF5ED /* TVServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = TVServices.framework; path = Library/Frameworks/TVServices.framework; sourceTree = DEVELOPER_DIR; };
-		A72E03DA2EDA297D003A73DA /* Rivulet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rivulet.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A740D1182F59C56300B9820B /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS26.2.sdk/System/Library/Frameworks/AVKit.framework; sourceTree = DEVELOPER_DIR; };
-		A784830A2F062C2000F9E6D0 /* RivuletTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RivuletTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		B30000010000000000000001 /* Rivulet iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Rivulet iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B40000010000000000000001 /* Rivulet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rivulet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A70B44482F05B00000DEF5ED /* Exceptions for "TopShelfExtension" folder in "TopShelfExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = A70B44382F05AF3200DEF5ED /* TopShelfExtension */;
-		};
-		A72E03E72EDA297E003A73DA /* Exceptions for "Rivulet" folder in "Rivulet" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = A72E03D92EDA297D003A73DA /* Rivulet */;
-		};
-		A70B44492F05B00000DEF5ED /* Exceptions for "Rivulet" folder in "TopShelfExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Models/Shared/RivuletLink.swift,
-			);
-			target = A70B44382F05AF3200DEF5ED /* TopShelfExtension */;
-		};
-		B30000160000000000000016 /* Exceptions for "RivuletiOS" folder in "Rivulet iOS" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = B30000040000000000000004 /* Rivulet iOS */;
-		};
 		B40000160000000000000016 /* Exceptions for "RivuletMac" folder in "Rivulet Mac" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -99,36 +26,6 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A70B443C2F05AF3200DEF5ED /* TopShelfExtension */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A70B44482F05B00000DEF5ED /* Exceptions for "TopShelfExtension" folder in "TopShelfExtension" target */,
-			);
-			path = TopShelfExtension;
-			sourceTree = "<group>";
-		};
-		A72E03DC2EDA297D003A73DA /* Rivulet */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A72E03E72EDA297E003A73DA /* Exceptions for "Rivulet" folder in "Rivulet" target */,
-				A70B44492F05B00000DEF5ED /* Exceptions for "Rivulet" folder in "TopShelfExtension" target */,
-			);
-			path = Rivulet;
-			sourceTree = "<group>";
-		};
-		A784830B2F062C2000F9E6D0 /* RivuletTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = RivuletTests;
-			sourceTree = "<group>";
-		};
-		B30000020000000000000002 /* RivuletiOS */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				B30000160000000000000016 /* Exceptions for "RivuletiOS" folder in "Rivulet iOS" target */,
-			);
-			path = RivuletiOS;
-			sourceTree = "<group>";
-		};
 		B30000200000000000000020 /* RivuletCore */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = RivuletCore;
@@ -145,41 +42,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A70B44362F05AF3200DEF5ED /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A70B443B2F05AF3200DEF5ED /* TVServices.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A72E03D72EDA297D003A73DA /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A740D1192F59C56300B9820B /* AVKit.framework in Frameworks */,
-				B2000001AAAA000000000001 /* AetherEngine in Frameworks */,
-				B2000001AAAA000000000002 /* Libass in Frameworks */,
-				A7F159552F04124A001B2177 /* Sentry in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A78483072F062C2000F9E6D0 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B30000030000000000000003 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B30000190000000000000019 /* AetherEngine in Frameworks */,
-				B30000210000000000000021 /* Sentry in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B40000030000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -195,13 +57,8 @@
 		A72E03D12EDA297D003A73DA = {
 			isa = PBXGroup;
 			children = (
-				A72E03DC2EDA297D003A73DA /* Rivulet */,
-				B30000020000000000000002 /* RivuletiOS */,
 				B40000020000000000000002 /* RivuletMac */,
 				B30000200000000000000020 /* RivuletCore */,
-				A70B443C2F05AF3200DEF5ED /* TopShelfExtension */,
-				A784830B2F062C2000F9E6D0 /* RivuletTests */,
-				A7F159532F04124A001B2177 /* Frameworks */,
 				A72E03DB2EDA297D003A73DA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -209,126 +66,14 @@
 		A72E03DB2EDA297D003A73DA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A72E03DA2EDA297D003A73DA /* Rivulet.app */,
-				B30000010000000000000001 /* Rivulet iOS.app */,
 				B40000010000000000000001 /* Rivulet.app */,
-				A70B44392F05AF3200DEF5ED /* TopShelfExtension.appex */,
-				A784830A2F062C2000F9E6D0 /* RivuletTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		A7F159532F04124A001B2177 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				A740D1182F59C56300B9820B /* AVKit.framework */,
-				A70B443A2F05AF3200DEF5ED /* TVServices.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A70B44382F05AF3200DEF5ED /* TopShelfExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A70B44432F05AF3200DEF5ED /* Build configuration list for PBXNativeTarget "TopShelfExtension" */;
-			buildPhases = (
-				A70B44352F05AF3200DEF5ED /* Sources */,
-				A70B44362F05AF3200DEF5ED /* Frameworks */,
-				A70B44372F05AF3200DEF5ED /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				A70B443C2F05AF3200DEF5ED /* TopShelfExtension */,
-			);
-			name = TopShelfExtension;
-			packageProductDependencies = (
-			);
-			productName = TopShelfExtension;
-			productReference = A70B44392F05AF3200DEF5ED /* TopShelfExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
-		A72E03D92EDA297D003A73DA /* Rivulet */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A72E03E82EDA297E003A73DA /* Build configuration list for PBXNativeTarget "Rivulet" */;
-			buildPhases = (
-				A72E03D62EDA297D003A73DA /* Sources */,
-				A72E03D72EDA297D003A73DA /* Frameworks */,
-				A72E03D82EDA297D003A73DA /* Resources */,
-				A70B44472F05AF3200DEF5ED /* Embed Foundation Extensions */,
-				F14974A8D7DB440F9A22ACBF /* Upload dSYMs to Sentry */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				A70B44412F05AF3200DEF5ED /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				A72E03DC2EDA297D003A73DA /* Rivulet */,
-				B30000200000000000000020 /* RivuletCore */,
-			);
-			name = Rivulet;
-			packageProductDependencies = (
-				A7F159542F04124A001B2177 /* Sentry */,
-				B2000010AAAA000000000001 /* AetherEngine */,
-				B2000010AAAA000000000002 /* Libass */,
-			);
-			productName = Rivulet;
-			productReference = A72E03DA2EDA297D003A73DA /* Rivulet.app */;
-			productType = "com.apple.product-type.application";
-		};
-		A78483092F062C2000F9E6D0 /* RivuletTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A78483102F062C2000F9E6D0 /* Build configuration list for PBXNativeTarget "RivuletTests" */;
-			buildPhases = (
-				A78483062F062C2000F9E6D0 /* Sources */,
-				A78483072F062C2000F9E6D0 /* Frameworks */,
-				A78483082F062C2000F9E6D0 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				A784830F2F062C2000F9E6D0 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				A784830B2F062C2000F9E6D0 /* RivuletTests */,
-			);
-			name = RivuletTests;
-			packageProductDependencies = (
-			);
-			productName = RivuletTests;
-			productReference = A784830A2F062C2000F9E6D0 /* RivuletTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		B30000040000000000000004 /* Rivulet iOS */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = B30000080000000000000008 /* Build configuration list for PBXNativeTarget "Rivulet iOS" */;
-			buildPhases = (
-				B30000050000000000000005 /* Sources */,
-				B30000030000000000000003 /* Frameworks */,
-				B30000060000000000000006 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				B30000020000000000000002 /* RivuletiOS */,
-				B30000200000000000000020 /* RivuletCore */,
-			);
-			name = "Rivulet iOS";
-			packageProductDependencies = (
-				B2000010AAAA000000000001 /* AetherEngine */,
-				A7F159542F04124A001B2177 /* Sentry */,
-			);
-			productName = "Rivulet iOS";
-			productReference = B30000010000000000000001 /* Rivulet iOS.app */;
-			productType = "com.apple.product-type.application";
-		};
 		B40000040000000000000004 /* Rivulet Mac */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B40000080000000000000008 /* Build configuration list for PBXNativeTarget "Rivulet Mac" */;
@@ -364,19 +109,6 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
-					A70B44382F05AF3200DEF5ED = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					A72E03D92EDA297D003A73DA = {
-						CreatedOnToolsVersion = 26.1.1;
-					};
-					A78483092F062C2000F9E6D0 = {
-						CreatedOnToolsVersion = 26.2;
-						TestTargetID = A72E03D92EDA297D003A73DA;
-					};
-					B30000040000000000000004 = {
-						CreatedOnToolsVersion = 26.5;
-					};
 					B40000040000000000000004 = {
 						CreatedOnToolsVersion = 27.0;
 					};
@@ -394,51 +126,18 @@
 			packageReferences = (
 				A700F81A2EFBA1610042C07D /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */,
-				B2000020AAAA000000000002 /* XCRemoteSwiftPackageReference "LibassBuild" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A72E03DB2EDA297D003A73DA /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A72E03D92EDA297D003A73DA /* Rivulet */,
-				B30000040000000000000004 /* Rivulet iOS */,
 				B40000040000000000000004 /* Rivulet Mac */,
-				A70B44382F05AF3200DEF5ED /* TopShelfExtension */,
-				A78483092F062C2000F9E6D0 /* RivuletTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A70B44372F05AF3200DEF5ED /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A72E03D82EDA297D003A73DA /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A78483082F062C2000F9E6D0 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B30000060000000000000006 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B40000060000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -448,53 +147,7 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		F14974A8D7DB440F9A22ACBF /* Upload dSYMs to Sentry */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Upload dSYMs to Sentry";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/Scripts/sentry-upload-dsyms.sh\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
-		A70B44352F05AF3200DEF5ED /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A72E03D62EDA297D003A73DA /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A78483062F062C2000F9E6D0 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B30000050000000000000005 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B40000050000000000000005 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -504,201 +157,7 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		A70B44412F05AF3200DEF5ED /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A70B44382F05AF3200DEF5ED /* TopShelfExtension */;
-			targetProxy = A70B44402F05AF3200DEF5ED /* PBXContainerItemProxy */;
-		};
-		A784830F2F062C2000F9E6D0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A72E03D92EDA297D003A73DA /* Rivulet */;
-			targetProxy = A784830E2F062C2000F9E6D0 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
-		A70B44442F05AF3200DEF5ED /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TopShelfExtension/TopShelfExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TopShelfExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TopShelfExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet.TopShelfExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = appletvos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 26.0;
-			};
-			name = Debug;
-		};
-		A70B44452F05AF3200DEF5ED /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TopShelfExtension/TopShelfExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TopShelfExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TopShelfExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet.TopShelfExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = appletvos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 26.0;
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		A72E03E92EDA297E003A73DA /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPATTEST_ENVIRONMENT = development;
-				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Rivulet/Rivulet.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Rivulet/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Rivulet;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.1.0;
-				OTHER_LDFLAGS = (
-					"-lbz2",
-					"-liconv",
-					"-lz",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx xros xrsimulator";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) RIVULET_FFMPEG";
-				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]" = DEBUG;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,7";
-				TVOS_DEPLOYMENT_TARGET = 26.0;
-				"VALIDATE_WORKSPACE[sdk=appletvsimulator*]" = NO;
-				XROS_DEPLOYMENT_TARGET = 26.2;
-			};
-			name = Debug;
-		};
-		A72E03EA2EDA297E003A73DA /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPATTEST_ENVIRONMENT = production;
-				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Rivulet/Rivulet.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Rivulet/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Rivulet;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.video";
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.1.0;
-				OTHER_LDFLAGS = (
-					"-lbz2",
-					"-liconv",
-					"-lz",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx xros xrsimulator";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) RIVULET_FFMPEG";
-				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]" = DEBUG;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,3,7";
-				TVOS_DEPLOYMENT_TARGET = 26.0;
-				"VALIDATE_WORKSPACE[sdk=appletvsimulator*]" = NO;
-				XROS_DEPLOYMENT_TARGET = 26.2;
-			};
-			name = Release;
-		};
 		A72E03EB2EDA297E003A73DA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -735,7 +194,6 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -799,7 +257,6 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = ZHB786H6YN;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -816,126 +273,6 @@
 				MTL_FAST_MATH = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
-			};
-			name = Release;
-		};
-		A78483112F062C2000F9E6D0 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.RivuletTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = appletvos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 3;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Rivulet.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Rivulet";
-				TVOS_DEPLOYMENT_TARGET = 26.0;
-			};
-			name = Debug;
-		};
-		A78483122F062C2000F9E6D0 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.RivuletTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = appletvos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 3;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Rivulet.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Rivulet";
-				TVOS_DEPLOYMENT_TARGET = 26.0;
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		B30000090000000000000009 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 77;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = RivuletiOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Rivulet;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rivulet connects to media servers on your local network, such as your Plex server, to stream your library.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0.7;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		B300000A000000000000000A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 77;
-				DEVELOPMENT_TEAM = ZHB786H6YN;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = RivuletiOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Rivulet;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rivulet connects to media servers on your local network, such as your Plex server, to stream your library.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0.7;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -1018,47 +355,11 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A70B44432F05AF3200DEF5ED /* Build configuration list for PBXNativeTarget "TopShelfExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A70B44442F05AF3200DEF5ED /* Debug */,
-				A70B44452F05AF3200DEF5ED /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A72E03D52EDA297D003A73DA /* Build configuration list for PBXProject "Rivulet" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A72E03EB2EDA297E003A73DA /* Debug */,
 				A72E03EC2EDA297E003A73DA /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A72E03E82EDA297E003A73DA /* Build configuration list for PBXNativeTarget "Rivulet" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A72E03E92EDA297E003A73DA /* Debug */,
-				A72E03EA2EDA297E003A73DA /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A78483102F062C2000F9E6D0 /* Build configuration list for PBXNativeTarget "RivuletTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A78483112F062C2000F9E6D0 /* Debug */,
-				A78483122F062C2000F9E6D0 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B30000080000000000000008 /* Build configuration list for PBXNativeTarget "Rivulet iOS" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B30000090000000000000009 /* Debug */,
-				B300000A000000000000000A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1091,14 +392,6 @@
 				version = 7.32.3;
 			};
 		};
-		B2000020AAAA000000000002 /* XCRemoteSwiftPackageReference "LibassBuild" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/l984-451/LibassBuild";
-			requirement = {
-				kind = exactVersion;
-				version = "0.17.5-2";
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1111,11 +404,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */;
 			productName = AetherEngine;
-		};
-		B2000010AAAA000000000002 /* Libass */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B2000020AAAA000000000002 /* XCRemoteSwiftPackageReference "LibassBuild" */;
-			productName = Libass;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
