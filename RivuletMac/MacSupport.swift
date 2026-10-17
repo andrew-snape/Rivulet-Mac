@@ -100,6 +100,32 @@ struct MacChannelLogo: View {
     }
 }
 
+// MARK: - Window
+
+/// Hands back the window a view sits in, for AppKit code that must tell windows apart.
+struct MacWindowReader: NSViewRepresentable {
+    let found: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView { ReaderView(found: found) }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class ReaderView: NSView {
+        let found: (NSWindow) -> Void
+
+        init(found: @escaping (NSWindow) -> Void) {
+            self.found = found
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { found(window) }
+        }
+    }
+}
+
 // MARK: - Captions
 
 extension CaptionStyle {

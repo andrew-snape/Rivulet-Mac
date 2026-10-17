@@ -17,11 +17,16 @@ final class MacPlaybackController: ObservableObject {
 
     private var stateObservation: AnyCancellable?
     private var sleepActivity: NSObjectProtocol?
+    /// The last title's volume and mute; the next title starts on them.
+    private var volume: Float = 1
+    private var isMuted = false
 
     func play(_ request: MacPlexPlaybackRequest) {
         guard let plex else { return }
         end()
         let newSession = MacPlexPlayback(request: request, plex: plex)
+        newSession.player.setVolume(volume)
+        newSession.player.setMuted(isMuted)
         session = newSession
         onStart?()
         // Keep the display awake while something plays, as a video player should.
@@ -31,18 +36,23 @@ final class MacPlaybackController: ObservableObject {
         Task { await newSession.begin() }
     }
 
-    /// Ends playback and leaves the player.
-    func close() {
+    /// Ends playback and leaves the player. The task ends once Plex has the final report.
+    @discardableResult
+    func close() -> Task<Void, Never>? {
         end()
     }
 
-    private func end() {
-        guard let session else { return }
-        session.end()
+    @discardableResult
+    private func end() -> Task<Void, Never>? {
+        guard let session else { return nil }
+        volume = session.player.volume
+        isMuted = session.player.isMuted
+        let reported = session.end()
         session.player.stop()
         stateObservation = nil
         keepAwake(false)
         self.session = nil
+        return reported
     }
 
     private func keepAwake(_ awake: Bool) {
@@ -75,12 +85,13 @@ struct MacVODPlayerView: View {
                 player.surface
                 MacCaptionOverlay(player: player, container: proxy.size)
                     .allowsHitTesting(false)
-                status
                 // Clicks on the picture, under the controls: double for full screen, single for play/pause.
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) { NSApp.keyWindow?.toggleFullScreen(nil) }
                     .onTapGesture { player.togglePlayPause() }
+                // Above the click layer, so the failure's buttons take clicks.
+                status
                 VStack(spacing: 0) {
                     topBar
                     Spacer()
@@ -106,6 +117,10 @@ struct MacVODPlayerView: View {
         }
         .environment(\.colorScheme, .dark)
         .onAppear { scheduleHide(after: .seconds(3)) }
+        // A slow start or a resume from the keyboard leaves the pointer still, so fade from here too.
+        .onChange(of: player.state) { _, state in
+            if state == .playing { scheduleHide(after: .seconds(3)) }
+        }
     }
 
     // MARK: Status

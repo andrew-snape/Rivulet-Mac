@@ -47,7 +47,9 @@ final class MacPlexPlayback: ObservableObject {
         await load()
     }
 
-    func end() {
+    /// The task ends once Plex has the stopped report, any scrobble and the transcoder stop.
+    @discardableResult
+    func end() -> Task<Void, Never> {
         countdownTask?.cancel()
         nextLookupTask?.cancel()
         nextTask?.cancel()
@@ -61,7 +63,11 @@ final class MacPlexPlayback: ObservableObject {
             await finish?.value
             await plex.watchStateDidChange()
         }
-        Task { await plex.stopTranscode(request) }
+        let stopTranscode = Task { await plex.stopTranscode(request) }
+        return Task {
+            await finish?.value
+            await stopTranscode.value
+        }
     }
 
     // MARK: - Loading

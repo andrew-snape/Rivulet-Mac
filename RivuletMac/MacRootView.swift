@@ -37,12 +37,14 @@ struct MacRootView: View {
                 detail
             }
             if let session = playback.session {
-                MacVODPlayerView(session: session, player: session.player, close: playback.close)
+                MacVODPlayerView(session: session, player: session.player, close: { playback.close() })
                     .ignoresSafeArea()
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: playback.session != nil)
+        // The playback keys act only in this window, not in a sheet or Settings.
+        .background(MacWindowReader { MacAppDelegate.mainWindow = $0 })
         .onAppear {
             playback.plex = plex
             playback.onStart = { [live] in live.stop() }
@@ -54,6 +56,10 @@ struct MacRootView: View {
             if old == .liveTV, new != .liveTV { live.stop() }
         }
         .onChange(of: plex.sessionGeneration) { path = NavigationPath() }
+        // Signing out, from the sidebar or from Settings, ends the Plex title playing.
+        .onChange(of: plex.isSignedIn) { _, signedIn in
+            if !signedIn { playback.close() }
+        }
         .onChange(of: searchQuery) { _, query in
             if !query.isEmpty, section != .search { section = .search }
         }
@@ -120,10 +126,7 @@ struct MacRootView: View {
                     Button("Switch Profile…") { choosingProfile = true }
                 }
                 Divider()
-                Button("Sign Out of Plex", role: .destructive) {
-                    playback.close()
-                    plex.signOut()
-                }
+                Button("Sign Out of Plex", role: .destructive) { plex.signOut() }
             } label: {
                 HStack(spacing: 8) {
                     MacPlexAvatar(url: profiles.selectedUser?.avatarURL ?? plex.profileImageURL, size: 26)

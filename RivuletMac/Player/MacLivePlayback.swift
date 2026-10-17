@@ -59,13 +59,16 @@ final class MacLivePlayback: ObservableObject {
         }
     }
 
-    func stop() {
+    /// The task ends once Plex has released a tuned channel's tuner.
+    @discardableResult
+    func stop() -> Task<Void, Never>? {
         loadTask?.cancel()
         watchTask?.cancel()
-        keepalive.stop()
+        let released = keepalive.stop()
         player.stop()
         channel = nil
         notice = nil
+        return released
     }
 
     private func load() async {

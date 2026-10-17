@@ -112,18 +112,23 @@ final class PlexLiveTimelineKeepalive {
 
     /// Final "stopped" report + heartbeat teardown. Releases the tuner
     /// server-side without waiting for the 300s timeout, then stops the
-    /// transcode job a start.m3u8 session runs.
-    func stop() {
+    /// transcode job a start.m3u8 session runs. The returned task ends once
+    /// every request sent so far is answered, for a caller that must wait
+    /// (the app quitting).
+    @discardableResult
+    func stop() -> Task<Void, Never>? {
         heartbeatTask?.cancel()
         heartbeatTask = nil
         generation += 1
-        guard let context else { return }
-        self.context = nil
-        enqueue(timelineRequest(context, state: "stopped"))
-        if let session = context.transcodeSession {
-            enqueue(request(context, path: Self.transcodeStopPath,
-                            items: [URLQueryItem(name: "session", value: session)]))
+        if let context {
+            self.context = nil
+            enqueue(timelineRequest(context, state: "stopped"))
+            if let session = context.transcodeSession {
+                enqueue(request(context, path: Self.transcodeStopPath,
+                                items: [URLQueryItem(name: "session", value: session)]))
+            }
         }
+        return lastSend
     }
 
     /// One "playing" report. The heartbeat is its only caller in the app;
