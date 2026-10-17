@@ -17,11 +17,16 @@ final class MacPlaybackController: ObservableObject {
 
     private var stateObservation: AnyCancellable?
     private var sleepActivity: NSObjectProtocol?
+    /// The last title's volume and mute; the next title starts on them.
+    private var volume: Float = 1
+    private var isMuted = false
 
     func play(_ request: MacPlexPlaybackRequest) {
         guard let plex else { return }
         end()
         let newSession = MacPlexPlayback(request: request, plex: plex)
+        newSession.player.setVolume(volume)
+        newSession.player.setMuted(isMuted)
         session = newSession
         onStart?()
         // Keep the display awake while something plays, as a video player should.
@@ -31,18 +36,23 @@ final class MacPlaybackController: ObservableObject {
         Task { await newSession.begin() }
     }
 
-    /// Ends playback and leaves the player.
-    func close() {
+    /// Ends playback and leaves the player. The task ends once Plex has the final report.
+    @discardableResult
+    func close() -> Task<Void, Never>? {
         end()
     }
 
-    private func end() {
-        guard let session else { return }
-        session.end()
+    @discardableResult
+    private func end() -> Task<Void, Never>? {
+        guard let session else { return nil }
+        volume = session.player.volume
+        isMuted = session.player.isMuted
+        let reported = session.end()
         session.player.stop()
         stateObservation = nil
         keepAwake(false)
         self.session = nil
+        return reported
     }
 
     private func keepAwake(_ awake: Bool) {

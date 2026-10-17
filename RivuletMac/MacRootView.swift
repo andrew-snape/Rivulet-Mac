@@ -37,12 +37,14 @@ struct MacRootView: View {
                 detail
             }
             if let session = playback.session {
-                MacVODPlayerView(session: session, player: session.player, close: playback.close)
+                MacVODPlayerView(session: session, player: session.player, close: { playback.close() })
                     .ignoresSafeArea()
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: playback.session != nil)
+        // The playback keys act only in this window, not in a sheet or Settings.
+        .background(MacWindowReader { MacAppDelegate.mainWindow = $0 })
         .onAppear {
             playback.plex = plex
             playback.onStart = { [live] in live.stop() }

@@ -134,20 +134,24 @@ private struct MacPlaybackCommands: Commands {
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
     static weak var playback: MacLivePlayback?
     static weak var vod: MacPlaybackController?
+    /// The window `MacRootView` sits in; set by the view.
+    static weak var mainWindow: NSWindow?
     /// Set by the app: refetches Plex Home and libraries.
     static var refreshPlex: (() async -> Void)?
     private var keyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Space plays and pauses wherever focus is, except while typing. With
-        // a Plex title up, the arrows skip and Esc closes it.
+        // Space plays and pauses wherever focus is in the main window, except
+        // while typing. With a Plex title up, the arrows skip and Esc closes it.
+        // A sheet or Settings keeps these keys for its own controls.
         // Local monitors run on the main thread.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let plain = event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
             guard plain else { return event }
             let keyCode = event.keyCode
             let handled = MainActor.assumeIsolated { () -> Bool in
-                guard !(event.window?.firstResponder is NSText) else { return false }
+                guard let window = event.window, window === Self.mainWindow,
+                      !(window.firstResponder is NSText) else { return false }
                 if let session = Self.vod?.session {
                     let player = session.player
                     switch keyCode {
@@ -172,8 +176,20 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        Self.vod?.close()
-        Self.playback?.stop()
+    /// Plex hears that playback stopped before the app goes: a title's resume
+    /// point and watched mark, a Live TV channel's tuner. A slow server gets
+    /// three seconds, not a hang.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let reports = [Self.vod?.close(), Self.playback?.stop()].compactMap { $0 }
+        guard !reports.isEmpty else { return .terminateNow }
+        Task {
+            for report in reports { await report.value }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }

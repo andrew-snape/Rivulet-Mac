@@ -34,10 +34,11 @@ RivuletCore/            # Plex and Live TV logic, no views. The ONE Plex client
 │                       #   Some tvOS-only leftovers (TMDB, Downloads, Sentry) still
 │                       #   compile here unused.
 RivuletMac/
-├── RivuletMacApp.swift # App, Playback menu, MacAppDelegate (Space / arrows / Esc monitor)
+├── RivuletMacApp.swift # App, Playback menu, MacAppDelegate (Space / arrows / Esc monitor,
+│                       #   quit waits up to 3 s for Plex's stopped reports)
 ├── MacRootView.swift   # Sidebar shell: Home, Search, libraries, Live TV; VOD overlay
 ├── MacSettingsView.swift # Plex (account, server, quality, skipping), Sources, Playback
-├── MacSupport.swift    # MacArtworkCache, channel logo, CaptionStyle.font(ofSize:)
+├── MacSupport.swift    # MacArtworkCache, channel logo, CaptionStyle.font(ofSize:), MacWindowReader
 ├── Plex/               # MacPlexSession (+Content, +Account, +Playback): the content
 │                       #   store, ported from the iOS app's IOSPlexSession; the views
 │                       #   (Home, Library, See All, Search, Detail, sign-in, profiles)
