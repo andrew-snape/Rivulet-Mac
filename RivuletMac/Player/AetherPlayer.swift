@@ -152,6 +152,12 @@ final class AetherPlayer: ObservableObject {
         case live(url: URL, headers: [String: String], forceEngineDemux: Bool)
     }
 
+    /// A channel rather than a Plex title, so a failure names the right thing.
+    private var isLiveLoad: Bool {
+        if case .live? = lastLoad { return true }
+        return false
+    }
+
     /// AVPlayerLayer does not paint remote HLS captions when the host draws
     /// its own controls, so forward native legible output to the overlay.
     private final class NativeLegibleBridge: NSObject, AVPlayerItemLegibleOutputPushDelegate {
@@ -195,7 +201,7 @@ final class AetherPlayer: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state, errorInfo in
                 guard let self else { return }
-                self.state = Self.translate(state, errorInfo: errorInfo)
+                self.state = Self.translate(state, errorInfo: errorInfo, isLive: self.isLiveLoad)
                 if case .error = state { self.canRetry = errorInfo?.kind != .dolbyVisionRequiresHardware }
                 self.recomputeBuffering()
             }
@@ -522,7 +528,7 @@ final class AetherPlayer: ObservableObject {
         guard !Self.isCancellation(error) else { return }
         isStarting = false
         canRetry = engine.errorInfo?.kind != .dolbyVisionRequiresHardware
-        state = .failed(Self.userFacingFailure(engine.errorInfo))
+        state = .failed(Self.userFacingFailure(engine.errorInfo, isLive: isLiveLoad))
     }
 
     /// The engine's coded dimensions until the item reports its own size.
@@ -674,20 +680,22 @@ final class AetherPlayer: ObservableObject {
 
     // MARK: - Translation
 
-    private static func translate(_ state: PlaybackState, errorInfo: PlaybackErrorInfo?) -> State {
+    private static func translate(_ state: PlaybackState, errorInfo: PlaybackErrorInfo?, isLive: Bool) -> State {
         switch state {
         case .idle: return .idle
         case .loading, .seeking: return .loading
         case .playing: return .playing
         case .paused: return .paused
         case .ended: return .ended
-        case .error: return .failed(userFacingFailure(errorInfo))
+        case .error: return .failed(userFacingFailure(errorInfo, isLive: isLive))
         }
     }
 
     /// Only kinds that change what the viewer should do get their own sentence.
-    private static func userFacingFailure(_ info: PlaybackErrorInfo?) -> String {
-        let generic = "This channel couldn't be played. Check your connection and try again."
+    private static func userFacingFailure(_ info: PlaybackErrorInfo?, isLive: Bool) -> String {
+        let generic = isLive
+            ? "This channel couldn't be played. Check your connection and try again."
+            : "This video couldn't be played. Check your connection and try again."
         guard let kind = info?.kind else { return generic }
         switch kind {
         case .sourceRateLimited:

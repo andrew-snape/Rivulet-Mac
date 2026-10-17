@@ -45,6 +45,10 @@ struct MacPlayerView: View {
         }
         .onAppear { scheduleHide(after: .seconds(3)) }
         .onChange(of: playback.channel?.id) { showControls() }
+        // A slow tune or a resume from the keyboard leaves the pointer still, so fade from here too.
+        .onChange(of: player.state) { _, state in
+            if state == .playing { scheduleHide(after: .seconds(3)) }
+        }
     }
 
     @ViewBuilder

@@ -75,12 +75,13 @@ struct MacVODPlayerView: View {
                 player.surface
                 MacCaptionOverlay(player: player, container: proxy.size)
                     .allowsHitTesting(false)
-                status
                 // Clicks on the picture, under the controls: double for full screen, single for play/pause.
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) { NSApp.keyWindow?.toggleFullScreen(nil) }
                     .onTapGesture { player.togglePlayPause() }
+                // Above the click layer, so the failure's buttons take clicks.
+                status
                 VStack(spacing: 0) {
                     topBar
                     Spacer()
@@ -106,6 +107,10 @@ struct MacVODPlayerView: View {
         }
         .environment(\.colorScheme, .dark)
         .onAppear { scheduleHide(after: .seconds(3)) }
+        // A slow start or a resume from the keyboard leaves the pointer still, so fade from here too.
+        .onChange(of: player.state) { _, state in
+            if state == .playing { scheduleHide(after: .seconds(3)) }
+        }
     }
 
     // MARK: Status

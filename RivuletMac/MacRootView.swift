@@ -54,6 +54,10 @@ struct MacRootView: View {
             if old == .liveTV, new != .liveTV { live.stop() }
         }
         .onChange(of: plex.sessionGeneration) { path = NavigationPath() }
+        // Signing out, from the sidebar or from Settings, ends the Plex title playing.
+        .onChange(of: plex.isSignedIn) { _, signedIn in
+            if !signedIn { playback.close() }
+        }
         .onChange(of: searchQuery) { _, query in
             if !query.isEmpty, section != .search { section = .search }
         }
@@ -120,10 +124,7 @@ struct MacRootView: View {
                     Button("Switch Profile…") { choosingProfile = true }
                 }
                 Divider()
-                Button("Sign Out of Plex", role: .destructive) {
-                    playback.close()
-                    plex.signOut()
-                }
+                Button("Sign Out of Plex", role: .destructive) { plex.signOut() }
             } label: {
                 HStack(spacing: 8) {
                     MacPlexAvatar(url: profiles.selectedUser?.avatarURL ?? plex.profileImageURL, size: 26)
