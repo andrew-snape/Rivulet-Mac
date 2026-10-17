@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
-import UIKit
+import CoreGraphics
 import CoreText
 import MediaAccessibility
 
 // MARK: - CaptionStyle
 
 /// Snapshot of the system caption appearance preferences.
+///
+/// Colours are `CGColor` and the font is a descriptor so every app can read
+/// this; each app turns them into its own `UIColor` / `NSColor` and builds the
+/// font in its caption renderer (`font(ofSize:)`).
 // CTFontDescriptor is a CF type with no Sendable conformance; this struct is
 // only ever read/written on MainActor so the unchecked conformance is safe.
 struct CaptionStyle: Equatable, @unchecked Sendable {
 
     /// Text/foreground color.
-    var foreground: UIColor
+    var foreground: CGColor
 
     /// True when the system lets the CONTENT's own colour win — the "Video
     /// Override" state in tvOS caption settings, reported as
@@ -28,7 +32,7 @@ struct CaptionStyle: Equatable, @unchecked Sendable {
     var foregroundOpacity: Double
 
     /// Character-cell background color.
-    var backgroundColor: UIColor
+    var backgroundColor: CGColor
 
     /// Opacity of the character-cell background (0...1).
     var backgroundOpacity: Double
@@ -59,21 +63,11 @@ struct CaptionStyle: Equatable, @unchecked Sendable {
         case uniform
     }
 
-    /// Builds the caption font for the system settings at a concrete point size.
-    /// Uses the configured caption font descriptor when available. `CTFont` and
-    /// `UIFont` are toll-free bridged, so the descriptor path costs no copy.
-    func font(ofSize size: CGFloat) -> UIFont {
-        if let fontDescriptor {
-            return CTFontCreateWithFontDescriptor(fontDescriptor, size, nil) as UIFont
-        }
-        return .systemFont(ofSize: size, weight: .medium)
-    }
-
     static let `default` = CaptionStyle(
-        foreground: .white,
+        foreground: CGColor(gray: 1, alpha: 1),
         allowsContentColor: true,
         foregroundOpacity: 1.0,
-        backgroundColor: .black,
+        backgroundColor: CGColor(gray: 0, alpha: 1),
         backgroundOpacity: 0.75,
         fontScale: 1.0,
         allowsContentFontSize: true,
@@ -159,7 +153,7 @@ enum CaptionAppearance {
         func contentMayOverride() -> Bool { behavior == .useContentIfAvailable }
 
         let fgUnmanaged = MACaptionAppearanceCopyForegroundColor(.user, &behavior)
-        let foreground = UIColor(cgColor: fgUnmanaged.takeRetainedValue())
+        let foreground = fgUnmanaged.takeRetainedValue()
         let allowsContentColor = contentMayOverride()
         let rawFgOpacity = Double(MACaptionAppearanceGetForegroundOpacity(.user, &behavior))
         let foregroundOpacity = rawFgOpacity > 0 ? min(rawFgOpacity, 1.0) : 1.0
@@ -175,7 +169,7 @@ enum CaptionAppearance {
         let windowOpacity = Double(MACaptionAppearanceGetWindowOpacity(.user, &behavior))
 
         let useWindow = bgOpacity <= 0.01 && windowOpacity > 0.01
-        let backgroundColor = UIColor(cgColor: useWindow ? windowCG : bgCG)
+        let backgroundColor = useWindow ? windowCG : bgCG
         let backgroundOpacity = useWindow ? windowOpacity : bgOpacity
 
         // Font scale

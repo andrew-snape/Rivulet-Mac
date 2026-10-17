@@ -20,15 +20,6 @@
       }
     },
     {
-      "identity" : "libassbuild",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/l984-451/LibassBuild",
-      "state" : {
-        "revision" : "434a18a439ece78631d671cce0ee7bab1622f725",
-        "version" : "0.17.5-2"
-      }
-    },
-    {
       "identity" : "libdovi",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/superuser404notfound/LibDovi",

@@ -1,8 +1,8 @@
 name: SwiftLint
 
 # Enforces Rivulet's own architectural rules only (see .swiftlint.yml — every
-# stock rule is off). Runs on Linux via the official container. Compile checks
-# live in build-ios.yml / build-tvos-core.yml; archives stay on Codemagic.
+# stock rule is off). Runs on Linux via the official container. The compile
+# check lives in build-macos.yml.
 on:
   pull_request:
     paths:

@@ -31,20 +31,20 @@ body:
       required: true
 
   - type: input
-    id: appletv-model
+    id: mac-model
     attributes:
-      label: Apple TV model
-      description: Found in Settings → General → About (e.g. Apple TV 4K (3rd generation), Apple TV HD)
-      placeholder: "Apple TV 4K (3rd generation)"
+      label: Mac model
+      description: Found in Apple menu → About This Mac (e.g. MacBook Air M3)
+      placeholder: "MacBook Air M3"
     validations:
       required: true
 
   - type: input
-    id: tvos-version
+    id: macos-version
     attributes:
-      label: tvOS version
-      description: Found in Settings → General → About (e.g. 18.2)
-      placeholder: "18.2"
+      label: macOS version
+      description: Found in Apple menu → About This Mac (e.g. 26.1)
+      placeholder: "26.1"
     validations:
       required: true
 
