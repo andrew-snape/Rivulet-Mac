@@ -73,7 +73,7 @@ final class MacPlaybackController: ObservableObject {
 
     /// Pinning is a per-session choice and resets when playback ends.
     func setAlwaysOnTop(_ enabled: Bool) {
-        isAlwaysOnTop = session != nil && enabled
+        isAlwaysOnTop = enabled
         MacAppDelegate.mainWindow?.level = windowLevel
     }
 
@@ -82,7 +82,7 @@ final class MacPlaybackController: ObservableObject {
     }
 
     private var windowLevel: NSWindow.Level {
-        session != nil && isAlwaysOnTop ? .floating : .normal
+        isAlwaysOnTop ? .floating : .normal
     }
 
     func configureRemoteCommands() {

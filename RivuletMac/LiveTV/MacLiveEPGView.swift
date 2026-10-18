@@ -27,7 +27,7 @@ struct MacLiveEPGView: View {
     fileprivate static let secondsPerHour: TimeInterval = 3600
     fileprivate static let secondsPerMinute: TimeInterval = 60
     fileprivate static let guideHoursPerLoad = 6
-    fileprivate static let hoursBeforeNow = 2
+    fileprivate static let hoursBeforeNow = 0
 
     var body: some View {
         VStack(spacing: 8) {
@@ -231,7 +231,7 @@ struct MacLiveEPGView: View {
         }
     }
 
-    /// Keeps two past hours visible and rounds the six-hour future edge to an hour boundary.
+    /// Starts at the current hour (so the guide opens at now) and rounds the six-hour future edge to an hour boundary.
     private func guideWindow(at now: Date) -> (start: Date, end: Date) {
         let start = Calendar.current.dateInterval(
             of: .hour, for: now.addingTimeInterval(-Double(Self.hoursBeforeNow) * Self.secondsPerHour)

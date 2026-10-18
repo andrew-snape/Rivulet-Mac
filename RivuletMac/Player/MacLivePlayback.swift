@@ -66,6 +66,7 @@ final class MacLivePlayback: ObservableObject {
         watchTask?.cancel()
         let released = keepalive.stop()
         player.stop()
+        if channel != nil { MacAppDelegate.vod?.setAlwaysOnTop(false) }
         channel = nil
         notice = nil
         return released
