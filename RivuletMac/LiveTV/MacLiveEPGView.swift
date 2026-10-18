@@ -43,7 +43,7 @@ struct MacLiveEPGView: View {
             }
             .padding(.horizontal, 10)
 
-            TimelineView(.periodic(from: .now, by: Self.secondsPerHour)) { context in
+            TimelineView(.periodic(from: .now, by: Self.secondsPerMinute)) { context in
                 grid(at: context.date)
             }
         }
