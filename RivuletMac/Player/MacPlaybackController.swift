@@ -384,13 +384,13 @@ struct MacVODPlayerView: View {
         let item = session.request.item
         return HStack(alignment: .top, spacing: 14) {
             Button(action: close) {
-                Image(systemName: "xmark")
+                Image(systemName: "chevron.backward")
                     .font(.title3.weight(.semibold))
                     .frame(width: 36, height: 36)
                     .background(.regularMaterial, in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Close (Esc)")
+            .help("Back (Esc)")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.type == "episode" ? item.showTitle : item.displayTitle)
