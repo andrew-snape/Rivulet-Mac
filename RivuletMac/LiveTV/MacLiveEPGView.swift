@@ -8,6 +8,7 @@ import SwiftUI
 struct MacLiveEPGView: View {
     let channels: [UnifiedChannel]
     let query: String
+    let lineupRevision: Int
 
     @EnvironmentObject private var playback: MacLivePlayback
     @ObservedObject private var store = LiveTVDataStore.shared
@@ -15,10 +16,15 @@ struct MacLiveEPGView: View {
     @State private var cachedSearchQuery = ""
     @State private var cachedProgramMatches = Set<String>()
 
-    private static let channelWidth: CGFloat = 170
-    private static let hourWidth: CGFloat = 240
-    private static let headerHeight: CGFloat = 38
-    private static let rowHeight: CGFloat = 74
+    fileprivate static let channelWidth: CGFloat = 170
+    fileprivate static let hourWidth: CGFloat = 240
+    fileprivate static let headerHeight: CGFloat = 38
+    fileprivate static let rowHeight: CGFloat = 74
+    fileprivate static let secondsPerHour: TimeInterval = 3600
+    fileprivate static let secondsPerMinute: TimeInterval = 60
+    fileprivate static let guideHoursPerLoad = 6
+    fileprivate static let hoursBeforeNow = 2
+    fileprivate static let minimumProgramWidth: CGFloat = 36
 
     var body: some View {
         VStack(spacing: 8) {
@@ -29,14 +35,14 @@ struct MacLiveEPGView: View {
                 if store.isLoadingEPG {
                     ProgressView().controlSize(.small)
                 }
-                Button("Load 6 More Hours") {
-                    Task { await store.extendEPG(byHours: 6) }
+                Button("Load \(Self.guideHoursPerLoad) More Hours") {
+                    Task { await store.extendEPG(byHours: Self.guideHoursPerLoad) }
                 }
                 .disabled(store.isExtendingEPG || store.epgLoadedThrough == nil)
             }
             .padding(.horizontal, 10)
 
-            TimelineView(.periodic(from: .now, by: 3600)) { context in
+            TimelineView(.periodic(from: .now, by: Self.secondsPerHour)) { context in
                 grid(at: context.date)
             }
         }
@@ -46,8 +52,11 @@ struct MacLiveEPGView: View {
     }
 
     private var searchKey: MacEPGSearchKey {
-        MacEPGSearchKey(query: query, epgRevision: epgRevision,
-                        windowHour: Int(Date.now.timeIntervalSince1970 / 3600), channelIDs: channels.map(\.id))
+        MacEPGSearchKey(
+            query: query, epgRevision: epgRevision,
+            windowHour: Int(Date.now.timeIntervalSince1970 / Self.secondsPerHour),
+            lineupRevision: lineupRevision
+        )
     }
 
     @ViewBuilder
@@ -55,9 +64,9 @@ struct MacLiveEPGView: View {
         let window = guideWindow(at: now)
         let start = window.start
         let end = window.end
-        let duration = max(3600, end.timeIntervalSince(start))
-        let timelineWidth = CGFloat(duration / 3600) * Self.hourWidth
-        let hourCount = Int(ceil(duration / 3600))
+        let duration = max(Self.secondsPerHour, end.timeIntervalSince(start))
+        let timelineWidth = CGFloat(duration / Self.secondsPerHour) * Self.hourWidth
+        let hourCount = Int(ceil(duration / Self.secondsPerHour))
         let result = queryMatches
         let visibleChannels = filteredChannels(programMatches: result)
         let height = Self.headerHeight + CGFloat(visibleChannels.count) * Self.rowHeight
@@ -78,8 +87,10 @@ struct MacLiveEPGView: View {
                         timeHeader(start: start, hourCount: hourCount, timelineWidth: timelineWidth)
                         LazyVStack(spacing: 0) {
                             ForEach(visibleChannels) { channel in
-                                channelRow(channel, programs: nil,
-                                           start: start, end: end, timelineWidth: timelineWidth)
+                                MacEPGChannelRow(
+                                    channel: channel, start: start, end: end,
+                                    timelineWidth: timelineWidth, epgRevision: epgRevision
+                                )
                             }
                         }
                     }
@@ -106,7 +117,8 @@ struct MacLiveEPGView: View {
             HStack(spacing: 0) {
                 ForEach(0..<hourCount, id: \.self) { index in
                     let width = min(Self.hourWidth, timelineWidth - CGFloat(index) * Self.hourWidth)
-                    Text(start.addingTimeInterval(Double(index) * 3600).formatted(.dateTime.hour().minute()))
+                    Text(start.addingTimeInterval(Double(index) * Self.secondsPerHour)
+                        .formatted(.dateTime.hour().minute()))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: width, height: Self.headerHeight, alignment: .leading)
@@ -121,93 +133,6 @@ struct MacLiveEPGView: View {
         }
         .background(.background)
         .overlay(alignment: .bottom) { Divider() }
-    }
-
-    private func channelRow(
-        _ channel: UnifiedChannel,
-        programs: [UnifiedProgram]?,
-        start: Date,
-        end: Date,
-        timelineWidth: CGFloat
-    ) -> some View {
-        let programs = programs ?? store.getPrograms(for: channel, startDate: start, endDate: end)
-        return HStack(spacing: 0) {
-            Button {
-                playback.play(channel)
-            } label: {
-                HStack(spacing: 8) {
-                    MacChannelLogo(url: channel.logoURL)
-                        .frame(width: 42, height: 30)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(channel.numberAndName)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(2)
-                        if store.isFavorite(channel) {
-                            Image(systemName: "star.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.yellow)
-                                .accessibilityLabel("Favourite")
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 8)
-                .frame(width: Self.channelWidth, height: Self.rowHeight, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Watch \(channel.name)")
-            .contextMenu {
-                Button("Play") { playback.play(channel) }
-                Button(store.isFavorite(channel) ? "Remove from Favourites" : "Add to Favourites") {
-                    store.toggleFavorite(channel)
-                }
-            }
-
-            ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color(nsColor: .windowBackgroundColor))
-                ForEach(0..<Int(ceil(timelineWidth / Self.hourWidth)), id: \.self) { index in
-                    Rectangle()
-                        .fill(Color(nsColor: .separatorColor).opacity(0.35))
-                        .frame(width: 1)
-                        .offset(x: CGFloat(index) * Self.hourWidth)
-                }
-
-                if programs.isEmpty {
-                    Text("No guide data")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 8)
-                        .frame(height: Self.rowHeight, alignment: .center)
-                } else {
-                    ForEach(programs) { program in
-                        let clippedStart = max(program.startTime, start)
-                        let clippedEnd = min(program.endTime, end)
-                        let width = max(36, CGFloat(clippedEnd.timeIntervalSince(clippedStart) / 3600) * Self.hourWidth)
-                        Button {
-                            playback.play(channel)
-                        } label: {
-                            MacEPGProgramCell(program: program)
-                                .frame(width: width, height: Self.rowHeight - 8)
-                                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .help("\(program.displayTitle), \(program.timeRange). Watch \(channel.name)")
-                        .contextMenu {
-                            Button("Watch \(channel.name)") { playback.play(channel) }
-                        }
-                        .position(
-                            x: CGFloat(clippedStart.timeIntervalSince(start) / 3600) * Self.hourWidth + width / 2,
-                            y: Self.rowHeight / 2
-                        )
-                    }
-                }
-            }
-            .frame(width: timelineWidth, height: Self.rowHeight)
-            .overlay(alignment: .bottom) { Divider() }
-        }
-        .frame(height: Self.rowHeight)
     }
 
     private var queryMatches: Set<String> {
@@ -248,25 +173,143 @@ struct MacLiveEPGView: View {
     }
 
     private func guideWindow(at now: Date) -> (start: Date, end: Date) {
-        let start = Calendar.current.dateInterval(of: .hour, for: now.addingTimeInterval(-2 * 3600))?.start ?? now
-        let end = max(store.epgLoadedThrough ?? now.addingTimeInterval(6 * 3600),
-                      now.addingTimeInterval(6 * 3600))
+        let start = Calendar.current.dateInterval(
+            of: .hour, for: now.addingTimeInterval(-Double(Self.hoursBeforeNow) * Self.secondsPerHour)
+        )?.start ?? now
+        let initialEnd = now.addingTimeInterval(Double(Self.guideHoursPerLoad) * Self.secondsPerHour)
+        let end = max(store.epgLoadedThrough ?? initialEnd, initialEnd)
         return (start, end)
     }
+}
+
+private struct MacEPGChannelRow: View {
+    let channel: UnifiedChannel
+    let start: Date
+    let end: Date
+    let timelineWidth: CGFloat
+    let epgRevision: Int
+
+    @EnvironmentObject private var playback: MacLivePlayback
+    @ObservedObject private var store = LiveTVDataStore.shared
+    @State private var programs: [UnifiedProgram]?
+
+    private var scheduleKey: MacEPGRowScheduleKey {
+        MacEPGRowScheduleKey(channelID: channel.id, start: start, end: end, revision: epgRevision)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button {
+                playback.play(channel)
+            } label: {
+                HStack(spacing: 8) {
+                    MacChannelLogo(url: channel.logoURL)
+                        .frame(width: 42, height: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(channel.numberAndName)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(2)
+                        if store.isFavorite(channel) {
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                                .accessibilityLabel("Favourite")
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8)
+                .frame(width: MacLiveEPGView.channelWidth, height: MacLiveEPGView.rowHeight, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Watch \(channel.name)")
+            .contextMenu {
+                Button("Play") { playback.play(channel) }
+                Button(store.isFavorite(channel) ? "Remove from Favourites" : "Add to Favourites") {
+                    store.toggleFavorite(channel)
+                }
+            }
+
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .fill(Color(nsColor: .windowBackgroundColor))
+                ForEach(0..<Int(ceil(timelineWidth / MacLiveEPGView.hourWidth)), id: \.self) { index in
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor).opacity(0.35))
+                        .frame(width: 1)
+                        .offset(x: CGFloat(index) * MacLiveEPGView.hourWidth)
+                }
+
+                if let programs, programs.isEmpty {
+                    Text("No guide data")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 8)
+                        .frame(height: MacLiveEPGView.rowHeight, alignment: .center)
+                } else if let programs {
+                    ForEach(programs) { program in
+                        let clippedStart = max(program.startTime, start)
+                        let clippedEnd = min(program.endTime, end)
+                        let width = max(
+                            MacLiveEPGView.minimumProgramWidth,
+                            CGFloat(clippedEnd.timeIntervalSince(clippedStart) / MacLiveEPGView.secondsPerHour)
+                                * MacLiveEPGView.hourWidth
+                        )
+                        Button {
+                            playback.play(channel)
+                        } label: {
+                            MacEPGProgramCell(program: program)
+                                .frame(width: width, height: MacLiveEPGView.rowHeight - 8)
+                                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .help("\(program.displayTitle), \(program.timeRange). Watch \(channel.name)")
+                        .contextMenu {
+                            Button("Watch \(channel.name)") { playback.play(channel) }
+                        }
+                        .position(
+                            x: CGFloat(clippedStart.timeIntervalSince(start) / MacLiveEPGView.secondsPerHour)
+                                * MacLiveEPGView.hourWidth
+                                + width / 2,
+                            y: MacLiveEPGView.rowHeight / 2
+                        )
+                    }
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(height: MacLiveEPGView.rowHeight)
+                }
+            }
+            .frame(width: timelineWidth, height: MacLiveEPGView.rowHeight)
+            .overlay(alignment: .bottom) { Divider() }
+        }
+        .frame(height: MacLiveEPGView.rowHeight)
+        .task(id: scheduleKey) {
+            programs = store.getPrograms(for: channel, startDate: start, endDate: end)
+        }
+    }
+}
+
+private struct MacEPGRowScheduleKey: Equatable {
+    let channelID: String
+    let start: Date
+    let end: Date
+    let revision: Int
 }
 
 private struct MacEPGSearchKey: Equatable {
     let query: String
     let epgRevision: Int
     let windowHour: Int
-    let channelIDs: [String]
+    let lineupRevision: Int
 }
 
 private struct MacEPGProgramCell: View {
     let program: UnifiedProgram
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
+        TimelineView(.periodic(from: .now, by: MacLiveEPGView.secondsPerMinute)) { context in
             content(at: context.date)
         }
     }
@@ -321,12 +364,15 @@ private struct MacEPGNowIndicator: View {
     let hourWidth: CGFloat
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
+        TimelineView(.periodic(from: .now, by: MacLiveEPGView.secondsPerMinute)) { context in
             if context.date >= start, context.date < end {
                 Rectangle()
                     .fill(.red)
                     .frame(width: 2, height: height)
-                    .offset(x: channelWidth + CGFloat(context.date.timeIntervalSince(start) / 3600) * hourWidth)
+                    .offset(
+                        x: channelWidth
+                            + CGFloat(context.date.timeIntervalSince(start) / MacLiveEPGView.secondsPerHour) * hourWidth
+                    )
                     .accessibilityHidden(true)
             }
         }

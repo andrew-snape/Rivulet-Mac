@@ -24,6 +24,7 @@ struct MacLiveTVView: View {
     @State private var query = ""
     @State private var groups: [String] = []
     @State private var layout = MacLiveTVLayout.channels
+    @State private var lineupRevision = 0
 
     var body: some View {
         Group {
@@ -35,7 +36,7 @@ struct MacLiveTVView: View {
                         VStack(spacing: 0) {
                             filterBar
                             if layout == .guide {
-                                MacLiveEPGView(channels: lineup, query: query)
+                                MacLiveEPGView(channels: lineup, query: query, lineupRevision: lineupRevision)
                             } else {
                                 MacChannelList(channels: lineup, query: query, emptyText: emptyText)
                             }
@@ -56,7 +57,10 @@ struct MacLiveTVView: View {
             groups = Array(Set(channels.compactMap(\.groupTitle).filter { !$0.isEmpty }))
                 .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         }
-        .onChange(of: lineup.map(\.id), initial: true) { playback.lineup = lineup }
+        .onChange(of: lineup.map(\.id), initial: true) {
+            playback.lineup = lineup
+            lineupRevision += 1
+        }
     }
 
     private var filterBar: some View {

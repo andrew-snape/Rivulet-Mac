@@ -77,11 +77,11 @@ final class MacPlaybackController: ObservableObject {
     /// Pinning applies only while a Plex title is in the player, not while browsing.
     func setAlwaysOnTop(_ enabled: Bool) {
         isAlwaysOnTop = enabled
-        MacAppDelegate.mainWindow?.level = enabled ? .floating : .normal
+        MacAppDelegate.mainWindow?.level = session != nil && enabled ? .floating : .normal
     }
 
     func applyWindowLevel(to window: NSWindow) {
-        window.level = isAlwaysOnTop ? .floating : .normal
+        window.level = session != nil && isAlwaysOnTop ? .floating : .normal
     }
 
     private func configureRemoteCommands() {
@@ -160,6 +160,7 @@ final class MacPlaybackController: ObservableObject {
         guard let session else { return }
         let item = session.request.item
         let player = session.player
+        let nowPlaying = MPNowPlayingInfoCenter.default()
         let elapsed = player.pendingSeekTarget ?? player.currentTime
         var information: [String: Any] = [
             MPMediaItemPropertyTitle: item.displayTitle,
@@ -174,7 +175,15 @@ final class MacPlaybackController: ObservableObject {
         if item.type == "episode" {
             information[MPMediaItemPropertyAlbumTitle] = item.showTitle
         }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = information
+        nowPlaying.nowPlayingInfo = information
+        switch player.state {
+        case .playing:
+            nowPlaying.playbackState = .playing
+        case .ended, .failed, .idle:
+            nowPlaying.playbackState = .stopped
+        case .loading, .paused:
+            nowPlaying.playbackState = .paused
+        }
     }
 
     private func updateRemoteCommandAvailability(for session: MacPlexPlayback?) {
@@ -192,8 +201,15 @@ final class MacPlaybackController: ObservableObject {
 
     private func remotePlay() -> MPRemoteCommandHandlerStatus {
         guard let player = session?.player else { return .commandFailed }
-        if player.state != .playing { player.togglePlayPause() }
-        return .success
+        switch player.state {
+        case .playing:
+            return .success
+        case .paused:
+            player.togglePlayPause()
+            return .success
+        default:
+            return .commandFailed
+        }
     }
 
     private func remotePause() -> MPRemoteCommandHandlerStatus {
