@@ -13,10 +13,6 @@ enum MacChannelFilter: Hashable {
     case group(String)
 }
 
-private var layout: MacLiveTVLayout {
-    MacLiveTVLayout(rawValue: layoutRaw) ?? .channels
-}
-
 /// Live TV: the channel list on the left, the player on the right. Picking a
 /// channel plays it in place; the arrow keys in the list change channel.
 /// In full screen the list steps aside.
@@ -29,6 +25,10 @@ struct MacLiveTVView: View {
     @State private var groups: [String] = []
     @AppStorage("macLiveTVLayout") private var layoutRaw = MacLiveTVLayout.channels.rawValue
     @State private var lineupRevision = 0
+
+    private var layout: MacLiveTVLayout {
+        MacLiveTVLayout(rawValue: layoutRaw) ?? .channels
+    }
 
     var body: some View {
         Group {
