@@ -76,8 +76,9 @@ final class MacPlaybackController: ObservableObject {
 
     /// Pinning is a per-session choice and resets when playback ends.
     func setAlwaysOnTop(_ enabled: Bool) {
-        isAlwaysOnTop = enabled
-        MacAppDelegate.mainWindow?.level = session != nil && enabled ? .floating : .normal
+        let shouldPin = session != nil && enabled
+        isAlwaysOnTop = shouldPin
+        MacAppDelegate.mainWindow?.level = shouldPin ? .floating : .normal
     }
 
     func applyWindowLevel(to window: NSWindow) {
@@ -88,37 +89,66 @@ final class MacPlaybackController: ObservableObject {
         // This controller is an app-lifetime StateObject, so the shared command
         // center receives one set of handlers for the lifetime of the app.
         let commands = MPRemoteCommandCenter.shared()
-        commands.playCommand.addTarget { [weak self] _ in self?.remotePlay() ?? .commandFailed }
-        commands.pauseCommand.addTarget { [weak self] _ in self?.remotePause() ?? .commandFailed }
-        commands.togglePlayPauseCommand.addTarget { [weak self] _ in self?.remoteToggle() ?? .commandFailed }
-        commands.stopCommand.addTarget { [weak self] _ in self?.remoteStop() ?? .commandFailed }
+        commands.playCommand.addTarget { [weak self] _ in
+            Self.handleRemoteCommand { self?.remotePlay() ?? .commandFailed }
+        }
+        commands.pauseCommand.addTarget { [weak self] _ in
+            Self.handleRemoteCommand { self?.remotePause() ?? .commandFailed }
+        }
+        commands.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Self.handleRemoteCommand { self?.remoteToggle() ?? .commandFailed }
+        }
+        commands.stopCommand.addTarget { [weak self] _ in
+            Self.handleRemoteCommand { self?.remoteStop() ?? .commandFailed }
+        }
 
         commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipBackwardInterval)]
         commands.skipBackwardCommand.addTarget { [weak self] event in
             guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
                 return .commandFailed
             }
-            return self?.remoteSkip(by: -abs(event.interval)) ?? .commandFailed
+            return Self.handleRemoteCommand {
+                self?.remoteSkip(by: -abs(event.interval)) ?? .commandFailed
+            }
         }
         commands.skipForwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipForwardInterval)]
         commands.skipForwardCommand.addTarget { [weak self] event in
             guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
                 return .commandFailed
             }
-            return self?.remoteSkip(by: abs(event.interval)) ?? .commandFailed
+            return Self.handleRemoteCommand {
+                self?.remoteSkip(by: abs(event.interval)) ?? .commandFailed
+            }
         }
 
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let self,
-                  let position = event as? MPChangePlaybackPositionCommandEvent,
-                  position.positionTime.isFinite,
-                  let player = self.session?.player else { return .commandFailed }
-            let target = player.duration > 0 ? min(max(position.positionTime, 0), player.duration) : max(position.positionTime, 0)
-            Task { await player.seek(to: target) }
-            return .success
+            Self.handleRemoteCommand {
+                guard let self,
+                      let position = event as? MPChangePlaybackPositionCommandEvent,
+                      position.positionTime.isFinite,
+                      let player = self.session?.player else { return .commandFailed }
+                let target = player.duration > 0
+                    ? min(max(position.positionTime, 0), player.duration)
+                    : max(position.positionTime, 0)
+                Task { await player.seek(to: target) }
+                return .success
+            }
         }
-        commands.nextTrackCommand.addTarget { [weak self] _ in self?.remoteNext() ?? .commandFailed }
+        commands.nextTrackCommand.addTarget { [weak self] _ in
+            Self.handleRemoteCommand { self?.remoteNext() ?? .commandFailed }
+        }
         updateRemoteCommandAvailability(for: nil)
+    }
+
+    private nonisolated static func handleRemoteCommand(
+        _ action: @MainActor () -> MPRemoteCommandHandlerStatus
+    ) -> MPRemoteCommandHandlerStatus {
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated(action)
+        }
+        return DispatchQueue.main.sync {
+            MainActor.assumeIsolated(action)
+        }
     }
 
     private func observeNowPlaying(for session: MacPlexPlayback) {

@@ -10,7 +10,6 @@ struct MacLiveEPGView: View {
     let query: String
     let lineupRevision: Int
 
-    @EnvironmentObject private var playback: MacLivePlayback
     @ObservedObject private var store = LiveTVDataStore.shared
     @State private var epgRevision = 0
     @State private var searchWindowHour = 0
@@ -93,7 +92,7 @@ struct MacLiveEPGView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(visibleChannels) { channel in
                                 MacEPGChannelRow(
-                                    channel: channel, start: start, end: end,
+                                    channel: channel, start: start, end: end, now: now,
                                     timelineWidth: timelineWidth, epgRevision: epgRevision
                                 )
                             }
@@ -101,7 +100,7 @@ struct MacLiveEPGView: View {
                     }
 
                     MacEPGNowIndicator(
-                        start: start, end: end, height: height, timelineWidth: timelineWidth,
+                        now: now, start: start, end: end, height: height, timelineWidth: timelineWidth,
                         channelWidth: Self.channelWidth, hourWidth: Self.hourWidth
                     )
                 }
@@ -164,17 +163,29 @@ struct MacLiveEPGView: View {
         try? await Task.sleep(for: .milliseconds(200))
         guard !Task.isCancelled else { return }
         let window = guideWindow(at: .now)
-        var matches = Set<String>()
-        for (index, channel) in channels.enumerated() {
-            if index.isMultiple(of: 16), index > 0 {
-                await Task.yield()
-                guard !Task.isCancelled else { return }
+        let channels = self.channels
+        let schedules = store.epg
+        let start = window.start
+        let end = window.end
+        let searchTask = Task.detached(priority: .userInitiated) {
+            var matches = Set<String>()
+            for channel in channels {
+                guard !Task.isCancelled else { return matches }
+                guard !channel.name.localizedCaseInsensitiveContains(text),
+                      channel.channelNumber.map({ !String($0).hasPrefix(text) }) ?? true,
+                      let programs = schedules[channel.id],
+                      programs.contains(where: {
+                          $0.endTime > start && $0.startTime < end
+                              && $0.displayTitle.localizedCaseInsensitiveContains(text)
+                      }) else { continue }
+                matches.insert(channel.id)
             }
-            guard !channel.name.localizedCaseInsensitiveContains(text),
-                  channel.channelNumber.map({ !String($0).hasPrefix(text) }) ?? true,
-                  store.getPrograms(for: channel, startDate: window.start, endDate: window.end)
-                    .contains(where: { $0.displayTitle.localizedCaseInsensitiveContains(text) }) else { continue }
-            matches.insert(channel.id)
+            return matches
+        }
+        let matches = await withTaskCancellationHandler {
+            await searchTask.value
+        } onCancel: {
+            searchTask.cancel()
         }
         guard !Task.isCancelled else { return }
         cachedSearchQuery = text
@@ -211,6 +222,7 @@ private struct MacEPGChannelRow: View {
     let channel: UnifiedChannel
     let start: Date
     let end: Date
+    let now: Date
     let timelineWidth: CGFloat
     let epgRevision: Int
 
@@ -284,7 +296,7 @@ private struct MacEPGChannelRow: View {
                         Button {
                             playback.play(channel)
                         } label: {
-                            MacEPGProgramCell(program: program)
+                            MacEPGProgramCell(program: program, now: now)
                                 .frame(width: width, height: MacLiveEPGView.rowHeight - 8)
                                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                         }
@@ -333,14 +345,9 @@ private struct MacEPGSearchKey: Equatable {
 
 private struct MacEPGProgramCell: View {
     let program: UnifiedProgram
+    let now: Date
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: MacLiveEPGView.secondsPerMinute)) { context in
-            content(at: context.date)
-        }
-    }
-
-    private func content(at now: Date) -> some View {
         let isCurrent = program.startTime <= now && program.endTime > now
         let isPast = program.endTime <= now
         VStack(alignment: .leading, spacing: 4) {
@@ -382,6 +389,7 @@ private struct MacEPGProgramCell: View {
 }
 
 private struct MacEPGNowIndicator: View {
+    let now: Date
     let start: Date
     let end: Date
     let height: CGFloat
@@ -390,14 +398,14 @@ private struct MacEPGNowIndicator: View {
     let hourWidth: CGFloat
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: MacLiveEPGView.secondsPerMinute)) { context in
-            if context.date >= start, context.date < end {
+        Group {
+            if now >= start, now < end {
                 Rectangle()
                     .fill(.red)
                     .frame(width: 2, height: height)
                     .offset(
                         x: channelWidth
-                            + CGFloat(context.date.timeIntervalSince(start) / MacLiveEPGView.secondsPerHour) * hourWidth
+                            + CGFloat(now.timeIntervalSince(start) / MacLiveEPGView.secondsPerHour) * hourWidth
                     )
                     .accessibilityHidden(true)
             }
