@@ -79,40 +79,45 @@ struct MacVODPlayerView: View {
     @State private var scrubbing: Double?
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                Color.black
-                player.surface
-                MacCaptionOverlay(player: player, container: proxy.size)
-                    .allowsHitTesting(false)
-                // Clicks on the picture, under the controls: double for full screen, single for play/pause.
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) { NSApp.keyWindow?.toggleFullScreen(nil) }
-                    .onTapGesture { player.togglePlayPause() }
-                // Above the click layer, so the failure's buttons take clicks.
-                status
-                VStack(spacing: 0) {
-                    topBar
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        contextualButton
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
-                    controls
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 20)
+        ZStack {
+            // The picture fills the window, title bar included.
+            GeometryReader { proxy in
+                ZStack {
+                    Color.black
+                    player.surface
+                    MacCaptionOverlay(player: player, container: proxy.size)
+                        .allowsHitTesting(false)
+                    // Clicks on the picture, under the controls: double for full screen, single for play/pause.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { NSApp.keyWindow?.toggleFullScreen(nil) }
+                        .onTapGesture { player.togglePlayPause() }
                 }
-                .opacity(controlsVisible || player.state != .playing ? 1 : 0)
-                .animation(.easeOut(duration: 0.25), value: controlsVisible)
             }
-            .onContinuousHover { phase in
-                switch phase {
-                case .active: showControls()
-                case .ended: scheduleHide(after: .seconds(1))
+            .ignoresSafeArea()
+            // The rest keeps below the title bar, whose window buttons would take the close
+            // button's clicks, and above the click layer, so the failure's buttons take clicks.
+            status
+            VStack(spacing: 0) {
+                topBar
+                Spacer()
+                HStack {
+                    Spacer()
+                    contextualButton
                 }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+                controls
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
+            }
+            .opacity(controlsVisible || player.state != .playing ? 1 : 0)
+            .animation(.easeOut(duration: 0.25), value: controlsVisible)
+        }
+        .onContinuousHover { phase in
+            switch phase {
+            case .active: showControls()
+            case .ended: scheduleHide(after: .seconds(1))
             }
         }
         .environment(\.colorScheme, .dark)
