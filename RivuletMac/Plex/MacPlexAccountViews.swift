@@ -7,7 +7,7 @@ import SwiftUI
 /// Shown in place of Plex content: sign in, or, when signed in with content
 /// waiting on a Home profile, choose who is watching.
 struct MacPlexConnectView: View {
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @State private var showingSignIn = false
     @State private var choosingProfile = false
@@ -46,7 +46,7 @@ struct MacPlexConnectView: View {
 
 /// PIN sign-in, then server choice, then the profile picker when the Plex Home has several users.
 struct MacPlexSignInSheet: View {
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL

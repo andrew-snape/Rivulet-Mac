@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
-import Combine
+import Observation
 import SwiftUI
 
 /// A Plex item on the Mac player: timeline reports, skip markers and Up Next.
 /// Ported from the iOS app; owned by `MacPlaybackController`.
 @MainActor
-final class MacPlexPlayback: ObservableObject {
+@Observable
+final class MacPlexPlayback {
     let player = AetherPlayer()
-    @Published private(set) var request: MacPlexPlaybackRequest
-    @Published private(set) var nextEpisode: PlexMetadata?
-    @Published private(set) var upNextCountdown: Int?
-    @Published private(set) var upNextDismissed = false
+    private(set) var request: MacPlexPlaybackRequest
+    private(set) var nextEpisode: PlexMetadata?
+    private(set) var upNextCountdown: Int?
+    private(set) var upNextDismissed = false
     /// Plex stream ids picked on a transcode; subtitle 0 is Off.
-    @Published private(set) var chosenAudioID: Int?
-    @Published private(set) var chosenSubtitleID: Int?
+    private(set) var chosenAudioID: Int?
+    private(set) var chosenSubtitleID: Int?
 
     private let plex: MacPlexSession
     private var skippedMarkerIDs: Set<String> = []
@@ -34,7 +35,7 @@ final class MacPlexPlayback: ObservableObject {
     private var pendingEngineSubtitle: Int?
     private var hasPlayed = false
     private var didFallBack = false
-    private var cancellables = Set<AnyCancellable>()
+    private var observationTasks: [Task<Void, Never>] = []
 
     init(request: MacPlexPlaybackRequest, plex: MacPlexSession) {
         self.request = request
@@ -55,6 +56,7 @@ final class MacPlexPlayback: ObservableObject {
         nextTask?.cancel()
         reloadTask?.cancel()
         longStallTask?.cancel()
+        observationTasks.forEach { $0.cancel() }
         let finish = finishItem(at: player.currentTime)
         let plex = plex
         let request = request
@@ -275,46 +277,36 @@ final class MacPlexPlayback: ObservableObject {
     /// Reports on every transport change and after seeks land, plus every
     /// 10 s of playback; `.ended` reports stopped and scrobbles.
     private func observePlayer() {
-        player.$state
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in self?.stateChanged(state) }
-            .store(in: &cancellables)
-
-        player.$currentTime
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] time in self?.tick(time) }
-            .store(in: &cancellables)
-
-        player.$audioTracks
-            .combineLatest(player.$subtitleTracks)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.applyPendingEngineTracks() }
-            .store(in: &cancellables)
-
-        player.$isStalled
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.stallChanged($0) }
-            .store(in: &cancellables)
+        watch({ [player] in player.state }) { [weak self] state in self?.stateChanged(state) }
+        watch({ [player] in player.currentTime }, removingDuplicates: false) { [weak self] time in self?.tick(time) }
+        watch({ [player] in player.audioTracks }) { [weak self] _ in self?.applyPendingEngineTracks() }
+        watch({ [player] in player.subtitleTracks }) { [weak self] _ in self?.applyPendingEngineTracks() }
+        watch({ [player] in player.isStalled }) { [weak self] in self?.stallChanged($0) }
 
         // A seek buffers by design; the grace runs from its start and from its landing.
-        player.$pendingSeekTarget
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.stallTracker.noteSeekOrLoad(at: .now) }
-            .store(in: &cancellables)
+        var firstSeekValue = true
+        watch({ [player] in player.pendingSeekTarget }) { [weak self] target in
+            self?.stallTracker.noteSeekOrLoad(at: .now)
+            defer { firstSeekValue = false }
+            guard let self, !firstSeekValue, target == nil else { return }
+            self.report(self.player.state == .playing ? "playing" : "paused")
+        }
+    }
 
-        player.$pendingSeekTarget
-            .removeDuplicates()
-            .dropFirst()
-            .filter { $0 == nil }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.report(self.player.state == .playing ? "playing" : "paused")
+    /// Runs `handle` with `read`'s value now and after each change; `end()` stops it.
+    private func watch<Value: Equatable & Sendable>(
+        _ read: @escaping @MainActor @Sendable () -> Value,
+        removingDuplicates: Bool = true,
+        _ handle: @escaping @MainActor (Value) -> Void
+    ) {
+        observationTasks.append(Task {
+            var last: Value?
+            for await value in Observations(read) {
+                if removingDuplicates, value == last { continue }
+                last = value
+                handle(value)
             }
-            .store(in: &cancellables)
+        })
     }
 
     private func stateChanged(_ state: AetherPlayer.State) {
@@ -393,7 +385,6 @@ final class MacPlexPlayback: ObservableObject {
 
     func skip(_ marker: PlexMarker) {
         skippedMarkerIDs.insert(marker.stableID)
-        objectWillChange.send()
         Task { await player.seek(to: marker.end) }
     }
 

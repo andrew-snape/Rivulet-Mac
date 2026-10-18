@@ -22,7 +22,7 @@ struct MacSettingsView: View {
 // MARK: - Sources
 
 private struct MacSourcesSettings: View {
-    @ObservedObject private var store = LiveTVDataStore.shared
+    private let store = LiveTVDataStore.shared
     @State private var adding: AddKind?
     @State private var removing: LiveTVDataStore.LiveTVSourceInfo?
     @State private var plexFailure: LiveTVConnectError?
@@ -269,7 +269,7 @@ private struct MacFormButtons: ViewModifier {
 // MARK: - Plex
 
 private struct MacPlexSettings: View {
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @AppStorage(StreamingQuality.homeKey) private var homeQuality = StreamingQuality.homeDefault.rawValue
     @AppStorage(StreamingQuality.awayKey) private var awayQuality = StreamingQuality.awayDefault.rawValue

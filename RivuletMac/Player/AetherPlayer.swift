@@ -18,12 +18,14 @@ import AppKit
 import Combine
 import CoreMedia
 import Foundation
+import Observation
 import SwiftUI
 import AetherEngine
 
 @MainActor
-final class AetherPlayer: ObservableObject {
-    enum State: Equatable {
+@Observable
+final class AetherPlayer {
+    nonisolated enum State: Equatable, Sendable {
         case idle
         case loading
         case playing
@@ -32,7 +34,7 @@ final class AetherPlayer: ObservableObject {
         case failed(String)
     }
 
-    struct Track: Identifiable, Hashable {
+    nonisolated struct Track: Identifiable, Hashable, Sendable {
         let id: Int
         let name: String
         let codec: String
@@ -99,53 +101,53 @@ final class AetherPlayer: ObservableObject {
 
     private static let nativeAudioTrackIDBase = 300_000
 
-    private let engine: AetherEngine
-    private var cancellables = Set<AnyCancellable>()
-    private var nativeItemObservation: AnyCancellable?
-    private var nativeVideoSizeObservation: AnyCancellable?
-    private var timeControlObservation: AnyCancellable?
-    private weak var nativeMediaItem: AVPlayerItem?
-    private var nativeAudioGroup: AVMediaSelectionGroup?
-    private var nativeAudioOptions: [AVMediaSelectionOption] = []
-    private var nativeLegibleOutput: AVPlayerItemLegibleOutput?
-    private var nativeLegibleBridge: NativeLegibleBridge?
-    private var nativeLegibleClearWorkItem: DispatchWorkItem?
+    @ObservationIgnored private let engine: AetherEngine
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var nativeItemObservation: AnyCancellable?
+    @ObservationIgnored private var nativeVideoSizeObservation: AnyCancellable?
+    @ObservationIgnored private var timeControlObservation: AnyCancellable?
+    @ObservationIgnored private weak var nativeMediaItem: AVPlayerItem?
+    @ObservationIgnored private var nativeAudioGroup: AVMediaSelectionGroup?
+    @ObservationIgnored private var nativeAudioOptions: [AVMediaSelectionOption] = []
+    @ObservationIgnored private var nativeLegibleOutput: AVPlayerItemLegibleOutput?
+    @ObservationIgnored private var nativeLegibleBridge: NativeLegibleBridge?
+    @ObservationIgnored private var nativeLegibleClearWorkItem: DispatchWorkItem?
 
-    @Published private(set) var state: State = .idle
-    @Published private(set) var isBuffering = false
-    @Published private(set) var audioTracks: [Track] = []
-    @Published private(set) var subtitleTracks: [Track] = []
-    @Published private(set) var currentAudioTrackId: Int?
-    @Published private(set) var currentSubtitleTrackId: Int?
+    private(set) var state: State = .idle
+    private(set) var isBuffering = false
+    private(set) var audioTracks: [Track] = []
+    private(set) var subtitleTracks: [Track] = []
+    private(set) var currentAudioTrackId: Int?
+    private(set) var currentSubtitleTrackId: Int?
     /// Cues from the engine, on the `sourceTime` axis.
-    @Published private(set) var captions: [Caption] = []
+    private(set) var captions: [Caption] = []
     /// Lines AVPlayer is showing right now (remote HLS WebVTT / CEA-608).
-    @Published private(set) var nativeCaptions: [Caption] = []
-    @Published private(set) var sourceTime: Double = 0
+    private(set) var nativeCaptions: [Caption] = []
+    private(set) var sourceTime: Double = 0
     /// Media timeline position (VOD scrubber, markers, Plex reports).
-    @Published private(set) var currentTime: Double = 0
-    @Published private(set) var duration: TimeInterval = 0
+    private(set) var currentTime: Double = 0
+    private(set) var duration: TimeInterval = 0
     /// Where an in-flight seek is headed, so repeated skips stack and the
     /// scrubber does not snap back while the engine lands.
-    @Published private(set) var pendingSeekTarget: Double?
+    private(set) var pendingSeekTarget: Double?
     /// A VOD load whose clock has not moved yet.
-    @Published private(set) var isStarting = false
+    private(set) var isStarting = false
     /// Playback starving for data; never a seek or the startup load.
-    @Published private(set) var isStalled = false
-    @Published private(set) var rate: Float = 1
-    @Published private(set) var videoSize: CGSize = .zero
-    @Published private(set) var liveWindow: LiveWindow = .idle
-    @Published private(set) var isMuted = false
-    @Published private(set) var volume: Float = 1
-    @Published private(set) var canRetry = true
-    @Published var fillsWindow = false {
+    private(set) var isStalled = false
+    private(set) var rate: Float = 1
+    private(set) var videoSize: CGSize = .zero
+    private(set) var liveWindow: LiveWindow = .idle
+    private(set) var isMuted = false
+    private(set) var volume: Float = 1
+    private(set) var canRetry = true
+    var fillsWindow = false {
         didSet { engine.videoGravity = fillsWindow ? .resizeAspectFill : .resizeAspect }
     }
 
-    @Published private(set) var isLive = false
+    private(set) var isLive = false
     /// Whether the viewer wants playback running, so a reload keeps a pause.
-    private var userIntendsToPlay = false
-    private var lastLoad: LoadRequest?
+    @ObservationIgnored private var userIntendsToPlay = false
+    @ObservationIgnored private var lastLoad: LoadRequest?
 
     private enum LoadRequest {
         case vod(url: URL, headers: [String: String], subtitles: [SidecarSubtitle])
@@ -276,7 +278,8 @@ final class AetherPlayer: ObservableObject {
 
         engine.$activeSubtitleTrackIndex
             .receive(on: DispatchQueue.main)
-            .assign(to: &$currentSubtitleTrackId)
+            .sink { [weak self] in self?.currentSubtitleTrackId = $0 }
+            .store(in: &cancellables)
 
         engine.clock.$currentTime
             .receive(on: DispatchQueue.main)

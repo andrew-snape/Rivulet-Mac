@@ -48,7 +48,7 @@ struct MacPlexArtwork: View {
     let width: CGFloat
     /// Width over height of the requested image.
     let aspectRatio: CGFloat
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -72,7 +72,7 @@ struct MacPlexResolvedLogo: View {
     let alignment: Alignment
     let textAlignment: TextAlignment
 
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @State private var loaded: (identity: String, image: NSImage)?
 
     private var sourceIdentity: String {

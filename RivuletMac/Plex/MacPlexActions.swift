@@ -30,8 +30,8 @@ extension View {
 
 private struct MacPlexActionHost: ViewModifier {
     let open: (PlexMetadata) -> Void
-    @EnvironmentObject private var plex: MacPlexSession
-    @EnvironmentObject private var playback: MacPlaybackController
+    @Environment(MacPlexSession.self) private var plex
+    @Environment(MacPlaybackController.self) private var playback
     @State private var preparingID: String?
     @State private var failure: (title: String, message: String)?
 
@@ -95,7 +95,7 @@ struct MacPlexItemMenu: View {
     var showsPlay = true
     var showsWatchlist = true
     @Environment(\.plexActions) private var actions
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @ObservedObject private var watchlist = PlexWatchlistService.shared
 
     var body: some View {

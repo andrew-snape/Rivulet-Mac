@@ -9,28 +9,29 @@
 //
 
 import Foundation
-import Combine
+import Observation
 
 @MainActor
-class LiveTVDataStore: ObservableObject {
+@Observable
+class LiveTVDataStore {
     static let shared = LiveTVDataStore()
 
     // MARK: - Published State
 
     /// All channels from all sources, merged and sorted
-    @Published var channels: [UnifiedChannel] = []
+    var channels: [UnifiedChannel] = []
 
     /// Current EPG data (channelId -> programs)
-    @Published var epg: [String: [UnifiedProgram]] = [:]
+    var epg: [String: [UnifiedProgram]] = [:]
 
     /// End of the currently loaded EPG window. The guide extends past this as
     /// the user scrolls toward the right edge (see `extendEPG`). nil until the
     /// first `loadEPG` completes.
-    @Published private(set) var epgLoadedThrough: Date?
+    private(set) var epgLoadedThrough: Date?
 
     /// True while an incremental `extendEPG` fetch is in flight; the guide's
     /// scroll-edge trigger checks this so it never stacks concurrent extensions.
-    @Published private(set) var isExtendingEPG = false
+    private(set) var isExtendingEPG = false
 
     /// Safety ceiling for lazy extension: never fetch EPG more than this far
     /// past "now". Most providers cap their grid well inside this anyway; the
@@ -38,7 +39,7 @@ class LiveTVDataStore: ObservableObject {
     private let epgMaxHoursAhead = 72
 
     /// Channels played lately, newest first: What's On's Recently Watched row.
-    @Published private(set) var recentChannelIds: [String] = []
+    private(set) var recentChannelIds: [String] = []
 
     /// What For You learns from, oldest first. See `LiveSuggestions`.
     private(set) var viewings: [LiveViewing] = []
@@ -48,7 +49,7 @@ class LiveTVDataStore: ObservableObject {
     var suggestionsEnabled: Bool { userDefaults.object(forKey: Self.suggestionsKey) as? Bool ?? true }
 
     /// Channels favorited in Rivulet, from any source, in the viewer's order.
-    @Published private(set) var favoriteIds: [String] = [] {
+    private(set) var favoriteIds: [String] = [] {
         didSet {
             saveFavorites()
         }
@@ -56,39 +57,39 @@ class LiveTVDataStore: ObservableObject {
 
     /// Source favorites (Plex account favorites) removed in Rivulet. Hidden
     /// here only; the source's own list is left alone.
-    @Published private(set) var unfavoritedIds: Set<String> = [] {
+    private(set) var unfavoritedIds: Set<String> = [] {
         didSet { userDefaults.set(Array(unfavoritedIds), forKey: unfavoritedKey) }
     }
 
     /// Loading states
-    @Published var isLoadingChannels = false
-    @Published var isLoadingEPG = false
+    var isLoadingChannels = false
+    var isLoadingEPG = false
 
     /// Error states
-    @Published var channelsError: String?
+    var channelsError: String?
     /// Per-source EPG failures. Populated after a `loadEPG` run that had at
     /// least one provider throw. Used by the Live TV guide to surface a
     /// user-readable "EPG unavailable" banner so users can tell that an empty
     /// guide is caused by a third-party / configuration problem rather than
     /// by Rivulet itself.
-    @Published var epgIssues: [EPGFetchIssue] = []
+    var epgIssues: [EPGFetchIssue] = []
 
     /// Active provider configurations
-    @Published private(set) var sources: [LiveTVSourceInfo] = []
+    private(set) var sources: [LiveTVSourceInfo] = []
 
     // MARK: - Private Properties
 
-    private var providers: [String: any LiveTVProvider] = [:] {
+    @ObservationIgnored private var providers: [String: any LiveTVProvider] = [:] {
         didSet { providersGeneration += 1 }
     }
     /// Bumped when the source set changes. A load started for an older set is
     /// cancelled; one for the current set is waited on (see `loadChannels`).
-    private var providersGeneration = 0
+    @ObservationIgnored private var providersGeneration = 0
     /// Plex sources saved but not built: no profile's token is installed yet.
-    private var withheldPlexSources: [SourceConfiguration] = []
-    private var channelLoad: (task: Task<Void, Never>, generation: Int)?
-    private var epgLoad: (task: Task<Void, Never>, generation: Int, channelCount: Int, window: DateInterval)?
-    private var backgroundPreloadTask: Task<Void, Never>?
+    @ObservationIgnored private var withheldPlexSources: [SourceConfiguration] = []
+    @ObservationIgnored private var channelLoad: (task: Task<Void, Never>, generation: Int)?
+    @ObservationIgnored private var epgLoad: (task: Task<Void, Never>, generation: Int, channelCount: Int, window: DateInterval)?
+    @ObservationIgnored private var backgroundPreloadTask: Task<Void, Never>?
 
     // MARK: - Freshness tracking
 
@@ -112,7 +113,7 @@ class LiveTVDataStore: ObservableObject {
 
     /// Guards `refreshIfStale` so several surfaces appearing at once (the tab
     /// switching in while a foreground notification lands) run ONE refresh.
-    private var staleRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var staleRefreshTask: Task<Void, Never>?
 
     private let userDefaults = UserDefaults.standard
     private let favoritesKey = "liveTVFavoriteChannelIds"
@@ -1106,7 +1107,7 @@ class LiveTVDataStore: ObservableObject {
     /// Upcoming and in-progress recordings across every source that records.
     /// Drives the guide's recording marks and the Recordings page; refreshed
     /// when a Live TV surface appears and after every change made here.
-    @Published private(set) var scheduledRecordings: [LiveTVScheduledRecording] = []
+    private(set) var scheduledRecordings: [LiveTVScheduledRecording] = []
 
     private func recordingProvider(for sourceId: String) -> (any LiveTVRecordingProvider)? {
         providers[sourceId].flatMap(Self.recorder)

@@ -2,7 +2,6 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
-import Combine
 import SwiftUI
 
 /// What the sidebar opens.
@@ -16,9 +15,9 @@ enum MacSection: Hashable {
 /// The main window: Plex and Live TV in the sidebar, the chosen page beside
 /// it, and a Plex title playing over the whole window.
 struct MacRootView: View {
-    @EnvironmentObject private var plex: MacPlexSession
-    @EnvironmentObject private var playback: MacPlaybackController
-    @EnvironmentObject private var live: MacLivePlayback
+    @Environment(MacPlexSession.self) private var plex
+    @Environment(MacPlaybackController.self) private var playback
+    @Environment(MacLivePlayback.self) private var live
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var section: MacSection? = .home
@@ -86,13 +85,17 @@ struct MacRootView: View {
             if phase == .active { Task { await plex.refreshIfStale() } }
         }
         // Full screen is for watching: the sidebar steps aside, and comes back on exit.
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
-            isFullScreen = true
-            withAnimation { columns = .detailOnly }
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: NSWindow.didEnterFullScreenNotification) {
+                isFullScreen = true
+                withAnimation { columns = .detailOnly }
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
-            isFullScreen = false
-            withAnimation { columns = .all }
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: NSWindow.didExitFullScreenNotification) {
+                isFullScreen = false
+                withAnimation { columns = .all }
+            }
         }
         .sheet(isPresented: $choosingProfile) { MacProfilePickerSheet() }
         .sheet(isPresented: $showingSignIn) { MacPlexSignInSheet() }

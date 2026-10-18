@@ -2,7 +2,6 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
-import Combine
 import Observation
 import SwiftUI
 
@@ -18,7 +17,7 @@ struct MacLiveEPGView: View {
     let jumpToken: Int
     let focus: MacGuideFocus
 
-    @ObservedObject private var store = LiveTVDataStore.shared
+    private let store = LiveTVDataStore.shared
     /// A debounced copy of the store's guide, so a burst of updates redraws once.
     @State private var epg: [String: [UnifiedProgram]]
     @State private var epgRevision = 0
@@ -47,9 +46,13 @@ struct MacLiveEPGView: View {
         }
         .background(MacTheme.background)
         .environment(\.colorScheme, .dark)
-        .onReceive(store.$epg.debounce(for: .milliseconds(150), scheduler: RunLoop.main)) { schedules in
-            epg = schedules
-            epgRevision += 1
+        // Guide updates arrive in bursts; the wait lets one render cover them all.
+        .task {
+            for await _ in Observations({ store.epg }) {
+                try? await Task.sleep(for: .milliseconds(150))
+                epg = store.epg
+                epgRevision += 1
+            }
         }
         .onChange(of: jumpToken) { jumpToNow() }
         .task(id: searchKey) { await updateProgramMatches() }
@@ -303,7 +306,7 @@ private struct MacEPGChannelRow: View {
     let timelineWidth: CGFloat
     let scroll: MacEPGScrollState
     let focus: MacGuideFocus
-    @EnvironmentObject private var playback: MacLivePlayback
+    @Environment(MacLivePlayback.self) private var playback
 
     private struct Span: Identifiable {
         let id: String
@@ -371,7 +374,7 @@ private struct MacEPGChannelCell: View {
     let toggleFavorite: () -> Void
     let scroll: MacEPGScrollState
     let focus: MacGuideFocus
-    @EnvironmentObject private var playback: MacLivePlayback
+    @Environment(MacLivePlayback.self) private var playback
 
     var body: some View {
         let isPlaying = playback.channel?.id == channel.id

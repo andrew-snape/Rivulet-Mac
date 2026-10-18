@@ -7,7 +7,7 @@ import SwiftUI
 
 /// Continue Watching, then each pinned library's promoted rows.
 struct MacPlexHomeView: View {
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
 
     var body: some View {
         Group {
@@ -42,7 +42,7 @@ struct MacPlexHomeView: View {
 /// One library as a paged poster grid with Sort and Filter in the toolbar.
 struct MacPlexLibraryView: View {
     let library: PlexLibrary
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @AppStorage private var sortRaw: String
     @State private var unwatchedOnly = false
     @State private var items: [PlexMetadata] = []
@@ -149,7 +149,7 @@ struct MacPlexLibraryView: View {
 /// See All for one Home or detail row, paged through the hub's own key.
 struct MacPlexHubGridView: View {
     let route: MacPlexHubRoute
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @State private var items: [PlexMetadata]
     @State private var total: Int?
     @State private var isLoading = false
@@ -218,7 +218,7 @@ struct MacPlexHubGridView: View {
 /// Movies, shows and episodes across the server's video libraries.
 struct MacPlexSearchView: View {
     @Binding var query: String
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @State private var results: [PlexMetadata] = []
     @State private var isSearching = false
     @State private var error: String?

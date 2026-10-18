@@ -7,7 +7,7 @@ import SwiftUI
 /// cast, extras and related rows. Ported from the iOS app's detail page.
 struct MacPlexDetailView: View {
     let item: PlexMetadata
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @ObservedObject private var watchlist = PlexWatchlistService.shared
 
     @State private var full: PlexMetadata?
@@ -199,7 +199,7 @@ private struct MacPlexDetailHeader: View {
     let playTarget: PlexMetadata?
     let isLoading: Bool
     @Environment(\.plexActions) private var actions
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
 
     private var metadataItems: [String] {
         let date: String? = item.type == "episode"
@@ -372,7 +372,7 @@ private struct MacPlexEpisodeCard: View {
 /// Cast & Crew: actors, then directors.
 private struct MacPlexCastRow: View {
     let item: PlexMetadata
-    @EnvironmentObject private var plex: MacPlexSession
+    @Environment(MacPlexSession.self) private var plex
     @Environment(\.displayScale) private var displayScale
 
     private struct Person: Identifiable {

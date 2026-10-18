@@ -2,15 +2,14 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
-import Combine
 import CoreText
 import SwiftUI
 
 /// The video with its captions and controls. The controls show while the
 /// pointer moves over the picture and fade a few seconds after it stops.
 struct MacPlayerView: View {
-    @ObservedObject var playback: MacLivePlayback
-    @ObservedObject var player: AetherPlayer
+    var playback: MacLivePlayback
+    var player: AetherPlayer
     /// A small picture (the guide's corner player): fewer controls, shorter messages.
     var compact = false
     /// The floating window: the full screen button gives way to one that brings the picture back.
@@ -117,7 +116,7 @@ struct MacPlayerView: View {
 
 /// The channel's picture alone in a small window that floats above other apps.
 struct MacLivePopOutView: View {
-    @EnvironmentObject private var playback: MacLivePlayback
+    @Environment(MacLivePlayback.self) private var playback
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
@@ -138,11 +137,11 @@ struct MacLivePopOutView: View {
 // MARK: - Controls
 
 private struct MacPlayerControls: View {
-    @ObservedObject var playback: MacLivePlayback
-    @ObservedObject var player: AetherPlayer
+    var playback: MacLivePlayback
+    var player: AetherPlayer
     let compact: Bool
     let isPopOut: Bool
-    @ObservedObject private var store = LiveTVDataStore.shared
+    private let store = LiveTVDataStore.shared
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
@@ -309,7 +308,7 @@ private struct MacPlayerControls: View {
 /// Captions in the system caption style (System Settings > Accessibility >
 /// Captions), sized from the picture's height as the tvOS renderer does.
 struct MacCaptionOverlay: View {
-    @ObservedObject var player: AetherPlayer
+    var player: AetherPlayer
     let container: CGSize
     @State private var style = CaptionAppearance.current()
 
@@ -341,8 +340,10 @@ struct MacCaptionOverlay: View {
             .position(x: video.midX, y: video.maxY - video.height * 0.12)
         }
         .frame(width: container.width, height: container.height, alignment: .topLeading)
-        .onReceive(NotificationCenter.default.publisher(for: CaptionAppearance.changedNotification)) { _ in
-            style = CaptionAppearance.current()
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: CaptionAppearance.changedNotification) {
+                style = CaptionAppearance.current()
+            }
         }
     }
 

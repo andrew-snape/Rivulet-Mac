@@ -2,7 +2,6 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
-import Combine
 import Observation
 import SwiftUI
 
@@ -19,8 +18,8 @@ enum MacChannelFilter: Hashable {
 /// In full screen the list steps aside.
 struct MacLiveTVView: View {
     let isFullScreen: Bool
-    @EnvironmentObject private var playback: MacLivePlayback
-    @ObservedObject private var store = LiveTVDataStore.shared
+    @Environment(MacLivePlayback.self) private var playback
+    private let store = LiveTVDataStore.shared
     @AppStorage("macChannelFilter") private var filterRaw = "all"
     @State private var query = ""
     @State private var groups: [String] = []
@@ -70,9 +69,11 @@ struct MacLiveTVView: View {
             await store.elevatePreloadPriority()
             await store.refreshIfStale()
         }
-        .onReceive(store.$channels) { channels in
-            groups = Array(Set(channels.compactMap(\.groupTitle).filter { !$0.isEmpty }))
-                .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        .task {
+            for await channels in Observations({ store.channels }) {
+                groups = Array(Set(channels.compactMap(\.groupTitle).filter { !$0.isEmpty }))
+                    .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            }
         }
         .onChange(of: lineup.map(\.id), initial: true) {
             playback.lineup = lineup
@@ -198,8 +199,8 @@ private struct MacChannelList: View {
     let channels: [UnifiedChannel]
     let query: String
     let emptyText: String
-    @EnvironmentObject private var playback: MacLivePlayback
-    @ObservedObject private var store = LiveTVDataStore.shared
+    @Environment(MacLivePlayback.self) private var playback
+    private let store = LiveTVDataStore.shared
 
     var body: some View {
         // Once a minute is enough to move "now" along and redraw the progress bars.
@@ -256,7 +257,7 @@ private struct MacChannelRow: View {
     let channel: UnifiedChannel
     let programme: UnifiedProgram?
     let now: Date
-    @ObservedObject private var store = LiveTVDataStore.shared
+    private let store = LiveTVDataStore.shared
 
     var body: some View {
         HStack(spacing: 10) {
@@ -293,8 +294,8 @@ private struct MacChannelRow: View {
 
 private struct MacNowPlayingPane: View {
     let showsDetails: Bool
-    @EnvironmentObject private var playback: MacLivePlayback
-    @ObservedObject private var store = LiveTVDataStore.shared
+    @Environment(MacLivePlayback.self) private var playback
+    private let store = LiveTVDataStore.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -314,7 +315,7 @@ private struct MacNowPlayingPane: View {
 /// The player, or a stand-in while the picture floats in its own window.
 private struct MacLivePlayerPane: View {
     let compact: Bool
-    @EnvironmentObject private var playback: MacLivePlayback
+    @Environment(MacLivePlayback.self) private var playback
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
@@ -340,7 +341,7 @@ private struct MacLivePlayerPane: View {
 private struct MacProgrammeDetails: View {
     let channel: UnifiedChannel
     let programme: UnifiedProgram?
-    @ObservedObject private var store = LiveTVDataStore.shared
+    private let store = LiveTVDataStore.shared
 
     var body: some View {
         let next = programme.flatMap { current in
@@ -409,8 +410,8 @@ final class MacGuideFocus {
 /// the pointer, else of what is playing.
 private struct MacGuideInfoBar: View {
     let focus: MacGuideFocus
-    @EnvironmentObject private var playback: MacLivePlayback
-    @ObservedObject private var store = LiveTVDataStore.shared
+    @Environment(MacLivePlayback.self) private var playback
+    private let store = LiveTVDataStore.shared
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in

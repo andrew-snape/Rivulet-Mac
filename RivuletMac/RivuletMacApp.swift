@@ -7,9 +7,9 @@ import SwiftUI
 @main
 struct RivuletMacApp: App {
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
-    @StateObject private var playback: MacLivePlayback
-    @StateObject private var plex: MacPlexSession
-    @StateObject private var vod: MacPlaybackController
+    @State private var playback: MacLivePlayback
+    @State private var plex: MacPlexSession
+    @State private var vod: MacPlaybackController
 
     init() {
         // Host values for shared code, set before anything touches the
@@ -24,7 +24,7 @@ struct RivuletMacApp: App {
         // before anything signs in.
         let plex = MacPlexSession()
         plex.installProfileHooks()
-        _plex = StateObject(wrappedValue: plex)
+        _plex = State(initialValue: plex)
 
         let playback = MacLivePlayback()
         let vod = MacPlaybackController()
@@ -32,8 +32,8 @@ struct RivuletMacApp: App {
         MacAppDelegate.refreshPlex = { [weak plex] in await plex?.refresh() }
         MacAppDelegate.playback = playback
         MacAppDelegate.vod = vod
-        _playback = StateObject(wrappedValue: playback)
-        _vod = StateObject(wrappedValue: vod)
+        _playback = State(initialValue: playback)
+        _vod = State(initialValue: vod)
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
     }
@@ -41,9 +41,9 @@ struct RivuletMacApp: App {
     var body: some Scene {
         Window("Rivulet", id: "main") {
             MacRootView()
-                .environmentObject(playback)
-                .environmentObject(plex)
-                .environmentObject(vod)
+                .environment(playback)
+                .environment(plex)
+                .environment(vod)
                 .onAppear { vod.configureRemoteCommands() }
                 .frame(minWidth: 900, minHeight: 520)
                 .preferredColorScheme(.dark)
@@ -57,7 +57,7 @@ struct RivuletMacApp: App {
         // the player's controls, never at launch.
         Window("Live TV", id: MacLivePlayback.popOutWindowID) {
             MacLivePopOutView()
-                .environmentObject(playback)
+                .environment(playback)
                 .frame(minWidth: 320, minHeight: 180)
         }
         .defaultSize(width: 480, height: 270)
@@ -66,7 +66,7 @@ struct RivuletMacApp: App {
 
         Settings {
             MacSettingsView()
-                .environmentObject(plex)
+                .environment(plex)
                 .preferredColorScheme(.dark)
         }
     }
@@ -76,10 +76,10 @@ struct RivuletMacApp: App {
 /// Live TV. Space and the arrow keys are handled in `MacAppDelegate` instead,
 /// so they still type in a text field.
 private struct MacPlaybackCommands: Commands {
-    @ObservedObject var playback: MacLivePlayback
-    @ObservedObject var player: AetherPlayer
-    @ObservedObject var vod: MacPlaybackController
-    @ObservedObject private var store = LiveTVDataStore.shared
+    var playback: MacLivePlayback
+    var player: AetherPlayer
+    var vod: MacPlaybackController
+    private let store = LiveTVDataStore.shared
 
     /// The player in front: the Plex title, else the channel.
     private var active: AetherPlayer? {

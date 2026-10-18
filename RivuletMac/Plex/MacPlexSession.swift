@@ -20,9 +20,11 @@
 
 import Combine
 import Foundation
+import Observation
 
 @MainActor
-final class MacPlexSession: ObservableObject {
+@Observable
+final class MacPlexSession {
     enum State: Equatable {
         case signedOut
         case requestingPIN
@@ -33,34 +35,34 @@ final class MacPlexSession: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var state: State = .signedOut
-    @Published private(set) var pinCode: String?
-    @Published private(set) var availableServers: [PlexDevice] = []
-    @Published private(set) var libraries: [PlexLibrary] = []
+    private(set) var state: State = .signedOut
+    private(set) var pinCode: String?
+    private(set) var availableServers: [PlexDevice] = []
+    private(set) var libraries: [PlexLibrary] = []
     /// Home rows after Continue Watching: promoted hubs of the pinned libraries.
-    @Published private(set) var shelves: [PlexHub] = []
-    @Published private(set) var continueWatching: PlexHub?
-    @Published private(set) var isLoadingContent = false
-    @Published private(set) var contentError: String?
+    private(set) var shelves: [PlexHub] = []
+    private(set) var continueWatching: PlexHub?
+    private(set) var isLoadingContent = false
+    private(set) var contentError: String?
     /// Bumped after a watched-state change so open grids and detail pages reload.
-    @Published private(set) var watchStateRevision = 0
+    private(set) var watchStateRevision = 0
     /// Bumped on a server or profile switch; the tab stacks rebuild on it.
-    @Published private(set) var sessionGeneration = 0
-    @Published private(set) var selectedServerName: String?
-    @Published private(set) var profileImageURL: URL?
-    @Published private(set) var profileDisplayName: String?
+    private(set) var sessionGeneration = 0
+    private(set) var selectedServerName: String?
+    private(set) var profileImageURL: URL?
+    private(set) var profileDisplayName: String?
 
-    let auth = PlexAuthManager.shared
-    let network = PlexNetworkManager.shared
-    private var lastContentRefresh: Date?
-    private var refreshGeneration = 0
+    @ObservationIgnored let auth = PlexAuthManager.shared
+    @ObservationIgnored let network = PlexNetworkManager.shared
+    @ObservationIgnored private var lastContentRefresh: Date?
+    @ObservationIgnored private var refreshGeneration = 0
     /// Last good hubs per pinned library, kept when a later fetch of one fails.
-    private var libraryHubs: [String: [PlexHub]] = [:]
-    private var libraryHubsSession: (serverURL: String, token: String)?
-    private var cancellables = Set<AnyCancellable>()
-    private var logoURLCache: [String: URL] = [:]
-    private var missingLogoKeys = Set<String>()
-    private var logoResolutionTasks: [String: Task<URL?, Never>] = [:]
+    @ObservationIgnored private var libraryHubs: [String: [PlexHub]] = [:]
+    @ObservationIgnored private var libraryHubsSession: (serverURL: String, token: String)?
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var logoURLCache: [String: URL] = [:]
+    @ObservationIgnored private var missingLogoKeys = Set<String>()
+    @ObservationIgnored private var logoResolutionTasks: [String: Task<URL?, Never>] = [:]
 
     init() {
         // The auth manager owns identity and hands content off to the host's

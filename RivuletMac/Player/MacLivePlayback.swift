@@ -1,31 +1,32 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
-import Combine
+import Observation
 import SwiftUI
 
 /// The channel on screen. One for the app's lifetime: picking another
 /// channel switches it in place, as the iOS and tvOS players do.
 @MainActor
-final class MacLivePlayback: ObservableObject {
+@Observable
+final class MacLivePlayback {
     let player = AetherPlayer()
-    @Published private(set) var channel: UnifiedChannel?
+    private(set) var channel: UnifiedChannel?
     /// Shown instead of the engine's failure: a refused tune or a busy tuner.
-    @Published private(set) var notice: String?
+    private(set) var notice: String?
     /// The picture is in its own floating window. The window sets this as it
     /// opens and closes; the engine's surface can be on screen in one place only.
-    @Published var isPoppedOut = false
+    var isPoppedOut = false
 
     static let popOutWindowID = "live-tv-pop-out"
 
     /// The channels the window lists right now, in order: what Channel Up and
     /// Channel Down step through. Set by the window.
-    var lineup: [UnifiedChannel] = []
+    @ObservationIgnored var lineup: [UnifiedChannel] = []
 
-    private let store = LiveTVDataStore.shared
-    private let keepalive = PlexLiveTimelineKeepalive()
-    private var loadTask: Task<Void, Never>?
-    private var watchTask: Task<Void, Never>?
+    @ObservationIgnored private let store = LiveTVDataStore.shared
+    @ObservationIgnored private let keepalive = PlexLiveTimelineKeepalive()
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
+    @ObservationIgnored private var watchTask: Task<Void, Never>?
 
     var programme: UnifiedProgram? { channel.flatMap(store.getCurrentProgram(for:)) }
 

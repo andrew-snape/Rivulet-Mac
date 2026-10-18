@@ -2,32 +2,33 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
-import Combine
 @preconcurrency import MediaPlayer
+import Observation
 import SwiftUI
 
 /// App-level owner of the Plex item playing, shown over the whole window.
 /// Starting one stops Live TV (`onStart`), so only one stream plays at a time.
 @MainActor
-final class MacPlaybackController: ObservableObject {
+@Observable
+final class MacPlaybackController {
     private static let nowPlayingUpdateInterval: TimeInterval = 5
     private static let remoteSkipBackwardInterval: TimeInterval = 10
     private static let remoteSkipForwardInterval: TimeInterval = 30
 
-    @Published private(set) var session: MacPlexPlayback?
-    @Published private(set) var isAlwaysOnTop = false
+    private(set) var session: MacPlexPlayback?
+    private(set) var isAlwaysOnTop = false
 
     /// Needed to build sessions; the root view sets it.
-    weak var plex: MacPlexSession?
-    var onStart: (() -> Void)?
+    @ObservationIgnored weak var plex: MacPlexSession?
+    @ObservationIgnored var onStart: (() -> Void)?
 
-    private var stateObservation: AnyCancellable?
-    private var nowPlayingObservations = Set<AnyCancellable>()
-    private var sleepActivity: NSObjectProtocol?
-    private var hasConfiguredRemoteCommands = false
+    @ObservationIgnored private var stateObservation: Task<Void, Never>?
+    @ObservationIgnored private var nowPlayingObservations: [Task<Void, Never>] = []
+    @ObservationIgnored private var sleepActivity: NSObjectProtocol?
+    @ObservationIgnored private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
-    private var volume: Float = 1
-    private var isMuted = false
+    @ObservationIgnored private var volume: Float = 1
+    @ObservationIgnored private var isMuted = false
 
     func play(_ request: MacPlexPlaybackRequest) {
         guard let plex else { return }
@@ -38,9 +39,12 @@ final class MacPlaybackController: ObservableObject {
         session = newSession
         onStart?()
         // Keep the display awake while something plays, as a video player should.
-        stateObservation = newSession.player.$state
-            .removeDuplicates()
-            .sink { [weak self] state in self?.keepAwake(state == .playing) }
+        let player = newSession.player
+        stateObservation = Task { [weak self] in
+            for await playing in Observations({ player.state == .playing }) {
+                self?.keepAwake(playing)
+            }
+        }
         observeNowPlaying(for: newSession)
         updateRemoteCommandAvailability(for: newSession)
         Task { await newSession.begin() }
@@ -59,8 +63,9 @@ final class MacPlaybackController: ObservableObject {
         isMuted = session.player.isMuted
         let reported = session.end()
         session.player.stop()
+        stateObservation?.cancel()
         stateObservation = nil
-        nowPlayingObservations.removeAll()
+        cancelNowPlayingObservations()
         let nowPlaying = MPNowPlayingInfoCenter.default()
         nowPlaying.nowPlayingInfo = nil
         nowPlaying.playbackState = .stopped
@@ -88,7 +93,7 @@ final class MacPlaybackController: ObservableObject {
     func configureRemoteCommands() {
         guard !hasConfiguredRemoteCommands else { return }
         hasConfiguredRemoteCommands = true
-        // This controller is an app-lifetime StateObject, so the shared command
+        // This controller is an app-lifetime State, so the shared command
         // center receives one set of handlers for the lifetime of the app.
         let commands = MPRemoteCommandCenter.shared()
         commands.playCommand.addTarget { [weak self] _ in
@@ -160,38 +165,35 @@ final class MacPlaybackController: ObservableObject {
         return .success
     }
 
-    private func observeNowPlaying(for session: MacPlexPlayback) {
+    private func cancelNowPlayingObservations() {
+        nowPlayingObservations.forEach { $0.cancel() }
         nowPlayingObservations.removeAll()
-        session.player.$state
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.updateNowPlaying() }
-            .store(in: &nowPlayingObservations)
-        session.player.$currentTime
-            // Now Playing interpolates elapsed time from the playback rate between updates.
-            .throttle(for: .seconds(Self.nowPlayingUpdateInterval), scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] _ in self?.updateNowPlaying() }
-            .store(in: &nowPlayingObservations)
-        session.player.$pendingSeekTarget
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.updateNowPlaying() }
-            .store(in: &nowPlayingObservations)
-        session.player.$duration
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.updateNowPlaying() }
-            .store(in: &nowPlayingObservations)
-        session.player.$rate
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.updateNowPlaying() }
-            .store(in: &nowPlayingObservations)
-        session.$nextEpisode
-            .sink { [weak self] _ in
+    }
+
+    private func observeNowPlaying(for session: MacPlexPlayback) {
+        cancelNowPlayingObservations()
+        let player = session.player
+        // Anything but the clock: transport, seek, length, speed, and the item itself.
+        nowPlayingObservations.append(Task { [weak self] in
+            for await _ in Observations({
+                _ = (player.state, player.pendingSeekTarget, player.duration, player.rate, session.request.item.ratingKey)
+            }) {
+                self?.updateNowPlaying()
+            }
+        })
+        // Now Playing interpolates elapsed time from the playback rate between updates.
+        nowPlayingObservations.append(Task { [weak self] in
+            for await _ in Observations({ _ = player.currentTime }) {
+                self?.updateNowPlaying()
+                try? await Task.sleep(for: .seconds(Self.nowPlayingUpdateInterval))
+            }
+        })
+        nowPlayingObservations.append(Task { [weak self] in
+            for await _ in Observations({ session.nextEpisode?.ratingKey }) {
                 guard let self else { return }
                 self.updateRemoteCommandAvailability(for: self.session)
             }
-            .store(in: &nowPlayingObservations)
-        session.$request
-            .sink { [weak self] _ in self?.updateNowPlaying() }
-            .store(in: &nowPlayingObservations)
+        })
         updateNowPlaying()
     }
 
@@ -297,8 +299,8 @@ final class MacPlaybackController: ObservableObject {
 /// A Plex title over the whole window: the video, captions, and controls that
 /// show while the pointer moves.
 struct MacVODPlayerView: View {
-    @ObservedObject var session: MacPlexPlayback
-    @ObservedObject var player: AetherPlayer
+    var session: MacPlexPlayback
+    var player: AetherPlayer
     let close: () -> Void
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
