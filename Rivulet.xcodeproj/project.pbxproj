@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 110;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -44,12 +44,10 @@
 /* Begin PBXFrameworksBuildPhase section */
 		B40000030000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				B40000190000000000000019 /* AetherEngine in Frameworks */,
 				B40000210000000000000021 /* Sentry in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -83,8 +81,6 @@
 				B40000060000000000000006 /* Resources */,
 			);
 			buildRules = (
-			);
-			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				B30000200000000000000020 /* RivuletCore */,
@@ -127,7 +123,7 @@
 				A700F81A2EFBA1610042C07D /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */,
 			);
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 110;
 			productRefGroup = A72E03DB2EDA297D003A73DA /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -140,25 +136,21 @@
 /* Begin PBXResourcesBuildPhase section */
 		B40000060000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B40000050000000000000005 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A72E03EB2EDA297E003A73DA /* Debug */ = {
+		A72E03EB2EDA297E003A73DA /* Debug configuration for PBXProject "Rivulet" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -221,7 +213,7 @@
 			};
 			name = Debug;
 		};
-		A72E03EC2EDA297E003A73DA /* Release */ = {
+		A72E03EC2EDA297E003A73DA /* Release configuration for PBXProject "Rivulet" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -276,7 +268,7 @@
 			};
 			name = Release;
 		};
-		B40000090000000000000009 /* Debug */ = {
+		B40000090000000000000009 /* Debug configuration for PBXNativeTarget "Rivulet Mac" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -302,7 +294,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet.mac;
 				PRODUCT_NAME = Rivulet;
@@ -316,7 +308,7 @@
 			};
 			name = Debug;
 		};
-		B400000A000000000000000A /* Release */ = {
+		B400000A000000000000000A /* Release configuration for PBXNativeTarget "Rivulet Mac" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -342,7 +334,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet.mac;
 				PRODUCT_NAME = Rivulet;
@@ -362,19 +354,17 @@
 		A72E03D52EDA297D003A73DA /* Build configuration list for PBXProject "Rivulet" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A72E03EB2EDA297E003A73DA /* Debug */,
-				A72E03EC2EDA297E003A73DA /* Release */,
+				A72E03EB2EDA297E003A73DA /* Debug configuration for PBXProject "Rivulet" */,
+				A72E03EC2EDA297E003A73DA /* Release configuration for PBXProject "Rivulet" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		B40000080000000000000008 /* Build configuration list for PBXNativeTarget "Rivulet Mac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B40000090000000000000009 /* Debug */,
-				B400000A000000000000000A /* Release */,
+				B40000090000000000000009 /* Debug configuration for PBXNativeTarget "Rivulet Mac" */,
+				B400000A000000000000000A /* Release configuration for PBXNativeTarget "Rivulet Mac" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
