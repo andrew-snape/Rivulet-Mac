@@ -1,8 +1,8 @@
 name: SwiftLint
 
 # Enforces Rivulet's own architectural rules only (see .swiftlint.yml — every
-# stock rule is off). Runs on Linux via the official container. The compile
-# check lives in build-macos.yml.
+# stock rule is off). Runs on Linux via the official container. There is no
+# CI compile; the app is built locally in Xcode.
 on:
   pull_request:
     paths:

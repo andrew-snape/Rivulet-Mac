@@ -167,9 +167,9 @@ xcodebuild -scheme "Rivulet Mac" -destination 'platform=macOS,arch=arm64' build
 
 Or open `Rivulet.xcodeproj`, pick the **Rivulet Mac** scheme and Run.
 
-CI: `build-macos.yml` compiles the scheme on GitHub's macOS image;
-`swiftlint.yml` runs the one custom lint rule on Linux. There are no unit tests
-yet (the tvOS suite went with the tvOS app).
+CI: `swiftlint.yml` runs the one custom lint rule on Linux. There is no CI
+compile (GitHub's runners lag the Xcode the project needs), so build locally in
+Xcode. There are no unit tests yet (the tvOS suite went with the tvOS app).
 
 Sentry is linked (RivuletCore imports it) but never started on the Mac. Never
 send stream URLs anywhere: IPTV paths embed credentials and Plex URLs carry
