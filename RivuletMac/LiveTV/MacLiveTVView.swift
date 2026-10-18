@@ -23,6 +23,7 @@ struct MacLiveTVView: View {
     @AppStorage("macChannelFilter") private var filterRaw = "all"
     @State private var query = ""
     @State private var groups: [String] = []
+    @State private var layout = MacLiveTVLayout.channels
 
     var body: some View {
         Group {
@@ -33,9 +34,13 @@ struct MacLiveTVView: View {
                     if !isFullScreen {
                         VStack(spacing: 0) {
                             filterBar
-                            MacChannelList(channels: lineup, query: query, emptyText: emptyText)
+                            if layout == .guide {
+                                MacLiveEPGView(channels: lineup, query: query)
+                            } else {
+                                MacChannelList(channels: lineup, query: query, emptyText: emptyText)
+                            }
                         }
-                        .frame(width: 340)
+                        .frame(width: layout == .guide ? 520 : 340)
                         Divider()
                     }
                     MacNowPlayingPane(showsDetails: !isFullScreen)
@@ -56,6 +61,11 @@ struct MacLiveTVView: View {
 
     private var filterBar: some View {
         VStack(spacing: 8) {
+            Picker("View", selection: $layout) {
+                Text("Channels").tag(MacLiveTVLayout.channels)
+                Text("Guide").tag(MacLiveTVLayout.guide)
+            }
+            .pickerStyle(.segmented)
             Picker("Show", selection: $filterRaw) {
                 Text("Favourites").tag("favorites")
                 Text("Recently Watched").tag("recent")
@@ -112,6 +122,11 @@ struct MacLiveTVView: View {
         case .all, .group: return store.isLoadingChannels ? "Loading channels…" : "No channels."
         }
     }
+}
+
+private enum MacLiveTVLayout: Hashable {
+    case channels
+    case guide
 }
 
 // MARK: - Channel list
