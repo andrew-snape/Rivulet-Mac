@@ -35,7 +35,6 @@ final class MacPlexSession: ObservableObject {
 
     @Published private(set) var state: State = .signedOut
     @Published private(set) var pinCode: String?
-    @Published private(set) var authenticationURL: URL?
     @Published private(set) var availableServers: [PlexDevice] = []
     @Published private(set) var libraries: [PlexLibrary] = []
     /// Home rows after Continue Watching: promoted hubs of the pinned libraries.
@@ -116,17 +115,14 @@ final class MacPlexSession: ObservableObject {
         switch authState {
         case .idle:
             pinCode = nil
-            authenticationURL = nil
             state = isSignedIn ? .connected : .signedOut
         case .requestingPin:
             state = .requestingPIN
         case .waitingForPIN(let code, _):
             pinCode = code
-            authenticationURL = Self.authenticationURL(code: code)
             state = .waitingForPIN
         case .authenticated:
             pinCode = nil
-            authenticationURL = nil
             selectedServerName = auth.selectedServer?.name ?? auth.savedServerName
             // Content loads through the onAuthenticated handoff; between the
             // token arriving and a server being picked there is nothing to show.
@@ -137,15 +133,6 @@ final class MacPlexSession: ObservableObject {
         case .error(let message):
             state = .failed(message)
         }
-    }
-
-    /// Same link the shared manager's `authURL` builds, computed from the
-    /// emitted PIN code because inside a willSet sink the manager's own
-    /// `state` (which `authURL` reads) has not been assigned yet.
-    private static func authenticationURL(code: String) -> URL? {
-        var components = URLComponents(string: "https://app.plex.tv/auth")
-        components?.fragment = "?clientID=\(PlexAPI.clientIdentifier)&code=\(code)&context[device][product]=\(PlexAPI.productName)"
-        return components?.url
     }
 
     // MARK: - Content
@@ -440,8 +427,9 @@ final class MacPlexSession: ObservableObject {
         if forced == nil, measurement == nil, QualityDecision.needsProbe(setting: quality, isRelay: isRelay),
            let key = VersionRanking.select(version, in: media).media.first?.Part?.first?.key,
            let probeURL = Self.directPlayURL(serverURL: serverURL, token: token, partKey: key) {
-            // Detached: the probe's read loop must not run on the main actor.
-            let kbps = await ThroughputProbe.measure(url: probeURL)
+            // Detached: the probe's read loop must not run on the main actor. The Plex
+            // session, so a raw-IP or private certificate measures instead of failing.
+            let kbps = await ThroughputProbe.measure(url: probeURL, session: PlexCertificateDelegate.session)
             measurement = (kbps, Date())
         }
         let cap = forced.map { $0.step?.kbps } ?? QualityDecision.capKbps(

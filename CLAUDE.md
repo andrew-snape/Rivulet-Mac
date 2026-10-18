@@ -19,7 +19,7 @@ AVPlayerLayer the app builds.
 - **UI**: SwiftUI (`NavigationSplitView` shell), AppKit where SwiftUI has no answer (key monitor, full screen, pasteboard)
 - **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.32.3). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target.
 - **App icon**: `RivuletMac/Assets.xcassets/AppIcon.appiconset`, rendered from `Branding/logo_square_1024.png` on the macOS icon grid (824 pt squircle on a 1024 canvas).
-- **Signing**: "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`, no team). Sandboxed with outgoing network access only; hardened runtime off (only notarisation needs it).
+- **Signing**: "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`, no team). Sandboxed with outgoing and incoming network access, nothing else; hardened runtime off (only notarisation needs it).
 - **Repo is public**: keep commit messages short and plain.
 
 ## Project Structure
@@ -66,6 +66,11 @@ from the app, the app injects it at launch, before touching the stores:
   engine values to app types there and publish those. The engine's
   `SubtitleCue` cannot even be named in that file (module and class share a
   name), which is why cues are mapped inline.
+- **The sandbox allows incoming connections.** AetherEngine hands AVPlayer
+  its remuxed video through a local HTTP server (`HLSLocalServer`). Without
+  `com.apple.security.network.server` that socket cannot listen, and Plex
+  direct play and raw MPEG-TS never start. The engine's own demo app is not
+  sandboxed, so its docs never mention this.
 - **Playback trusts the same certificates as the Plex API session.**
   `EngineTLS.serverTrustEvaluator` answers with
   `PlexCertificateDelegate.trustsUnverifiedCertificate` (IPv4 literal,

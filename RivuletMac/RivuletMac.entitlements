@@ -3,10 +3,15 @@
 <plist version="1.0">
 <dict>
 	<!-- Sandboxed: the app parses untrusted playlists and streams through
-	     FFmpeg, so it keeps to outgoing network access and nothing else. -->
+	     FFmpeg, so it keeps to the network and nothing else. -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- AetherEngine hands AVPlayer its remuxed video through a local HTTP
+	     server (HLSLocalServer). Without this its socket cannot listen, and
+	     nothing the engine remuxes plays: Plex direct play, raw MPEG-TS. -->
+	<key>com.apple.security.network.server</key>
 	<true/>
 </dict>
 </plist>
