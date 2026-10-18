@@ -160,10 +160,11 @@ final class AetherPlayer: ObservableObject {
 
     /// AVPlayerLayer does not paint remote HLS captions when the host draws
     /// its own controls, so forward native legible output to the overlay.
+    /// The delegate is Sendable, so it passes on the plain text only.
     private final class NativeLegibleBridge: NSObject, AVPlayerItemLegibleOutputPushDelegate {
-        let onStrings: ([NSAttributedString]) -> Void
+        let onStrings: @Sendable ([String]) -> Void
 
-        init(onStrings: @escaping ([NSAttributedString]) -> Void) {
+        init(onStrings: @escaping @Sendable ([String]) -> Void) {
             self.onStrings = onStrings
         }
 
@@ -173,7 +174,7 @@ final class AetherPlayer: ObservableObject {
             nativeSampleBuffers nativeSamples: [Any],
             forItemTime itemTime: CMTime
         ) {
-            onStrings(strings)
+            onStrings(strings.map(\.string))
         }
     }
 
@@ -833,8 +834,9 @@ final class AetherPlayer: ObservableObject {
             oldItem.remove(output)
         }
 
+        // The output delivers on the main queue (below).
         let bridge = NativeLegibleBridge { [weak self] strings in
-            self?.handleNativeLegible(strings)
+            MainActor.assumeIsolated { self?.handleNativeLegible(strings) }
         }
         let output = AVPlayerItemLegibleOutput()
         output.suppressesPlayerRendering = true
@@ -847,9 +849,9 @@ final class AetherPlayer: ObservableObject {
 
     /// Native captions arrive as "what is showing now", so they are drawn
     /// as-is; an empty update clears them after a beat to ride out flicker.
-    private func handleNativeLegible(_ strings: [NSAttributedString]) {
+    private func handleNativeLegible(_ strings: [String]) {
         let lines = strings
-            .map { $0.string.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
         if lines.isEmpty {
