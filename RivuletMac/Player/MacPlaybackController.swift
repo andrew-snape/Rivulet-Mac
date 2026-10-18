@@ -24,13 +24,10 @@ final class MacPlaybackController: ObservableObject {
     private var stateObservation: AnyCancellable?
     private var nowPlayingObservations = Set<AnyCancellable>()
     private var sleepActivity: NSObjectProtocol?
+    private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
     private var volume: Float = 1
     private var isMuted = false
-
-    init() {
-        configureRemoteCommands()
-    }
 
     func play(_ request: MacPlexPlaybackRequest) {
         guard let plex else { return }
@@ -85,21 +82,23 @@ final class MacPlaybackController: ObservableObject {
         window.level = session != nil && isAlwaysOnTop ? .floating : .normal
     }
 
-    private func configureRemoteCommands() {
+    func configureRemoteCommands() {
+        guard !hasConfiguredRemoteCommands else { return }
+        hasConfiguredRemoteCommands = true
         // This controller is an app-lifetime StateObject, so the shared command
         // center receives one set of handlers for the lifetime of the app.
         let commands = MPRemoteCommandCenter.shared()
         commands.playCommand.addTarget { [weak self] _ in
-            Self.handleRemoteCommand { self?.remotePlay() ?? .commandFailed }
+            Self.dispatchRemoteCommand { self?.remotePlay() ?? .commandFailed }
         }
         commands.pauseCommand.addTarget { [weak self] _ in
-            Self.handleRemoteCommand { self?.remotePause() ?? .commandFailed }
+            Self.dispatchRemoteCommand { self?.remotePause() ?? .commandFailed }
         }
         commands.togglePlayPauseCommand.addTarget { [weak self] _ in
-            Self.handleRemoteCommand { self?.remoteToggle() ?? .commandFailed }
+            Self.dispatchRemoteCommand { self?.remoteToggle() ?? .commandFailed }
         }
         commands.stopCommand.addTarget { [weak self] _ in
-            Self.handleRemoteCommand { self?.remoteStop() ?? .commandFailed }
+            Self.dispatchRemoteCommand { self?.remoteStop() ?? .commandFailed }
         }
 
         commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipBackwardInterval)]
@@ -107,8 +106,9 @@ final class MacPlaybackController: ObservableObject {
             guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
                 return .commandFailed
             }
-            return Self.handleRemoteCommand {
-                self?.remoteSkip(by: -abs(event.interval)) ?? .commandFailed
+            let interval = abs(event.interval)
+            return Self.dispatchRemoteCommand {
+                self?.remoteSkip(by: -interval) ?? .commandFailed
             }
         }
         commands.skipForwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipForwardInterval)]
@@ -116,39 +116,41 @@ final class MacPlaybackController: ObservableObject {
             guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
                 return .commandFailed
             }
-            return Self.handleRemoteCommand {
-                self?.remoteSkip(by: abs(event.interval)) ?? .commandFailed
+            let interval = abs(event.interval)
+            return Self.dispatchRemoteCommand {
+                self?.remoteSkip(by: interval) ?? .commandFailed
             }
         }
 
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
-            Self.handleRemoteCommand {
+            guard let position = event as? MPChangePlaybackPositionCommandEvent,
+                  position.positionTime.isFinite else { return .commandFailed }
+            let positionTime = position.positionTime
+            return Self.dispatchRemoteCommand {
                 guard let self,
-                      let position = event as? MPChangePlaybackPositionCommandEvent,
-                      position.positionTime.isFinite,
                       let player = self.session?.player else { return .commandFailed }
                 let target = player.duration > 0
-                    ? min(max(position.positionTime, 0), player.duration)
-                    : max(position.positionTime, 0)
+                    ? min(max(positionTime, 0), player.duration)
+                    : max(positionTime, 0)
                 Task { await player.seek(to: target) }
                 return .success
             }
         }
         commands.nextTrackCommand.addTarget { [weak self] _ in
-            Self.handleRemoteCommand { self?.remoteNext() ?? .commandFailed }
+            Self.dispatchRemoteCommand { self?.remoteNext() ?? .commandFailed }
         }
         updateRemoteCommandAvailability(for: nil)
     }
 
-    private nonisolated static func handleRemoteCommand(
-        _ action: @MainActor () -> MPRemoteCommandHandlerStatus
+    private nonisolated static func dispatchRemoteCommand(
+        _ action: @escaping @MainActor () -> MPRemoteCommandHandlerStatus
     ) -> MPRemoteCommandHandlerStatus {
-        if Thread.isMainThread {
-            return MainActor.assumeIsolated(action)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                _ = action()
+            }
         }
-        return DispatchQueue.main.sync {
-            MainActor.assumeIsolated(action)
-        }
+        return .success
     }
 
     private func observeNowPlaying(for session: MacPlexPlayback) {

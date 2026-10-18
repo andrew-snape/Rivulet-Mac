@@ -44,6 +44,7 @@ struct RivuletMacApp: App {
                 .environmentObject(playback)
                 .environmentObject(plex)
                 .environmentObject(vod)
+                .onAppear { vod.configureRemoteCommands() }
                 .frame(minWidth: 900, minHeight: 520)
         }
         .defaultSize(width: 1360, height: 820)

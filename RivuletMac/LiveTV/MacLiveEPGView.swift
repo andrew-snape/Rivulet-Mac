@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
+import Combine
 import SwiftUI
 
 /// A scrollable programme grid alongside the Live TV player.
@@ -47,7 +48,9 @@ struct MacLiveEPGView: View {
             }
         }
         .padding(.vertical, 8)
-        .onReceive(store.$epg) { _ in epgRevision += 1 }
+        .onReceive(store.$epg.debounce(for: .milliseconds(150), scheduler: RunLoop.main)) { _ in
+            epgRevision += 1
+        }
         .task(id: searchKey) { await updateProgramMatches() }
         .task { await monitorSearchWindowHour() }
     }
@@ -93,7 +96,7 @@ struct MacLiveEPGView: View {
                             ForEach(visibleChannels) { channel in
                                 MacEPGChannelRow(
                                     channel: channel, start: start, end: end, now: now,
-                                    timelineWidth: timelineWidth, epgRevision: epgRevision
+                                    timelineWidth: timelineWidth
                                 )
                             }
                         }
@@ -208,12 +211,14 @@ struct MacLiveEPGView: View {
         }
     }
 
+    /// Keeps two past hours visible and rounds the six-hour future edge to an hour boundary.
     private func guideWindow(at now: Date) -> (start: Date, end: Date) {
         let start = Calendar.current.dateInterval(
             of: .hour, for: now.addingTimeInterval(-Double(Self.hoursBeforeNow) * Self.secondsPerHour)
         )?.start ?? now
         let initialEnd = now.addingTimeInterval(Double(Self.guideHoursPerLoad) * Self.secondsPerHour)
-        let end = max(store.epgLoadedThrough ?? initialEnd, initialEnd)
+        let roundedInitialEnd = Calendar.current.dateInterval(of: .hour, for: initialEnd)?.end ?? initialEnd
+        let end = max(store.epgLoadedThrough ?? roundedInitialEnd, roundedInitialEnd)
         return (start, end)
     }
 }
@@ -224,14 +229,16 @@ private struct MacEPGChannelRow: View {
     let end: Date
     let now: Date
     let timelineWidth: CGFloat
-    let epgRevision: Int
 
     @EnvironmentObject private var playback: MacLivePlayback
     @ObservedObject private var store = LiveTVDataStore.shared
     @State private var programs: [UnifiedProgram]?
 
     private var scheduleKey: MacEPGRowScheduleKey {
-        MacEPGRowScheduleKey(channelID: channel.id, start: start, end: end, revision: epgRevision)
+        MacEPGRowScheduleKey(
+            channelID: channel.id, start: start, end: end,
+            scheduleRevision: store.epg[channel.id]?.hashValue ?? 0
+        )
     }
 
     var body: some View {
@@ -333,7 +340,7 @@ private struct MacEPGRowScheduleKey: Equatable {
     let channelID: String
     let start: Date
     let end: Date
-    let revision: Int
+    let scheduleRevision: Int
 }
 
 private struct MacEPGSearchKey: Equatable {
