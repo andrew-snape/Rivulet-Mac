@@ -10,6 +10,8 @@ import SwiftUI
 /// Starting one stops Live TV (`onStart`), so only one stream plays at a time.
 @MainActor
 final class MacPlaybackController: ObservableObject {
+    private static let nowPlayingUpdateInterval: TimeInterval = 5
+
     @Published private(set) var session: MacPlexPlayback?
     @Published private(set) var isAlwaysOnTop = false
 
@@ -69,9 +71,13 @@ final class MacPlaybackController: ObservableObject {
     }
 
     func setAlwaysOnTop(_ enabled: Bool) {
-        guard enabled != isAlwaysOnTop, let window = MacAppDelegate.mainWindow else { return }
+        guard enabled != isAlwaysOnTop else { return }
         isAlwaysOnTop = enabled
-        window.level = enabled ? .floating : .normal
+        MacAppDelegate.mainWindow?.level = enabled ? .floating : .normal
+    }
+
+    func applyWindowLevel(to window: NSWindow) {
+        window.level = isAlwaysOnTop ? .floating : .normal
     }
 
     private func configureRemoteCommands() {
@@ -108,7 +114,8 @@ final class MacPlaybackController: ObservableObject {
             .sink { [weak self] _ in self?.updateNowPlaying() }
             .store(in: &nowPlayingObservations)
         session.player.$currentTime
-            .throttle(for: .seconds(5), scheduler: DispatchQueue.main, latest: true)
+            // Now Playing interpolates elapsed time from the playback rate between updates.
+            .throttle(for: .seconds(Self.nowPlayingUpdateInterval), scheduler: DispatchQueue.main, latest: true)
             .sink { [weak self] _ in self?.updateNowPlaying() }
             .store(in: &nowPlayingObservations)
         session.player.$pendingSeekTarget

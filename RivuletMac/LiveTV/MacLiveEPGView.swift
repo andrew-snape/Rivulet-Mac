@@ -33,9 +33,7 @@ struct MacLiveEPGView: View {
             }
             .padding(.horizontal, 10)
 
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                grid(at: context.date)
-            }
+            grid(at: .now)
         }
         .padding(.vertical, 8)
     }
@@ -48,7 +46,10 @@ struct MacLiveEPGView: View {
         let duration = max(3600, end.timeIntervalSince(start))
         let timelineWidth = CGFloat(duration / 3600) * Self.hourWidth
         let hourCount = Int(ceil(duration / 3600))
-        let visibleChannels = filteredChannels(start: start, end: end, now: now)
+        let programsByChannel = Dictionary(uniqueKeysWithValues: channels.map {
+            ($0.id, store.getPrograms(for: $0, startDate: start, endDate: end))
+        })
+        let visibleChannels = filteredChannels(programsByChannel: programsByChannel)
         let height = Self.headerHeight + CGFloat(visibleChannels.count) * Self.rowHeight
 
         if visibleChannels.isEmpty {
@@ -64,18 +65,16 @@ struct MacLiveEPGView: View {
                         timeHeader(start: start, hourCount: hourCount, timelineWidth: timelineWidth)
                         LazyVStack(spacing: 0) {
                             ForEach(visibleChannels) { channel in
-                                channelRow(channel, start: start, end: end, now: now, timelineWidth: timelineWidth)
+                                channelRow(channel, programs: programsByChannel[channel.id] ?? [],
+                                           start: start, end: end, timelineWidth: timelineWidth)
                             }
                         }
                     }
 
-                    if now >= start, now < end {
-                        Rectangle()
-                            .fill(.red)
-                            .frame(width: 2, height: height)
-                            .offset(x: Self.channelWidth + CGFloat(now.timeIntervalSince(start) / 3600) * Self.hourWidth)
-                            .accessibilityHidden(true)
-                    }
+                    MacEPGNowIndicator(
+                        start: start, end: end, height: height, timelineWidth: timelineWidth,
+                        channelWidth: Self.channelWidth, hourWidth: Self.hourWidth
+                    )
                 }
                 .frame(width: Self.channelWidth + timelineWidth, height: height, alignment: .topLeading)
             }
@@ -113,13 +112,11 @@ struct MacLiveEPGView: View {
 
     private func channelRow(
         _ channel: UnifiedChannel,
+        programs: [UnifiedProgram],
         start: Date,
         end: Date,
-        now: Date,
         timelineWidth: CGFloat
     ) -> some View {
-        let programs = store.getPrograms(for: channel, startDate: start, endDate: end)
-
         return HStack(spacing: 0) {
             Button {
                 playback.play(channel)
@@ -177,7 +174,7 @@ struct MacLiveEPGView: View {
                         Button {
                             playback.play(channel)
                         } label: {
-                            MacEPGProgramCell(program: program, now: now)
+                            MacEPGProgramCell(program: program)
                                 .frame(width: width, height: Self.rowHeight - 8)
                                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                         }
@@ -199,27 +196,32 @@ struct MacLiveEPGView: View {
         .frame(height: Self.rowHeight)
     }
 
-    private func filteredChannels(start: Date, end: Date, now: Date) -> [UnifiedChannel] {
+    private func filteredChannels(programsByChannel: [String: [UnifiedProgram]]) -> [UnifiedChannel] {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return channels }
         return channels.filter { channel in
-            channel.name.localizedCaseInsensitiveContains(text)
-                || channel.channelNumber.map { String($0).hasPrefix(text) } == true
-                || store.getPrograms(for: channel, startDate: start, endDate: end)
-                    .contains { $0.displayTitle.localizedCaseInsensitiveContains(text) }
-                || store.program(for: channel, at: now)?.displayTitle.localizedCaseInsensitiveContains(text) == true
+            if channel.name.localizedCaseInsensitiveContains(text)
+                || channel.channelNumber.map({ String($0).hasPrefix(text) }) == true {
+                return true
+            }
+            return programsByChannel[channel.id, default: []]
+                .contains { $0.displayTitle.localizedCaseInsensitiveContains(text) }
         }
     }
 }
 
 private struct MacEPGProgramCell: View {
     let program: UnifiedProgram
-    let now: Date
-
-    private var isCurrent: Bool { program.startTime <= now && program.endTime > now }
-    private var isPast: Bool { program.endTime <= now }
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            content(at: context.date)
+        }
+    }
+
+    private func content(at now: Date) -> some View {
+        let isCurrent = program.startTime <= now && program.endTime > now
+        let isPast = program.endTime <= now
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Text(program.displayTitle)
@@ -255,5 +257,27 @@ private struct MacEPGProgramCell: View {
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
         }
         .opacity(isPast ? 0.62 : 1)
+    }
+}
+
+private struct MacEPGNowIndicator: View {
+    let start: Date
+    let end: Date
+    let height: CGFloat
+    let timelineWidth: CGFloat
+    let channelWidth: CGFloat
+    let hourWidth: CGFloat
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            if context.date >= start, context.date < end {
+                Rectangle()
+                    .fill(.red)
+                    .frame(width: 2, height: height)
+                    .offset(x: channelWidth + CGFloat(context.date.timeIntervalSince(start) / 3600) * hourWidth)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(width: channelWidth + timelineWidth, height: height, alignment: .topLeading)
     }
 }
