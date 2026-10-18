@@ -254,7 +254,6 @@ private struct MacEPGChannelRow: View {
     let timelineWidth: CGFloat
     let scheduleRevision: Int
     @EnvironmentObject private var playback: MacLivePlayback
-    @EnvironmentObject private var playback: MacLivePlayback
     @State private var programs: [UnifiedProgram]?
 
     private var scheduleKey: MacEPGRowScheduleKey {
