@@ -13,6 +13,10 @@ enum MacChannelFilter: Hashable {
     case group(String)
 }
 
+private var layout: MacLiveTVLayout {
+    MacLiveTVLayout(rawValue: layoutRaw) ?? .channels
+}
+
 /// Live TV: the channel list on the left, the player on the right. Picking a
 /// channel plays it in place; the arrow keys in the list change channel.
 /// In full screen the list steps aside.
@@ -23,6 +27,8 @@ struct MacLiveTVView: View {
     @AppStorage("macChannelFilter") private var filterRaw = "all"
     @State private var query = ""
     @State private var groups: [String] = []
+    @AppStorage("macLiveTVLayout") private var layoutRaw = MacLiveTVLayout.channels.rawValue
+    @State private var lineupRevision = 0
 
     var body: some View {
         Group {
@@ -33,9 +39,13 @@ struct MacLiveTVView: View {
                     if !isFullScreen {
                         VStack(spacing: 0) {
                             filterBar
-                            MacChannelList(channels: lineup, query: query, emptyText: emptyText)
+                            if layout == .guide {
+                                MacLiveEPGView(channels: lineup, query: query, lineupRevision: lineupRevision)
+                            } else {
+                                MacChannelList(channels: lineup, query: query, emptyText: emptyText)
+                            }
                         }
-                        .frame(width: 340)
+                        .frame(width: layout == .guide ? 520 : 340)
                         Divider()
                     }
                     MacNowPlayingPane(showsDetails: !isFullScreen)
@@ -51,11 +61,19 @@ struct MacLiveTVView: View {
             groups = Array(Set(channels.compactMap(\.groupTitle).filter { !$0.isEmpty }))
                 .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         }
-        .onChange(of: lineup.map(\.id), initial: true) { playback.lineup = lineup }
+        .onChange(of: lineup.map(\.id), initial: true) {
+            playback.lineup = lineup
+            lineupRevision += 1
+        }
     }
 
     private var filterBar: some View {
         VStack(spacing: 8) {
+            Picker("View", selection: $layoutRaw) {
+                Text("Channels").tag(MacLiveTVLayout.channels.rawValue)
+                Text("Guide").tag(MacLiveTVLayout.guide.rawValue)
+            }
+            .pickerStyle(.segmented)
             Picker("Show", selection: $filterRaw) {
                 Text("Favourites").tag("favorites")
                 Text("Recently Watched").tag("recent")
@@ -112,6 +130,11 @@ struct MacLiveTVView: View {
         case .all, .group: return store.isLoadingChannels ? "Loading channels…" : "No channels."
         }
     }
+}
+
+private enum MacLiveTVLayout: String {
+    case channels
+    case guide
 }
 
 // MARK: - Channel list

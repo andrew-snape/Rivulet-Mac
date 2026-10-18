@@ -3,20 +3,28 @@
 
 import AppKit
 import Combine
+@preconcurrency import MediaPlayer
 import SwiftUI
 
 /// App-level owner of the Plex item playing, shown over the whole window.
 /// Starting one stops Live TV (`onStart`), so only one stream plays at a time.
 @MainActor
 final class MacPlaybackController: ObservableObject {
+    private static let nowPlayingUpdateInterval: TimeInterval = 5
+    private static let remoteSkipBackwardInterval: TimeInterval = 10
+    private static let remoteSkipForwardInterval: TimeInterval = 30
+
     @Published private(set) var session: MacPlexPlayback?
+    @Published private(set) var isAlwaysOnTop = false
 
     /// Needed to build sessions; the root view sets it.
     weak var plex: MacPlexSession?
     var onStart: (() -> Void)?
 
     private var stateObservation: AnyCancellable?
+    private var nowPlayingObservations = Set<AnyCancellable>()
     private var sleepActivity: NSObjectProtocol?
+    private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
     private var volume: Float = 1
     private var isMuted = false
@@ -33,6 +41,8 @@ final class MacPlaybackController: ObservableObject {
         stateObservation = newSession.player.$state
             .removeDuplicates()
             .sink { [weak self] state in self?.keepAwake(state == .playing) }
+        observeNowPlaying(for: newSession)
+        updateRemoteCommandAvailability(for: newSession)
         Task { await newSession.begin() }
     }
 
@@ -50,9 +60,225 @@ final class MacPlaybackController: ObservableObject {
         let reported = session.end()
         session.player.stop()
         stateObservation = nil
+        nowPlayingObservations.removeAll()
+        let nowPlaying = MPNowPlayingInfoCenter.default()
+        nowPlaying.nowPlayingInfo = nil
+        nowPlaying.playbackState = .stopped
+        setAlwaysOnTop(false)
+        updateRemoteCommandAvailability(for: nil)
         keepAwake(false)
         self.session = nil
         return reported
+    }
+
+    /// Pinning is a per-session choice and resets when playback ends.
+    func setAlwaysOnTop(_ enabled: Bool) {
+        isAlwaysOnTop = session != nil && enabled
+        MacAppDelegate.mainWindow?.level = windowLevel
+    }
+
+    func applyWindowLevel(to window: NSWindow) {
+        window.level = windowLevel
+    }
+
+    private var windowLevel: NSWindow.Level {
+        session != nil && isAlwaysOnTop ? .floating : .normal
+    }
+
+    func configureRemoteCommands() {
+        guard !hasConfiguredRemoteCommands else { return }
+        hasConfiguredRemoteCommands = true
+        // This controller is an app-lifetime StateObject, so the shared command
+        // center receives one set of handlers for the lifetime of the app.
+        let commands = MPRemoteCommandCenter.shared()
+        commands.playCommand.addTarget { [weak self] _ in
+            Self.dispatchRemoteCommand { self?.remotePlay() ?? .commandFailed }
+        }
+        commands.pauseCommand.addTarget { [weak self] _ in
+            Self.dispatchRemoteCommand { self?.remotePause() ?? .commandFailed }
+        }
+        commands.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Self.dispatchRemoteCommand { self?.remoteToggle() ?? .commandFailed }
+        }
+        commands.stopCommand.addTarget { [weak self] _ in
+            Self.dispatchRemoteCommand { self?.remoteStop() ?? .commandFailed }
+        }
+
+        commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipBackwardInterval)]
+        commands.skipBackwardCommand.addTarget { [weak self] event in
+            guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
+                return .commandFailed
+            }
+            let interval = abs(event.interval)
+            return Self.dispatchRemoteCommand {
+                self?.remoteSkip(by: -interval) ?? .commandFailed
+            }
+        }
+        commands.skipForwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipForwardInterval)]
+        commands.skipForwardCommand.addTarget { [weak self] event in
+            guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
+                return .commandFailed
+            }
+            let interval = abs(event.interval)
+            return Self.dispatchRemoteCommand {
+                self?.remoteSkip(by: interval) ?? .commandFailed
+            }
+        }
+
+        commands.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let position = event as? MPChangePlaybackPositionCommandEvent,
+                  position.positionTime.isFinite else { return .commandFailed }
+            let positionTime = position.positionTime
+            return Self.dispatchRemoteCommand {
+                guard let self,
+                      let player = self.session?.player else { return .commandFailed }
+                let target = player.duration > 0
+                    ? min(max(positionTime, 0), player.duration)
+                    : max(positionTime, 0)
+                Task { await player.seek(to: target) }
+                return .success
+            }
+        }
+        commands.nextTrackCommand.addTarget { [weak self] _ in
+            Self.dispatchRemoteCommand { self?.remoteNext() ?? .commandFailed }
+        }
+        updateRemoteCommandAvailability(for: nil)
+    }
+
+    private nonisolated static func dispatchRemoteCommand(
+        _ action: @escaping @MainActor () -> MPRemoteCommandHandlerStatus
+    ) -> MPRemoteCommandHandlerStatus {
+        // Preserve the handler result on the main-thread path; queue unexpected off-main callbacks.
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated(action)
+        }
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                _ = action()
+            }
+        }
+        return .success
+    }
+
+    private func observeNowPlaying(for session: MacPlexPlayback) {
+        nowPlayingObservations.removeAll()
+        session.player.$state
+            .removeDuplicates()
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        session.player.$currentTime
+            // Now Playing interpolates elapsed time from the playback rate between updates.
+            .throttle(for: .seconds(Self.nowPlayingUpdateInterval), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        session.player.$pendingSeekTarget
+            .removeDuplicates()
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        session.player.$duration
+            .removeDuplicates()
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        session.player.$rate
+            .removeDuplicates()
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        session.$nextEpisode
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateRemoteCommandAvailability(for: self.session)
+            }
+            .store(in: &nowPlayingObservations)
+        session.$request
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        updateNowPlaying()
+    }
+
+    private func updateNowPlaying() {
+        guard let session else { return }
+        let item = session.request.item
+        let player = session.player
+        let nowPlaying = MPNowPlayingInfoCenter.default()
+        let elapsed = player.pendingSeekTarget ?? player.currentTime
+        var information: [String: Any] = [
+            MPMediaItemPropertyTitle: item.displayTitle,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed.isFinite ? max(0, elapsed) : 0,
+            MPNowPlayingInfoPropertyPlaybackRate: player.state == .playing ? player.rate : 0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: player.rate
+        ]
+        let duration = player.duration > 0 ? player.duration : item.durationSeconds
+        if duration.isFinite, duration > 0 {
+            information[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+        if item.type == "episode" {
+            information[MPMediaItemPropertyAlbumTitle] = item.showTitle
+        }
+        nowPlaying.nowPlayingInfo = information
+        switch player.state {
+        case .playing:
+            nowPlaying.playbackState = .playing
+        case .ended, .failed, .idle:
+            nowPlaying.playbackState = .stopped
+        case .loading, .paused:
+            nowPlaying.playbackState = .paused
+        }
+    }
+
+    private func updateRemoteCommandAvailability(for session: MacPlexPlayback?) {
+        let commands = MPRemoteCommandCenter.shared()
+        let available = session != nil
+        commands.playCommand.isEnabled = available
+        commands.pauseCommand.isEnabled = available
+        commands.togglePlayPauseCommand.isEnabled = available
+        commands.stopCommand.isEnabled = available
+        commands.skipBackwardCommand.isEnabled = available
+        commands.skipForwardCommand.isEnabled = available
+        commands.changePlaybackPositionCommand.isEnabled = available
+        commands.nextTrackCommand.isEnabled = session?.nextEpisode != nil
+    }
+
+    private func remotePlay() -> MPRemoteCommandHandlerStatus {
+        guard let player = session?.player else { return .commandFailed }
+        switch player.state {
+        case .playing:
+            return .success
+        case .paused:
+            player.togglePlayPause()
+            return .success
+        default:
+            return .commandFailed
+        }
+    }
+
+    private func remotePause() -> MPRemoteCommandHandlerStatus {
+        guard let player = session?.player else { return .commandFailed }
+        if player.state == .playing { player.togglePlayPause() }
+        return .success
+    }
+
+    private func remoteToggle() -> MPRemoteCommandHandlerStatus {
+        guard let player = session?.player else { return .commandFailed }
+        player.togglePlayPause()
+        return .success
+    }
+
+    private func remoteStop() -> MPRemoteCommandHandlerStatus {
+        guard session != nil else { return .commandFailed }
+        close()
+        return .success
+    }
+
+    private func remoteSkip(by seconds: Double) -> MPRemoteCommandHandlerStatus {
+        guard let player = session?.player else { return .commandFailed }
+        Task { await player.skip(by: seconds) }
+        return .success
+    }
+
+    private func remoteNext() -> MPRemoteCommandHandlerStatus {
+        guard let session, session.nextEpisode != nil else { return .commandFailed }
+        session.playNext()
+        return .success
     }
 
     private func keepAwake(_ awake: Bool) {

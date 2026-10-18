@@ -44,6 +44,7 @@ struct RivuletMacApp: App {
                 .environmentObject(playback)
                 .environmentObject(plex)
                 .environmentObject(vod)
+                .onAppear { vod.configureRemoteCommands() }
                 .frame(minWidth: 900, minHeight: 520)
         }
         .defaultSize(width: 1360, height: 820)
@@ -90,6 +91,12 @@ private struct MacPlaybackCommands: Commands {
             }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(active == nil)
+
+            Toggle("Always on Top", isOn: Binding(
+                get: { vod.isAlwaysOnTop },
+                set: { vod.setAlwaysOnTop($0) }
+            ))
+            .disabled(vod.session == nil)
 
             Divider()
 
