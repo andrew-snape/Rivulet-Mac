@@ -8,6 +8,7 @@ import SwiftUI
 struct RivuletMacApp: App {
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
     @State private var playback: MacLivePlayback
+    @State private var multiview: MacMultiview
     @State private var plex: MacPlexSession
     @State private var vod: MacPlaybackController
 
@@ -28,12 +29,15 @@ struct RivuletMacApp: App {
         _plex = State(initialValue: plex)
 
         let playback = MacLivePlayback()
+        let multiview = MacMultiview()
         let vod = MacPlaybackController()
         vod.plex = plex
         MacAppDelegate.refreshPlex = { [weak plex] in await plex?.refresh() }
         MacAppDelegate.playback = playback
         MacAppDelegate.vod = vod
+        MacAppDelegate.multiview = multiview
         _playback = State(initialValue: playback)
+        _multiview = State(initialValue: multiview)
         _vod = State(initialValue: vod)
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
@@ -43,6 +47,7 @@ struct RivuletMacApp: App {
         Window("Rivulet", id: "main") {
             MacRootView()
                 .environment(playback)
+                .environment(multiview)
                 .environment(plex)
                 .environment(vod)
                 .onAppear { vod.configureRemoteCommands() }
@@ -157,6 +162,7 @@ private struct MacPlaybackCommands: Commands {
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
     static weak var playback: MacLivePlayback?
     static weak var vod: MacPlaybackController?
+    static weak var multiview: MacMultiview?
     /// The window `MacRootView` sits in; set by the view.
     static weak var mainWindow: NSWindow?
     /// Set by the app: refetches Plex Home and libraries.
@@ -181,7 +187,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
                     case 49: player.togglePlayPause()
                     case 123: Task { await player.skip(by: -10) }
                     case 124: Task { await player.skip(by: 30) }
-                    case 53: Self.vod?.close()
+                    case 53: if session.pane != nil { session.pane = nil } else { Self.vod?.close() }
                     default: return false
                     }
                     return true
@@ -204,6 +210,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     /// three seconds, not a hang.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let reports = [Self.vod?.close(), Self.playback?.stop()].compactMap { $0 }
+            + (Self.multiview?.stopAll() ?? [])
         guard !reports.isEmpty else { return .terminateNow }
         Task {
             for report in reports { await report.value }

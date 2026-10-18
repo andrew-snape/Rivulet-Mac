@@ -256,7 +256,7 @@ private struct MacDetailsPane: View {
         var id: String { label }
     }
 
-    private struct Section: Identifiable {
+    private struct DetailSection: Identifiable {
         let title: String
         let rows: [Row]
         var id: String { title }
@@ -295,19 +295,19 @@ private struct MacDetailsPane: View {
     private var media: PlexMedia? { item.Media?[safe: session.request.mediaIndex] }
     private var streams: [PlexStream] { media?.Part?.first?.Stream ?? [] }
 
-    private var sections: [Section] {
+    private var sections: [DetailSection] {
         [playbackSection, videoSection, audioSection, liveSection, fileSection].compactMap { $0 }
     }
 
-    private var playbackSection: Section {
+    private var playbackSection: DetailSection {
         let request = session.request
         var rows = [Row(label: "Mode", value: request.plan == .original ? "Direct Play" : "Transcode")]
         rows.append(Row(label: "Quality", value: session.qualityLabel))
         if let kbps = request.sourceKbps { rows.append(Row(label: "Source", value: Self.mbps(Double(kbps) / 1000))) }
-        return Section(title: "PLAYBACK", rows: rows)
+        return DetailSection(title: "PLAYBACK", rows: rows)
     }
 
-    private var videoSection: Section? {
+    private var videoSection: DetailSection? {
         guard let video = streams.first(where: { $0.streamType == 1 }) else { return nil }
         var rows: [Row] = []
         if let codec = video.codec { rows.append(Row(label: "Codec", value: codec.uppercased() + (video.profile.map { " \($0)" } ?? ""))) }
@@ -318,10 +318,10 @@ private struct MacDetailsPane: View {
         if let depth = video.bitDepth { rows.append(Row(label: "Bit depth", value: "\(depth)-bit")) }
         if let range = Self.dynamicRange(video) { rows.append(Row(label: "Range", value: range)) }
         if let decoder = player.stats().videoDecoder { rows.append(Row(label: "Decoder", value: decoder)) }
-        return Section(title: "VIDEO", rows: rows)
+        return DetailSection(title: "VIDEO", rows: rows)
     }
 
-    private var audioSection: Section? {
+    private var audioSection: DetailSection? {
         let audio = streams.first { $0.isAudio && $0.id == session.selectedAudioID }
             ?? streams.first { $0.isAudio && $0.selected == true }
             ?? streams.first(where: \.isAudio)
@@ -335,11 +335,11 @@ private struct MacDetailsPane: View {
         if let bitrate = audio.bitrate { rows.append(Row(label: "Bitrate", value: "\(bitrate) kbps")) }
         if let language = audio.language { rows.append(Row(label: "Language", value: language)) }
         if let decoder = player.stats().audioDecoder { rows.append(Row(label: "Decoder", value: decoder)) }
-        return Section(title: "AUDIO", rows: rows)
+        return DetailSection(title: "AUDIO", rows: rows)
     }
 
     /// The engine's live figures; nil when it measures none on this path.
-    private var liveSection: Section? {
+    private var liveSection: DetailSection? {
         let stats = player.stats()
         var rows: [Row] = []
         if let value = stats.instantBitrateMbps { rows.append(Row(label: "Bitrate", value: Self.mbps(value))) }
@@ -347,17 +347,17 @@ private struct MacDetailsPane: View {
         if let value = stats.framesPerSecond { rows.append(Row(label: "Frame rate", value: String(format: "%.1f fps", value))) }
         if let value = stats.droppedFrames { rows.append(Row(label: "Dropped", value: "\(value) frames")) }
         if let value = stats.bufferSeconds { rows.append(Row(label: "Buffer", value: String(format: "%.1f s", value))) }
-        return rows.isEmpty ? nil : Section(title: "LIVE", rows: rows)
+        return rows.isEmpty ? nil : DetailSection(title: "LIVE", rows: rows)
     }
 
-    private var fileSection: Section? {
+    private var fileSection: DetailSection? {
         guard let part = media?.Part?.first else { return nil }
         var rows: [Row] = []
         if let name = part.file?.split(separator: "/").last { rows.append(Row(label: "File", value: String(name))) }
         if let container = part.container ?? media?.container { rows.append(Row(label: "Container", value: container.uppercased())) }
         if let size = part.size { rows.append(Row(label: "Size", value: ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))) }
         if let bitrate = media?.bitrate { rows.append(Row(label: "Bitrate", value: Self.mbps(Double(bitrate) / 1000))) }
-        return rows.isEmpty ? nil : Section(title: "FILE", rows: rows)
+        return rows.isEmpty ? nil : DetailSection(title: "FILE", rows: rows)
     }
 
     private static func mbps(_ value: Double) -> String {

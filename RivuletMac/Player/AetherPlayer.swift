@@ -565,6 +565,31 @@ final class AetherPlayer {
         state == .playing ? pause() : play()
     }
 
+    /// The engine's decoders and live telemetry, for the Details pane. Fields the
+    /// playing path doesn't measure are nil.
+    struct Stats: Sendable {
+        var videoDecoder: String?
+        var audioDecoder: String?
+        var instantBitrateMbps: Double?
+        var averageBitrateMbps: Double?
+        var framesPerSecond: Double?
+        var droppedFrames: Int?
+        var bufferSeconds: Double?
+    }
+
+    func stats() -> Stats {
+        let telemetry = engine.liveTelemetry
+        return Stats(
+            videoDecoder: engine.activeVideoDecoder,
+            audioDecoder: engine.activeAudioDecoder,
+            instantBitrateMbps: telemetry?.instantBitrateMbps,
+            averageBitrateMbps: telemetry?.averageBitrateMbps,
+            framesPerSecond: telemetry?.observedFps,
+            droppedFrames: telemetry?.droppedFrameCount,
+            bufferSeconds: telemetry?.forwardBufferSeconds
+        )
+    }
+
     func setMuted(_ muted: Bool) {
         isMuted = muted
         engine.volume = muted ? 0 : volume

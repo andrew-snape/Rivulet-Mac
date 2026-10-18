@@ -27,6 +27,18 @@ final class MacLivePlayback {
     @ObservationIgnored private let keepalive = PlexLiveTimelineKeepalive()
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var watchTask: Task<Void, Never>?
+    @ObservationIgnored private let sleepGuard = MacSleepGuard()
+    @ObservationIgnored private var sleepTask: Task<Void, Never>?
+
+    init() {
+        // The display stays awake while a channel plays, popped out or not.
+        let player = player
+        sleepTask = Task { [weak self] in
+            for await playing in Observations({ player.state == .playing }) {
+                self?.sleepGuard.setAwake(playing)
+            }
+        }
+    }
 
     var programme: UnifiedProgram? { channel.flatMap(store.getCurrentProgram(for:)) }
 

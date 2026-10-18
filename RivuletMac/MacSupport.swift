@@ -135,6 +135,24 @@ struct MacChannelLogo: View {
     }
 }
 
+// MARK: - Display sleep
+
+/// Keeps the display awake while something plays, as a video player should.
+@MainActor
+final class MacSleepGuard {
+    private var activity: NSObjectProtocol?
+
+    func setAwake(_ awake: Bool) {
+        if awake, activity == nil {
+            activity = ProcessInfo.processInfo.beginActivity(
+                options: [.idleDisplaySleepDisabled, .userInitiated], reason: "Playing video")
+        } else if !awake, let activity {
+            ProcessInfo.processInfo.endActivity(activity)
+            self.activity = nil
+        }
+    }
+}
+
 // MARK: - Window
 
 /// Hands back the window a view sits in, for AppKit code that must tell windows apart.

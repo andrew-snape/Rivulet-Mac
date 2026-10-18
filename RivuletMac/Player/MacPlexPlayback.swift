@@ -17,6 +17,11 @@ final class MacPlexPlayback {
     /// Plex stream ids picked on a transcode; subtitle 0 is Off.
     private(set) var chosenAudioID: Int?
     private(set) var chosenSubtitleID: Int?
+    /// The pane open above the controls, if any.
+    var pane: MacPlayerPane?
+    /// The item with its chapters and cast, fetched once the title is up.
+    private(set) var detail: PlexMetadata?
+    var chapters: [MacChapter] { MacChapter.list(from: detail) }
 
     private let plex: MacPlexSession
     private var skippedMarkerIDs: Set<String> = []
@@ -93,6 +98,15 @@ final class MacPlexPlayback {
 
     func retry() {
         Task { await player.retry() }
+    }
+
+    /// Fetches the playing item's full metadata. The item changes with Up Next.
+    func loadDetail() async {
+        let item = request.item
+        detail = nil
+        let full = try? await plex.metadata(for: item)
+        guard !Task.isCancelled, item.ratingKey == request.item.ratingKey else { return }
+        detail = full
     }
 
     // MARK: - Quality

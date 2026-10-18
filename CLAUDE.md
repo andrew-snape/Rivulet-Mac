@@ -31,8 +31,6 @@ RivuletCore/            # Plex and Live TV logic, no views. The ONE Plex client
 │                       #   version ranking, stall tracker), LiveTV/ (LiveTVDataStore,
 │                       #   Plex + IPTV providers, LiveTVSourceConnector), IPTV/ (M3U,
 │                       #   XMLTV, Dispatcharr), Security/ (Keychain), CaptionAppearance.
-│                       #   Some tvOS-only leftovers (TMDB, Downloads, Sentry) still
-│                       #   compile here unused.
 RivuletMac/
 ├── RivuletMacApp.swift # App, Playback menu, MacAppDelegate (Space / arrows / Esc monitor,
 │                       #   quit waits up to 3 s for Plex's stopped reports)
@@ -42,9 +40,11 @@ RivuletMac/
 ├── Plex/               # MacPlexSession (+Content, +Account, +Playback): the content
 │                       #   store, ported from the iOS app's IOSPlexSession; the views
 │                       #   (Home, Library, See All, Search, Detail, sign-in, profiles)
-├── LiveTV/             # MacLiveTVView: channel list + inline player
+├── LiveTV/             # MacLiveTVView: channel list + inline player; MacMultiview (up to
+│                       #   four channels, sound follows the clicked tile)
 └── Player/             # AetherPlayer (the only file naming engine types),
                         #   MacPlexPlayback (Plex reporting, markers, Up Next, quality),
+                        #   MacPlayerPanes (Info, Chapters, Details, the Up Next card),
                         #   MacPlaybackController + MacVODPlayerView, MacLivePlayback,
                         #   MacPlayerView (live chrome), MacCaptionOverlay
 ```
@@ -92,8 +92,8 @@ from the app, the app injects it at launch, before touching the stores:
   250 ms before tuning, so arrowing through the list tunes only where it stops.
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
-- **One stream at a time**: starting a Plex title stops Live TV, and leaving
-  the Live TV page stops its channel, unless the picture is popped out into
+- **One stream at a time**, Multiview aside: starting a Plex title stops Live TV
+  and every Multiview tile, and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
   its floating window (`MacLivePlayback.isPoppedOut`). The engine's surface can
   be on screen in one place only, so the page shows a stand-in meanwhile;
   closing the window off the Live TV page stops the channel.
@@ -160,11 +160,7 @@ pre-encoded `%2C`, whole value percent-encoded once. Do not "fix" it.
 
 ## Build & Run
 
-One-time setup: `RivuletCore/Config/Secrets.swift` is gitignored and required
-to compile. Copy the template; placeholders are fine.
-
 ```bash
-cp RivuletCore/Config/Secrets.swift.template RivuletCore/Config/Secrets.swift
 xcodebuild -scheme "Rivulet Mac" -destination 'platform=macOS,arch=arm64' build
 ```
 
@@ -174,8 +170,7 @@ CI: `swiftlint.yml` runs the one custom lint rule on Linux. There is no CI
 compile (GitHub's runners lag the Xcode the project needs), so build locally in
 Xcode. There are no unit tests yet (the tvOS suite went with the tvOS app).
 
-Sentry is linked (RivuletCore imports it) but never started on the Mac. Never
-send stream URLs anywhere: IPTV paths embed credentials and Plex URLs carry
+There is no crash or analytics reporting. Never log stream URLs: IPTV paths embed credentials and Plex URLs carry
 tokens; use `SensitiveDataRedactor.safeURLString`.
 
 ## Design Philosophy

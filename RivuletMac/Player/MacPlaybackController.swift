@@ -24,7 +24,9 @@ final class MacPlaybackController {
 
     @ObservationIgnored private var stateObservation: Task<Void, Never>?
     @ObservationIgnored private var nowPlayingObservations: [Task<Void, Never>] = []
-    @ObservationIgnored private var sleepActivity: NSObjectProtocol?
+    @ObservationIgnored private let sleepGuard = MacSleepGuard()
+    @ObservationIgnored private var nowPlayingArtwork: MPMediaItemArtwork?
+    @ObservationIgnored private var liveObservation: Task<Void, Never>?
     @ObservationIgnored private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
     @ObservationIgnored private var volume: Float = 1
@@ -43,7 +45,7 @@ final class MacPlaybackController {
         let player = newSession.player
         stateObservation = Task { [weak self] in
             for await playing in Observations({ player.state == .playing }) {
-                self?.keepAwake(playing)
+                self?.sleepGuard.setAwake(playing)
             }
         }
         observeNowPlaying(for: newSession)
@@ -73,7 +75,8 @@ final class MacPlaybackController {
         setAlwaysOnTop(false)
         lockAspectRatio(false)
         updateRemoteCommandAvailability(for: nil)
-        keepAwake(false)
+        sleepGuard.setAwake(false)
+        nowPlayingArtwork = nil
         self.session = nil
         return reported
     }
@@ -161,6 +164,51 @@ final class MacPlaybackController {
             Self.dispatchRemoteCommand { self?.remoteNext() ?? .commandFailed }
         }
         updateRemoteCommandAvailability(for: nil)
+        observeLive()
+    }
+
+    /// The channel on screen: Now Playing and the media keys follow it while no Plex title is up.
+    private var live: MacLivePlayback? {
+        MacAppDelegate.playback.flatMap { $0.channel == nil ? nil : $0 }
+    }
+
+    /// The player in front: the Plex title, else the channel.
+    private var activePlayer: AetherPlayer? {
+        session?.player ?? live?.player
+    }
+
+    private func observeLive() {
+        guard let playback = MacAppDelegate.playback else { return }
+        liveObservation = Task { [weak self] in
+            for await _ in Observations({
+                _ = (playback.channel?.id, playback.player.state, playback.programme?.title)
+            }) {
+                guard let self, self.session == nil else { continue }
+                self.updateLiveNowPlaying()
+                self.updateRemoteCommandAvailability(for: nil)
+            }
+        }
+    }
+
+    private func updateLiveNowPlaying() {
+        let nowPlaying = MPNowPlayingInfoCenter.default()
+        guard let playback = live else {
+            nowPlaying.nowPlayingInfo = nil
+            nowPlaying.playbackState = .stopped
+            return
+        }
+        let channel = playback.channel
+        nowPlaying.nowPlayingInfo = [
+            MPMediaItemPropertyTitle: playback.programme?.displayTitle ?? channel?.name ?? "",
+            MPMediaItemPropertyArtist: channel?.numberAndName ?? "",
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyPlaybackRate: playback.player.state == .playing ? 1.0 : 0.0
+        ]
+        switch playback.player.state {
+        case .playing: nowPlaying.playbackState = .playing
+        case .ended, .failed, .idle: nowPlaying.playbackState = .stopped
+        case .loading, .paused: nowPlaying.playbackState = .paused
+        }
     }
 
     private nonisolated static func dispatchRemoteCommand(
@@ -207,7 +255,30 @@ final class MacPlaybackController {
                 self.updateRemoteCommandAvailability(for: self.session)
             }
         })
+        // The poster follows the item, so Up Next swaps it too.
+        nowPlayingObservations.append(Task { [weak self] in
+            for await _ in Observations({ session.request.item.ratingKey }) {
+                guard let self else { return }
+                self.nowPlayingArtwork = nil
+                self.updateNowPlaying()
+                self.nowPlayingArtwork = await self.loadArtwork(for: session.request.item)
+                self.updateNowPlaying()
+            }
+        })
         updateNowPlaying()
+    }
+
+    private func loadArtwork(for item: PlexMetadata) async -> MPMediaItemArtwork? {
+        guard let url = plex?.artworkURL(for: item, kind: .poster, width: 600, height: 900),
+              let image = await MacArtworkCache.shared.image(for: url),
+              !Task.isCancelled else { return nil }
+        return Self.artwork(from: image)
+    }
+
+    /// Nonisolated on purpose: MediaPlayer calls the handler on its own queue, and a
+    /// closure built in a main-actor method would trap on that isolation check.
+    private nonisolated static func artwork(from image: NSImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 
     private func updateNowPlaying() {
@@ -229,6 +300,9 @@ final class MacPlaybackController {
         if item.type == "episode" {
             information[MPMediaItemPropertyAlbumTitle] = item.showTitle
         }
+        if let nowPlayingArtwork {
+            information[MPMediaItemPropertyArtwork] = nowPlayingArtwork
+        }
         nowPlaying.nowPlayingInfo = information
         switch player.state {
         case .playing:
@@ -242,11 +316,13 @@ final class MacPlaybackController {
 
     private func updateRemoteCommandAvailability(for session: MacPlexPlayback?) {
         let commands = MPRemoteCommandCenter.shared()
+        // A channel can pause and stop but has no length to skip or seek in.
         let available = session != nil
-        commands.playCommand.isEnabled = available
-        commands.pauseCommand.isEnabled = available
-        commands.togglePlayPauseCommand.isEnabled = available
-        commands.stopCommand.isEnabled = available
+        let playing = available || live != nil
+        commands.playCommand.isEnabled = playing
+        commands.pauseCommand.isEnabled = playing
+        commands.togglePlayPauseCommand.isEnabled = playing
+        commands.stopCommand.isEnabled = playing
         commands.skipBackwardCommand.isEnabled = available
         commands.skipForwardCommand.isEnabled = available
         commands.changePlaybackPositionCommand.isEnabled = available
@@ -254,7 +330,7 @@ final class MacPlaybackController {
     }
 
     private func remotePlay() -> MPRemoteCommandHandlerStatus {
-        guard let player = session?.player else { return .commandFailed }
+        guard let player = activePlayer else { return .commandFailed }
         switch player.state {
         case .playing:
             return .success
@@ -267,20 +343,25 @@ final class MacPlaybackController {
     }
 
     private func remotePause() -> MPRemoteCommandHandlerStatus {
-        guard let player = session?.player else { return .commandFailed }
+        guard let player = activePlayer else { return .commandFailed }
         if player.state == .playing { player.togglePlayPause() }
         return .success
     }
 
     private func remoteToggle() -> MPRemoteCommandHandlerStatus {
-        guard let player = session?.player else { return .commandFailed }
+        guard let player = activePlayer else { return .commandFailed }
         player.togglePlayPause()
         return .success
     }
 
     private func remoteStop() -> MPRemoteCommandHandlerStatus {
-        guard session != nil else { return .commandFailed }
-        close()
+        if session != nil {
+            close()
+        } else if let live {
+            live.stop()
+        } else {
+            return .commandFailed
+        }
         return .success
     }
 
@@ -294,16 +375,6 @@ final class MacPlaybackController {
         guard let session, session.nextEpisode != nil else { return .commandFailed }
         session.playNext()
         return .success
-    }
-
-    private func keepAwake(_ awake: Bool) {
-        if awake, sleepActivity == nil {
-            sleepActivity = ProcessInfo.processInfo.beginActivity(
-                options: [.idleDisplaySleepDisabled, .userInitiated], reason: "Playing video")
-        } else if !awake, let activity = sleepActivity {
-            ProcessInfo.processInfo.endActivity(activity)
-            sleepActivity = nil
-        }
     }
 }
 
@@ -343,13 +414,24 @@ struct MacVODPlayerView: View {
                 topBar
                     .opacity(chromeVisible ? 1 : 0)
                 Spacer()
-                // Skip and Next Episode stay up with the controls hidden, so they can be clicked at once.
-                HStack {
+                // Skip and Up Next stay up with the controls hidden, so they can be clicked at once.
+                HStack(alignment: .bottom) {
                     Spacer()
                     contextualButton
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
+                if session.pane != nil {
+                    MacPlayerPaneCard(
+                        session: session, player: player, detail: session.detail,
+                        chapters: session.chapters,
+                        pane: Binding(get: { session.pane }, set: { session.pane = $0 })
+                    )
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+                    .opacity(chromeVisible ? 1 : 0)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 controls
                     .padding(.horizontal, 24)
                     .padding(.bottom, 20)
@@ -365,13 +447,15 @@ struct MacVODPlayerView: View {
         }
         .environment(\.colorScheme, .dark)
         .onAppear { scheduleHide(after: .seconds(3)) }
+        .task(id: session.request.item.ratingKey) { await session.loadDetail() }
+        .animation(.easeOut(duration: 0.2), value: session.pane)
         // A slow start or a resume from the keyboard leaves the pointer still, so fade from here too.
         .onChange(of: player.state) { _, state in
             if state == .playing { scheduleHide(after: .seconds(3)) }
         }
     }
 
-    private var chromeVisible: Bool { controlsVisible || player.state != .playing }
+    private var chromeVisible: Bool { controlsVisible || player.state != .playing || session.pane != nil }
 
     // MARK: Status
 
@@ -429,22 +513,9 @@ struct MacVODPlayerView: View {
 
     @ViewBuilder
     private var contextualButton: some View {
-        if let countdown = session.upNextCountdown {
-            HStack(spacing: 8) {
-                Button { session.playNext() } label: {
-                    Label("Next Episode in \(countdown)", systemImage: "forward.end.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                Button("Cancel", action: session.cancelUpNext)
-                    .buttonStyle(.bordered)
-            }
-            .controlSize(.large)
-        } else if session.nextEpisode != nil, !session.upNextDismissed, session.isNearEnd {
-            Button { session.playNext() } label: {
-                Label("Next Episode", systemImage: "forward.end.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+        if let next = session.nextEpisode,
+           session.upNextCountdown != nil || (!session.upNextDismissed && session.isNearEnd) {
+            MacUpNextCard(session: session, next: next)
         } else if let marker = session.activeMarker {
             Button { session.skip(marker) } label: {
                 Label("Skip \(marker.displayName)", systemImage: marker.isCommunity ? "person.3.fill" : "forward.fill")
@@ -504,6 +575,14 @@ struct MacVODPlayerView: View {
                 trackMenus
                 qualityMenu
                 speedMenu
+
+                ForEach(MacPlayerPane.allCases.filter { $0 != .chapters || !session.chapters.isEmpty }) { pane in
+                    Button { session.pane = session.pane == pane ? nil : pane } label: {
+                        Image(systemName: pane.icon)
+                            .foregroundStyle(session.pane == pane ? Color.accentColor : .primary)
+                    }
+                    .help(pane.rawValue)
+                }
 
                 Button { player.setMuted(!player.isMuted) } label: {
                     Image(systemName: player.isMuted || player.volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill")

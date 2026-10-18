@@ -18,6 +18,7 @@ struct MacRootView: View {
     @Environment(MacPlexSession.self) private var plex
     @Environment(MacPlaybackController.self) private var playback
     @Environment(MacLivePlayback.self) private var live
+    @Environment(MacMultiview.self) private var multiview
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var section: MacSection? = .home
@@ -54,14 +55,20 @@ struct MacRootView: View {
         })
         .onAppear {
             playback.plex = plex
-            playback.onStart = { [live] in live.stop() }
+            playback.onStart = { [live, multiview] in
+                live.stop()
+                multiview.stopAll()
+            }
         }
         .task { await plex.verifyConnection() }
         .onChange(of: section) { old, new in
             path = NavigationPath()
             // Live TV plays inside its page; leaving the page stops it, unless
             // the picture has its own window.
-            if old == .liveTV, new != .liveTV, !live.isPoppedOut { live.stop() }
+            if old == .liveTV, new != .liveTV {
+                multiview.stopAll()
+                if !live.isPoppedOut { live.stop() }
+            }
         }
         // Closing the floating window off the Live TV page ends the stream.
         .onChange(of: live.isPoppedOut) { was, isNow in

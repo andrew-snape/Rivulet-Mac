@@ -190,6 +190,10 @@ private struct MacPlayerControls: View {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                 }
                 .help(isFavorite ? "Remove from Favourites" : "Add to Favourites")
+
+                if !compact, store.canRecord(channel), let program = playback.programme {
+                    MacRecordButton(channel: channel, program: program)
+                }
             }
 
             trackMenus
@@ -299,6 +303,60 @@ private struct MacPlayerControls: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Subtitles")
+        }
+    }
+}
+
+// MARK: - Record
+
+/// Records what is airing: the source's own options (this episode, the series),
+/// or stops a recording already set for it.
+private struct MacRecordButton: View {
+    let channel: UnifiedChannel
+    let program: UnifiedProgram
+    private let store = LiveTVDataStore.shared
+    @State private var options: [LiveTVRecordOption] = []
+    @State private var failure: String?
+
+    var body: some View {
+        let active = store.activeRecording(for: program)
+        Menu {
+            if let active {
+                Button(active.status == .recording ? "Stop Recording" : "Cancel Recording") {
+                    run { try await store.cancel(active) }
+                }
+                if active.ruleIsSeries {
+                    Button("Cancel Series Recording") { run { try await store.cancelSeries(of: active) } }
+                }
+            } else if options.isEmpty {
+                Text("No recording options")
+            } else {
+                ForEach(options) { option in
+                    Button(option.title) { run { try await store.record(option, program: program, on: channel) } }
+                }
+            }
+        } label: {
+            Image(systemName: active == nil ? "record.circle" : "record.circle.fill")
+                .foregroundStyle(active == nil ? Color.primary : Color.red)
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(active == nil ? "Record" : "Recording")
+        .task(id: program.id) {
+            await store.refreshScheduledRecordings()
+            options = (try? await store.recordOptions(for: program, on: channel)) ?? []
+        }
+        .alert("Couldn't Update the Recording", isPresented: Binding(get: { failure != nil },
+                                                                     set: { if !$0 { failure = nil } })) {
+            Button("OK") {}
+        } message: {
+            Text(failure ?? "")
+        }
+    }
+
+    private func run(_ work: @escaping () async throws -> Void) {
+        Task {
+            do { try await work() } catch { failure = error.localizedDescription }
         }
     }
 }

@@ -19,6 +19,7 @@ enum MacChannelFilter: Hashable {
 struct MacLiveTVView: View {
     let isFullScreen: Bool
     @Environment(MacLivePlayback.self) private var playback
+    @Environment(MacMultiview.self) private var multiview
     private let store = LiveTVDataStore.shared
     @AppStorage("macChannelFilter") private var filterRaw = "all"
     @State private var query = ""
@@ -46,6 +47,8 @@ struct MacLiveTVView: View {
         Group {
             if store.sources.isEmpty {
                 MacNoSourcesView()
+            } else if layout == .multiview {
+                MacMultiviewView(lineup: lineup, open: openFromMultiview)
             } else if showsGuideLayout {
                 guideLayout
             } else {
@@ -81,6 +84,31 @@ struct MacLiveTVView: View {
         }
         // Back to what is playing once a channel is picked.
         .onChange(of: playback.channel?.id) { guideFocus.clear() }
+        .onChange(of: layoutRaw) { old, new in
+            if new == MacLiveTVLayout.multiview.rawValue { enterMultiview() }
+            if old == MacLiveTVLayout.multiview.rawValue { multiview.stopAll() }
+        }
+    }
+
+    /// The channel playing becomes the first tile. The single player lets its
+    /// tuner go first, so the same channel does not take two.
+    private func enterMultiview() {
+        guard let channel = playback.channel else { return }
+        let released = playback.stop()
+        Task {
+            await released?.value
+            multiview.add(channel)
+        }
+    }
+
+    /// A tile taken to the single player, once the tiles' tuners are released.
+    private func openFromMultiview(_ channel: UnifiedChannel) {
+        let released = multiview.stopAll()
+        layoutRaw = MacLiveTVLayout.channels.rawValue
+        Task {
+            for task in released { await task.value }
+            playback.play(channel)
+        }
     }
 
     private var guideLayout: some View {
@@ -133,6 +161,7 @@ struct MacLiveTVView: View {
             Picker("View", selection: $layoutRaw) {
                 Text("Channels").tag(MacLiveTVLayout.channels.rawValue)
                 Text("Guide").tag(MacLiveTVLayout.guide.rawValue)
+                Text("Multiview").tag(MacLiveTVLayout.multiview.rawValue)
             }
             .pickerStyle(.segmented)
         }
@@ -191,6 +220,7 @@ struct MacLiveTVView: View {
 private enum MacLiveTVLayout: String {
     case channels
     case guide
+    case multiview
 }
 
 // MARK: - Channel list

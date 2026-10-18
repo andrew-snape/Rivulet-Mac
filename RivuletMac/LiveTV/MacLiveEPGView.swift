@@ -453,33 +453,10 @@ private struct MacEPGProgramCell: View {
     }
 
     var body: some View {
-        let hiddenLeading = min(max(0, scroll.x + MacEPGMetrics.channelWidth - minX), max(0, width - 90))
         Button(action: activate) {
             ZStack(alignment: .bottomLeading) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text(program?.displayTitle ?? "No guide data")
-                            .font(.callout.weight(.semibold))
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        if let program {
-                            if program.isLive {
-                                Circle().fill(.red).frame(width: 6, height: 6)
-                                    .accessibilityLabel("Live")
-                            } else if program.isNew {
-                                Text("NEW").font(.system(size: 9, weight: .bold)).foregroundStyle(.tint)
-                            }
-                        }
-                    }
-                    if let detail {
-                        Text(detail)
-                            .font(.caption)
-                            .foregroundStyle(MacTheme.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.leading, hiddenLeading)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                MacEPGCellLabel(program: program, detail: detail, minX: minX, width: width, scroll: scroll)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
                 if isCurrent, let program {
                     ProgressView(value: program.progress(at: now))
@@ -561,6 +538,44 @@ private struct MacEPGProgramDetails: View {
 
     private var when: String {
         "\(channel.numberAndName) · \(program.dayAndTimeRange)"
+    }
+}
+
+/// A programme's title lines, shifted right of the pinned channel column while
+/// the cell scrolls under it. Its own view so the scroll offset invalidates this
+/// and not the whole cell.
+private struct MacEPGCellLabel: View {
+    let program: UnifiedProgram?
+    let detail: String?
+    let minX: CGFloat
+    let width: CGFloat
+    let scroll: MacEPGScrollState
+
+    var body: some View {
+        let hiddenLeading = min(max(0, scroll.x + MacEPGMetrics.channelWidth - minX), max(0, width - 90))
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(program?.displayTitle ?? "No guide data")
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if let program {
+                    if program.isLive {
+                        Circle().fill(.red).frame(width: 6, height: 6)
+                            .accessibilityLabel("Live")
+                    } else if program.isNew {
+                        Text("NEW").font(.system(size: 9, weight: .bold)).foregroundStyle(.tint)
+                    }
+                }
+            }
+            if let detail {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(MacTheme.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.leading, hiddenLeading)
     }
 }
 
