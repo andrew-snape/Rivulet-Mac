@@ -59,19 +59,18 @@ struct MacSidebarSettings: View {
 
     var body: some View {
         let items = MacSidebarLayout.plexItems(libraries: plex.libraries, order: order)
-        Form {
+        // A top-level List: drag-to-reorder does not work in a List nested in a Form.
+        List {
             Section("Plex") {
-                List {
-                    ForEach(items) { item in
-                        Toggle(isOn: visibility(of: item.id)) {
-                            Label(item.title, systemImage: item.icon)
-                        }
+                ForEach(items) { item in
+                    Toggle(isOn: visibility(of: item.id)) {
+                        Label(item.title, systemImage: item.icon)
                     }
-                    .onMove { source, destination in
-                        var ids = items.map(\.id)
-                        ids.move(fromOffsets: source, toOffset: destination)
-                        order = ids.joined(separator: ",")
-                    }
+                }
+                .onMove { source, destination in
+                    var ids = items.map(\.id)
+                    ids.move(fromOffsets: source, toOffset: destination)
+                    order = ids.joined(separator: ",")
                 }
             }
             Section("Live TV") {
@@ -80,7 +79,7 @@ struct MacSidebarSettings: View {
                 }
             }
         }
-        .formStyle(.grouped)
+        .frame(height: 380)
     }
 
     private func visibility(of id: String) -> Binding<Bool> {
