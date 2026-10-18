@@ -96,7 +96,7 @@ private struct MacPlaybackCommands: Commands {
                 get: { vod.isAlwaysOnTop },
                 set: { vod.setAlwaysOnTop($0) }
             ))
-            .disabled(vod.session == nil)
+            .disabled(vod.session == nil && playback.channel == nil)
 
             Divider()
 
