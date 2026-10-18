@@ -12,6 +12,8 @@ struct MacSettingsView: View {
                 .tabItem { Label("Plex", systemImage: "person.crop.circle") }
             MacSourcesSettings()
                 .tabItem { Label("Sources", systemImage: "antenna.radiowaves.left.and.right") }
+            MacSidebarSettings()
+                .tabItem { Label("Sidebar", systemImage: "sidebar.left") }
             MacPlaybackSettings()
                 .tabItem { Label("Playback", systemImage: "play.rectangle") }
         }

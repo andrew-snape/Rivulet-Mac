@@ -21,6 +21,8 @@ struct MacRootView: View {
     @Environment(MacMultiview.self) private var multiview
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(MacSidebarLayout.orderKey) private var sidebarOrder = ""
+    @AppStorage(MacSidebarLayout.hiddenKey) private var sidebarHidden = ""
     @State private var section: MacSection? = .home
     @State private var path = NavigationPath()
     @State private var searchQuery = ""
@@ -74,6 +76,16 @@ struct MacRootView: View {
         .onChange(of: live.isPoppedOut) { was, isNow in
             if was, !isNow, section != .liveTV { live.stop() }
         }
+        // Hiding the row that is open moves to the first one left.
+        .onChange(of: sidebarHidden) {
+            let hiddenIDs = MacSidebarLayout.ids(sidebarHidden)
+            let visible = MacSidebarLayout.plexItems(libraries: plex.libraries, order: sidebarOrder)
+                .filter { !hiddenIDs.contains($0.id) }
+                .map(\.section)
+            let liveVisible = !hiddenIDs.contains(MacSidebarLayout.liveTVID)
+            let stillShown = section.map { visible.contains($0) || ($0 == .liveTV && liveVisible) } ?? false
+            if !stillShown { section = visible.first ?? (liveVisible ? .liveTV : .home) }
+        }
         .onChange(of: plex.sessionGeneration) { path = NavigationPath() }
         // Signing out, from the sidebar or from Settings, ends the Plex title playing.
         .onChange(of: plex.isSignedIn) { _, signedIn in
@@ -112,30 +124,24 @@ struct MacRootView: View {
 
     private var sidebar: some View {
         List(selection: $section) {
-            Section("Plex") {
-                Label("Home", systemImage: "house").tag(MacSection.home)
-                Label("Search", systemImage: "magnifyingglass").tag(MacSection.search)
-                ForEach(videoLibraries) { library in
-                    Label(library.title, systemImage: library.icon).tag(MacSection.library(library.key))
+            let hiddenIDs = MacSidebarLayout.ids(sidebarHidden)
+            let items = MacSidebarLayout.plexItems(libraries: plex.libraries, order: sidebarOrder)
+                .filter { !hiddenIDs.contains($0.id) }
+            if !items.isEmpty {
+                Section("Plex") {
+                    ForEach(items) { item in
+                        Label(item.title, systemImage: item.icon).tag(item.section)
+                    }
                 }
             }
-            Section("Live TV") {
-                Label("Channels", systemImage: "play.tv").tag(MacSection.liveTV)
+            if !hiddenIDs.contains(MacSidebarLayout.liveTVID) {
+                Section("Live TV") {
+                    Label("Channels", systemImage: "play.tv").tag(MacSection.liveTV)
+                }
             }
         }
         .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         .safeAreaInset(edge: .bottom) { accountButton.padding(10) }
-    }
-
-    /// Movie and TV libraries, movies first.
-    private var videoLibraries: [PlexLibrary] {
-        plex.libraries
-            .filter { $0.type == "movie" || $0.type == "show" }
-            .sorted { lhs, rhs in
-                lhs.type != rhs.type
-                    ? lhs.type == "movie"
-                    : lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
-            }
     }
 
     @ViewBuilder
