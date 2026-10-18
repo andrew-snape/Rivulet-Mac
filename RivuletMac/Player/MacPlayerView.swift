@@ -11,6 +11,8 @@ import SwiftUI
 struct MacPlayerView: View {
     @ObservedObject var playback: MacLivePlayback
     @ObservedObject var player: AetherPlayer
+    /// A small picture (the guide's corner player): fewer controls, shorter messages.
+    var compact = false
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
 
@@ -27,8 +29,8 @@ struct MacPlayerView: View {
                 if playback.channel != nil {
                     VStack {
                         Spacer()
-                        MacPlayerControls(playback: playback, player: player)
-                            .padding(16)
+                        MacPlayerControls(playback: playback, player: player, compact: compact)
+                            .padding(compact ? 8 : 16)
                     }
                     .opacity(controlsVisible ? 1 : 0)
                     .animation(.easeOut(duration: 0.25), value: controlsVisible)
@@ -54,23 +56,32 @@ struct MacPlayerView: View {
     @ViewBuilder
     private var status: some View {
         if playback.channel == nil {
-            ContentUnavailableView("Pick a Channel", systemImage: "tv",
-                                   description: Text("Choose a channel from the list to start watching."))
-                .foregroundStyle(.white)
+            if compact {
+                VStack(spacing: 6) {
+                    Image(systemName: "tv").font(.title)
+                    Text("Pick a channel from the guide").font(.callout)
+                }
+                .foregroundStyle(.white.opacity(0.8))
+            } else {
+                ContentUnavailableView("Pick a Channel", systemImage: "tv",
+                                       description: Text("Choose a channel from the list to start watching."))
+                    .foregroundStyle(.white)
+            }
         } else if let message = failure {
             VStack(spacing: 12) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.largeTitle)
                 Text(message)
+                    .font(compact ? .callout : .body)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 380)
+                    .frame(maxWidth: compact ? 280 : 380)
                 if player.canRetry || playback.notice != nil {
                     Button("Try Again", action: playback.retry)
                         .keyboardShortcut(.defaultAction)
                 }
             }
             .foregroundStyle(.white)
-            .padding(24)
+            .padding(compact ? 12 : 24)
             .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 14))
         } else if player.state == .idle || player.state == .loading || player.isBuffering {
             ProgressView()
@@ -105,6 +116,7 @@ struct MacPlayerView: View {
 private struct MacPlayerControls: View {
     @ObservedObject var playback: MacLivePlayback
     @ObservedObject var player: AetherPlayer
+    let compact: Bool
     @ObservedObject private var store = LiveTVDataStore.shared
 
     var body: some View {
@@ -115,21 +127,23 @@ private struct MacPlayerControls: View {
             }
             .help(player.state == .playing ? "Pause" : "Play")
 
-            Button { Task { await player.skip(by: -10) } } label: {
-                Image(systemName: "gobackward.10")
-            }
-            .help("Back 10 Seconds")
-            .disabled(player.liveWindow.seekableRange == nil)
+            if !compact {
+                Button { Task { await player.skip(by: -10) } } label: {
+                    Image(systemName: "gobackward.10")
+                }
+                .help("Back 10 Seconds")
+                .disabled(player.liveWindow.seekableRange == nil)
 
-            Button { Task { await player.skip(by: 10) } } label: {
-                Image(systemName: "goforward.10")
+                Button { Task { await player.skip(by: 10) } } label: {
+                    Image(systemName: "goforward.10")
+                }
+                .help("Forward 10 Seconds")
+                .disabled(player.liveWindow.seekableRange == nil || player.liveWindow.isAtLiveEdge)
             }
-            .help("Forward 10 Seconds")
-            .disabled(player.liveWindow.seekableRange == nil || player.liveWindow.isAtLiveEdge)
 
             liveBadge
 
-            if let channel = playback.channel {
+            if !compact, let channel = playback.channel {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(playback.programme?.displayTitle ?? channel.name)
                         .font(.callout.weight(.semibold))
@@ -160,19 +174,21 @@ private struct MacPlayerControls: View {
             }
             .help(player.isMuted ? "Unmute" : "Mute")
 
-            Slider(value: Binding(get: { Double(player.isMuted ? 0 : player.volume) },
-                                  set: { player.setVolume(Float($0)) }),
-                   in: 0...1)
-                .frame(width: 90)
-                .controlSize(.small)
-                .help("Volume")
+            if !compact {
+                Slider(value: Binding(get: { Double(player.isMuted ? 0 : player.volume) },
+                                      set: { player.setVolume(Float($0)) }),
+                       in: 0...1)
+                    .frame(width: 90)
+                    .controlSize(.small)
+                    .help("Volume")
 
-            Button { player.fillsWindow.toggle() } label: {
-                Image(systemName: player.fillsWindow
-                      ? "arrow.down.right.and.arrow.up.left.rectangle"
-                      : "arrow.up.left.and.arrow.down.right.rectangle")
+                Button { player.fillsWindow.toggle() } label: {
+                    Image(systemName: player.fillsWindow
+                          ? "arrow.down.right.and.arrow.up.left.rectangle"
+                          : "arrow.up.left.and.arrow.down.right.rectangle")
+                }
+                .help(player.fillsWindow ? "Fit to Window" : "Fill Window")
             }
-            .help(player.fillsWindow ? "Fit to Window" : "Fill Window")
 
             Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -182,8 +198,8 @@ private struct MacPlayerControls: View {
         .buttonStyle(.borderless)
         .font(.title3)
         .foregroundStyle(.primary)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, compact ? 12 : 16)
+        .padding(.vertical, compact ? 6 : 10)
         .background(.regularMaterial, in: Capsule())
         .environment(\.colorScheme, .dark)
     }

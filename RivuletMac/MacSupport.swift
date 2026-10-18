@@ -18,6 +18,24 @@ extension UnifiedProgram {
         return "\(startTime.formatted(style)) to \(endTime.formatted(style))"
     }
 
+    /// `timeRange`, led by the day when the programme is not today.
+    var dayAndTimeRange: String {
+        guard !Calendar.current.isDateInToday(startTime) else { return timeRange }
+        return "\(startTime.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))), \(timeRange)"
+    }
+
+    /// The episode title, unless it adds nothing: it repeats the title, or it is
+    /// only a date (the news is listed as "Sunday 18 October 2026").
+    var guideSubtitle: String? {
+        guard let text = subtitle?.trimmingCharacters(in: .whitespaces), !text.isEmpty,
+              text != title, text != displayTitle else { return nil }
+        let calendar = Calendar.current
+        let looksLikeDate = text.count <= 40
+            && text.contains(String(calendar.component(.year, from: startTime)))
+            && calendar.monthSymbols.contains { text.localizedCaseInsensitiveContains($0) }
+        return looksLikeDate ? nil : text
+    }
+
     /// How far through the programme `date` is, 0...1.
     func progress(at date: Date) -> Double {
         let length = endTime.timeIntervalSince(startTime)
