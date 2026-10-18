@@ -46,7 +46,9 @@ struct RivuletMacApp: App {
                 .environment(plex)
                 .environment(vod)
                 .onAppear { vod.configureRemoteCommands() }
-                .frame(minWidth: 900, minHeight: 520)
+                // The browsing layout needs room; a Plex title playing needs none.
+                .frame(minWidth: vod.session == nil ? 900 : 320,
+                       minHeight: vod.session == nil ? 520 : 180)
                 .preferredColorScheme(.dark)
         }
         .defaultSize(width: 1360, height: 820)

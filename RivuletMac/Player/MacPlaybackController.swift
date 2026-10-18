@@ -37,6 +37,7 @@ final class MacPlaybackController {
         newSession.player.setVolume(volume)
         newSession.player.setMuted(isMuted)
         session = newSession
+        lockAspectRatio(true)
         onStart?()
         // Keep the display awake while something plays, as a video player should.
         let player = newSession.player
@@ -70,6 +71,7 @@ final class MacPlaybackController {
         nowPlaying.nowPlayingInfo = nil
         nowPlaying.playbackState = .stopped
         setAlwaysOnTop(false)
+        lockAspectRatio(false)
         updateRemoteCommandAvailability(for: nil)
         keepAwake(false)
         self.session = nil
@@ -80,6 +82,17 @@ final class MacPlaybackController {
     func setAlwaysOnTop(_ enabled: Bool) {
         isAlwaysOnTop = enabled
         MacAppDelegate.mainWindow?.level = windowLevel
+    }
+
+    /// The window keeps the picture's 16:9 shape while a title plays. Setting
+    /// resize increments back to 1 is how AppKit clears an aspect ratio.
+    private func lockAspectRatio(_ locked: Bool) {
+        guard let window = MacAppDelegate.mainWindow else { return }
+        if locked {
+            window.contentAspectRatio = NSSize(width: 16, height: 9)
+        } else {
+            window.contentResizeIncrements = NSSize(width: 1, height: 1)
+        }
     }
 
     func applyWindowLevel(to window: NSWindow) {
@@ -328,7 +341,9 @@ struct MacVODPlayerView: View {
             status
             VStack(spacing: 0) {
                 topBar
+                    .opacity(chromeVisible ? 1 : 0)
                 Spacer()
+                // Skip and Next Episode stay up with the controls hidden, so they can be clicked at once.
                 HStack {
                     Spacer()
                     contextualButton
@@ -338,8 +353,8 @@ struct MacVODPlayerView: View {
                 controls
                     .padding(.horizontal, 24)
                     .padding(.bottom, 20)
+                    .opacity(chromeVisible ? 1 : 0)
             }
-            .opacity(controlsVisible || player.state != .playing ? 1 : 0)
             .animation(.easeOut(duration: 0.25), value: controlsVisible)
         }
         .onContinuousHover { phase in
@@ -355,6 +370,8 @@ struct MacVODPlayerView: View {
             if state == .playing { scheduleHide(after: .seconds(3)) }
         }
     }
+
+    private var chromeVisible: Bool { controlsVisible || player.state != .playing }
 
     // MARK: Status
 
@@ -477,6 +494,10 @@ struct MacVODPlayerView: View {
                 .help(player.state == .playing ? "Pause (Space)" : "Play (Space)")
                 Button { Task { await player.skip(by: 30) } } label: { Image(systemName: "goforward.30") }
                     .help("Forward 30 Seconds (→)")
+                if session.nextEpisode != nil {
+                    Button { session.playNext() } label: { Image(systemName: "forward.end.fill") }
+                        .help("Next Episode")
+                }
 
                 Spacer()
 
