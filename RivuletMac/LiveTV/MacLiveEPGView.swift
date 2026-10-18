@@ -141,7 +141,7 @@ struct MacLiveEPGView: View {
     }
 
     private var queryMatches: Set<String> {
-        return cachedSearchQuery == trimmedQuery ? cachedProgramMatches : []
+        cachedSearchQuery == trimmedQuery ? cachedProgramMatches : []
     }
 
     private func filteredChannels(programMatches: Set<String>) -> [UnifiedChannel] {
@@ -312,6 +312,7 @@ private struct MacEPGChannelRow: View {
         .frame(height: MacLiveEPGView.rowHeight)
         .task(id: scheduleKey) {
             programs = store.getPrograms(for: channel, startDate: start, endDate: end)
+                .filter { $0.endTime > start && $0.startTime < end && $0.endTime > $0.startTime }
         }
     }
 }
