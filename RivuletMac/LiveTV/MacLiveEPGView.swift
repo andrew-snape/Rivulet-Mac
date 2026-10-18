@@ -52,7 +52,11 @@ struct MacLiveEPGView: View {
         let height = Self.headerHeight + CGFloat(visibleChannels.count) * Self.rowHeight
 
         if visibleChannels.isEmpty {
-            ContentUnavailableView.search(text: query)
+            if query.isEmpty {
+                ContentUnavailableView("No Channels", systemImage: "play.tv")
+            } else {
+                ContentUnavailableView.search(text: query)
+            }
         } else {
             ScrollView([.horizontal, .vertical]) {
                 ZStack(alignment: .topLeading) {
@@ -128,10 +132,10 @@ struct MacLiveEPGView: View {
                             .font(.caption.weight(.semibold))
                             .lineLimit(2)
                         if store.isFavorite(channel) {
-                            Label("Favourite", systemImage: "star.fill")
+                            Image(systemName: "star.fill")
                                 .font(.caption2)
                                 .foregroundStyle(.yellow)
-                                .labelStyle(.titleOnly)
+                                .accessibilityLabel("Favourite")
                         }
                     }
                     Spacer(minLength: 0)
