@@ -3,6 +3,7 @@
 
 import AppKit
 import Combine
+import Observation
 import SwiftUI
 
 /// What the channel list shows.
@@ -27,12 +28,14 @@ struct MacLiveTVView: View {
     @State private var lineupRevision = 0
     @AppStorage("macLiveTVShowsList") private var showsList = true
 
-    /// The guide has the window to itself until a channel is playing.
-    private var showsPlayer: Bool {
-        layout == .channels || isFullScreen || !showsList || playback.channel != nil
-    }
+    @State private var guideFocus = MacGuideFocus()
+    @State private var jumpToken = 0
 
-    private var sharesWithGuide: Bool {
+    /// The mini player's height in the guide layout; its width follows at 16:9.
+    private static let bandHeight: CGFloat = 200
+
+    /// The tvOS arrangement: details and the player across the top, the guide below.
+    private var showsGuideLayout: Bool {
         layout == .guide && !isFullScreen && showsList
     }
 
@@ -44,27 +47,19 @@ struct MacLiveTVView: View {
         Group {
             if store.sources.isEmpty {
                 MacNoSourcesView()
+            } else if showsGuideLayout {
+                guideLayout
             } else {
                 HStack(spacing: 0) {
                     if !isFullScreen && showsList {
                         VStack(spacing: 0) {
                             filterBar
-                            if layout == .guide {
-                                MacLiveEPGView(channels: lineup, query: query, lineupRevision: lineupRevision)
-                            } else {
-                                MacChannelList(channels: lineup, query: query, emptyText: emptyText)
-                            }
+                            MacChannelList(channels: lineup, query: query, emptyText: emptyText)
                         }
-                        // The guide takes the room it can; the channel list stays narrow.
-                        .frame(minWidth: layout == .guide ? 360 : 340,
-                               maxWidth: layout == .guide ? .infinity : 340)
-                        if showsPlayer { Divider() }
+                        .frame(width: 340)
+                        Divider()
                     }
-                    if showsPlayer {
-                        MacNowPlayingPane(showsDetails: !isFullScreen && showsList)
-                            .frame(minWidth: sharesWithGuide ? 340 : nil,
-                                   maxWidth: sharesWithGuide ? 520 : .infinity)
-                    }
+                    MacNowPlayingPane(showsDetails: !isFullScreen && showsList)
                 }
             }
         }
@@ -82,6 +77,27 @@ struct MacLiveTVView: View {
             playback.lineup = lineup
             lineupRevision += 1
         }
+        // Back to what is playing once a channel is picked.
+        .onChange(of: playback.channel?.id) { guideFocus.clear() }
+    }
+
+    private var guideLayout: some View {
+        VStack(spacing: 0) {
+            filterBar
+            HStack(alignment: .top, spacing: 24) {
+                MacGuideInfoBar(focus: guideFocus)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                MacPlayerView(playback: playback, player: playback.player, compact: true)
+                    .frame(width: Self.bandHeight * 16 / 9, height: Self.bandHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .padding(.horizontal, MacTile.margin)
+            .padding(.bottom, 14)
+            MacLiveEPGView(channels: lineup, query: query, lineupRevision: lineupRevision,
+                           jumpToken: jumpToken, focus: guideFocus)
+        }
+        .background(MacEPGTheme.background)
+        .environment(\.colorScheme, .dark)
     }
 
     private var filterBar: some View {
@@ -118,6 +134,12 @@ struct MacLiveTVView: View {
                 Text("Guide").tag(MacLiveTVLayout.guide.rawValue)
             }
             .pickerStyle(.segmented)
+        }
+        if layout == .guide {
+            ToolbarItem {
+                Button("Now") { jumpToken += 1 }
+                    .help("Scroll the guide to the current time")
+            }
         }
         ToolbarItem {
             Picker("Show", selection: $filterRaw) {
@@ -278,19 +300,29 @@ private struct MacNowPlayingPane: View {
             MacPlayerView(playback: playback, player: playback.player)
             if showsDetails, let channel = playback.channel {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
-                    details(for: channel, at: context.date)
+                    MacProgrammeDetails(channel: channel, programme: store.program(for: channel, at: context.date))
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.background)
                 }
             }
         }
     }
+}
 
-    private func details(for channel: UnifiedChannel, at date: Date) -> some View {
-        let programme = store.program(for: channel, at: date)
+/// What a programme is: the channel's logo, the title, channel and time, the
+/// description, and what follows.
+private struct MacProgrammeDetails: View {
+    let channel: UnifiedChannel
+    let programme: UnifiedProgram?
+    @ObservedObject private var store = LiveTVDataStore.shared
+
+    var body: some View {
         let next = programme.flatMap { current in
             store.getPrograms(for: channel, startDate: current.endTime, endDate: current.endTime.addingTimeInterval(6 * 3600))
                 .first { $0.startTime >= current.endTime }
         }
-        return HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .top, spacing: 16) {
             MacChannelLogo(url: channel.logoURL)
                 .frame(width: 72, height: 44)
             VStack(alignment: .leading, spacing: 6) {
@@ -299,8 +331,8 @@ private struct MacNowPlayingPane: View {
                 if let programme {
                     HStack(spacing: 8) {
                         Text(channel.numberAndName)
-                        Text(programme.timeRange)
-                        if let episode = programme.subtitle ?? programme.episodeNumber {
+                        Text(programme.dayAndTimeRange)
+                        if let episode = programme.guideSubtitle ?? programme.episodeNumber {
                             Text(episode)
                         }
                     }
@@ -323,9 +355,51 @@ private struct MacNowPlayingPane: View {
             .lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background)
+    }
+}
+
+// MARK: - Guide info bar
+
+/// The programme the pointer last rested on in the guide. The guide only
+/// writes it and the info bar only reads it, so hovering redraws the bar and
+/// not the grid.
+@Observable
+final class MacGuideFocus {
+    private(set) var channel: UnifiedChannel?
+    private(set) var program: UnifiedProgram?
+
+    func set(_ channel: UnifiedChannel, _ program: UnifiedProgram?) {
+        guard self.channel?.id != channel.id || self.program?.id != program?.id else { return }
+        self.channel = channel
+        self.program = program
+    }
+
+    func clear() {
+        channel = nil
+        program = nil
+    }
+}
+
+/// Top left of the guide layout, as on tvOS: details of the programme under
+/// the pointer, else of what is playing.
+private struct MacGuideInfoBar: View {
+    let focus: MacGuideFocus
+    @EnvironmentObject private var playback: MacLivePlayback
+    @ObservedObject private var store = LiveTVDataStore.shared
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            if let channel = focus.channel ?? playback.channel {
+                MacProgrammeDetails(
+                    channel: channel,
+                    programme: focus.program ?? store.program(for: channel, at: context.date)
+                )
+            } else {
+                Text("Point at a programme for details. Click to watch.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

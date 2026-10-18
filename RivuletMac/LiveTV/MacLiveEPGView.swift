@@ -14,6 +14,9 @@ struct MacLiveEPGView: View {
     let channels: [UnifiedChannel]
     let query: String
     let lineupRevision: Int
+    /// Bumped by the toolbar's Now button.
+    let jumpToken: Int
+    let focus: MacGuideFocus
 
     @ObservedObject private var store = LiveTVDataStore.shared
     /// A debounced copy of the store's guide, so a burst of updates redraws once.
@@ -27,16 +30,19 @@ struct MacLiveEPGView: View {
     @State private var cachedSearchQuery = ""
     @State private var cachedProgramMatches = Set<String>()
 
-    init(channels: [UnifiedChannel], query: String, lineupRevision: Int) {
+    init(channels: [UnifiedChannel], query: String, lineupRevision: Int,
+         jumpToken: Int, focus: MacGuideFocus) {
         self.channels = channels
         self.query = query
         self.lineupRevision = lineupRevision
+        self.jumpToken = jumpToken
+        self.focus = focus
         _epg = State(initialValue: LiveTVDataStore.shared.epg)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            issueBanner
             content
         }
         .background(MacEPGTheme.background)
@@ -45,6 +51,7 @@ struct MacLiveEPGView: View {
             epg = schedules
             epgRevision += 1
         }
+        .onChange(of: jumpToken) { jumpToNow() }
         .task(id: searchKey) { await updateProgramMatches() }
         .task { await tickClock() }
         .task(id: MacEPGLoadKey(nearEnd: nearEnd, loadedThrough: store.epgLoadedThrough)) {
@@ -54,29 +61,22 @@ struct MacLiveEPGView: View {
         }
     }
 
-    // MARK: Header
+    // MARK: Issues
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            Text("TV Guide")
-                .font(.title2.bold())
-            if store.isLoadingEPG || store.isExtendingEPG {
-                ProgressView().controlSize(.small)
-            }
-            if !store.epgIssues.isEmpty {
-                Label("Guide data unavailable for \(store.epgIssues.map(\.sourceName).joined(separator: ", "))",
-                      systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.yellow)
-                    .lineLimit(1)
-                    .help(store.epgIssues.map { "\($0.sourceName): \($0.reason)" }.joined(separator: "\n"))
-            }
-            Spacer()
-            Button("Now", action: jumpToNow)
-                .help("Scroll the guide to the current time")
+    /// A broken source would otherwise leave an empty guide that looks like a bug.
+    @ViewBuilder
+    private var issueBanner: some View {
+        if !store.epgIssues.isEmpty {
+            Label("Guide data unavailable for \(store.epgIssues.map(\.sourceName).joined(separator: ", "))",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.yellow)
+                .lineLimit(1)
+                .help(store.epgIssues.map { "\($0.sourceName): \($0.reason)" }.joined(separator: "\n"))
+                .padding(.horizontal, MacTile.margin)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, MacTile.margin)
-        .padding(.vertical, 14)
     }
 
     // MARK: Grid
@@ -112,7 +112,7 @@ struct MacLiveEPGView: View {
                             isFavorite: store.isFavorite(channel),
                             toggleFavorite: { store.toggleFavorite(channel) },
                             windowStart: windowStart, windowEnd: end, now: now,
-                            timelineWidth: timelineWidth, scroll: scroll
+                            timelineWidth: timelineWidth, scroll: scroll, focus: focus
                         )
                     }
                 } header: {
@@ -302,6 +302,7 @@ private struct MacEPGChannelRow: View {
     let now: Date
     let timelineWidth: CGFloat
     let scroll: MacEPGScrollState
+    let focus: MacGuideFocus
     @EnvironmentObject private var playback: MacLivePlayback
 
     private struct Span: Identifiable {
@@ -336,7 +337,7 @@ private struct MacEPGChannelRow: View {
                 MacEPGProgramCell(
                     program: span.program, channel: channel, now: now,
                     minX: span.minX + MacEPGTheme.gap / 2, width: span.width - MacEPGTheme.gap,
-                    scroll: scroll, play: { playback.play(channel) }
+                    scroll: scroll, focus: focus, play: { playback.play(channel) }
                 )
                 .frame(width: max(span.width - MacEPGTheme.gap, 2),
                        height: MacEPGMetrics.rowHeight - MacEPGTheme.gap)
@@ -355,7 +356,7 @@ private struct MacEPGChannelRow: View {
 
             MacEPGChannelCell(
                 channel: channel, isFavorite: isFavorite,
-                toggleFavorite: toggleFavorite, scroll: scroll
+                toggleFavorite: toggleFavorite, scroll: scroll, focus: focus
             )
         }
         .frame(width: MacEPGMetrics.channelWidth + timelineWidth, height: MacEPGMetrics.rowHeight,
@@ -369,6 +370,7 @@ private struct MacEPGChannelCell: View {
     let isFavorite: Bool
     let toggleFavorite: () -> Void
     let scroll: MacEPGScrollState
+    let focus: MacGuideFocus
     @EnvironmentObject private var playback: MacLivePlayback
 
     var body: some View {
@@ -413,6 +415,7 @@ private struct MacEPGChannelCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { if $0 { focus.set(channel, nil) } }
         .help("Watch \(channel.name)")
         .contextMenu {
             Button("Play") { playback.play(channel) }
@@ -434,6 +437,7 @@ private struct MacEPGProgramCell: View {
     let minX: CGFloat
     let width: CGFloat
     let scroll: MacEPGScrollState
+    let focus: MacGuideFocus
     let play: () -> Void
     @State private var showsDetails = false
 
@@ -481,13 +485,14 @@ private struct MacEPGProgramCell: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(isCurrent ? MacEPGTheme.surface : MacEPGTheme.columnFill, in: MacEPGTheme.shape)
             .opacity(isPast ? 0.6 : 1)
             .contentShape(MacEPGTheme.shape)
         }
         .buttonStyle(.plain)
+        .onHover { if $0 { focus.set(channel, program) } }
         .help(program.map { "\($0.displayTitle), \($0.timeRange)" } ?? channel.name)
         .contextMenu {
             Button("Watch \(channel.name)", action: play)
@@ -508,10 +513,7 @@ private struct MacEPGProgramCell: View {
     /// The episode title when there is one, else the time.
     private var detail: String? {
         guard let program else { return nil }
-        if let subtitle = program.subtitle, !subtitle.isEmpty, subtitle != program.title {
-            return subtitle
-        }
-        return program.timeRange
+        return program.guideSubtitle ?? program.timeRange
     }
 
     private func activate() {
@@ -533,7 +535,7 @@ private struct MacEPGProgramDetails: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(program.displayTitle)
                 .font(.headline)
-            if let subtitle = program.subtitle, !subtitle.isEmpty, subtitle != program.title {
+            if let subtitle = program.guideSubtitle {
                 Text(subtitle)
                     .font(.subheadline)
             }
@@ -555,10 +557,7 @@ private struct MacEPGProgramDetails: View {
     }
 
     private var when: String {
-        let day = Calendar.current.isDateInToday(program.startTime)
-            ? ""
-            : program.startTime.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) + ", "
-        return "\(channel.numberAndName) · \(day)\(program.timeRange)"
+        "\(channel.numberAndName) · \(program.dayAndTimeRange)"
     }
 }
 
@@ -592,7 +591,7 @@ private enum MacEPGClock {
 
 private enum MacEPGMetrics {
     static let channelWidth: CGFloat = 168
-    static let rowHeight: CGFloat = 68
+    static let rowHeight: CGFloat = 64
     static let headerHeight: CGFloat = 44
     /// 330 pt an hour: about two and a half hours show beside the player.
     static let pointsPerMinute: CGFloat = 5.5
@@ -608,7 +607,7 @@ private enum MacEPGMetrics {
 }
 
 /// The tvOS guide's palette and shapes: dark boxes, one continuous 14 pt corner, 4 pt gaps.
-private enum MacEPGTheme {
+enum MacEPGTheme {
     static let background = Color(red: 0.10, green: 0.10, blue: 0.115)
     static let surface = Color(red: 0.21, green: 0.21, blue: 0.23)
     static let columnFill = Color(red: 0.17, green: 0.17, blue: 0.19)
