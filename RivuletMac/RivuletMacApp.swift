@@ -15,7 +15,8 @@ struct RivuletMacApp: App {
         // Host values for shared code, set before anything touches the
         // stores (CLAUDE.md, Platform Boundary: host injection).
         PlexAPI.platform = "macOS"
-        PlexAPI.deviceName = "Mac"
+        // Plex's dashboard shows this next to the product name.
+        PlexAPI.deviceName = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
         LiveTVDataStore.foregroundNotification = NSApplication.didBecomeActiveNotification
         // Start the path monitor now; its first reading arrives after a delay.
         _ = NetworkPathMonitor.shared

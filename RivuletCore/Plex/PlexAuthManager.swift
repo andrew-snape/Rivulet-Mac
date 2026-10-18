@@ -160,7 +160,7 @@ class PlexAuthManager: ObservableObject {
                 userDefaults.removeObject(forKey: serverURLKey)
             }
 
-            if let url = selectedServerURL, !Self.isPlayableDirectURL(url) {
+            if let url = selectedServerURL {
                 Task { await upgradeConnectionIfBetterExists(from: url) }
             }
         }
@@ -171,14 +171,22 @@ class PlexAuthManager: ObservableObject {
     /// caps playback at 480p. The app starts on the saved URL; this re-probes
     /// in the background and switches only to a direct URL playback can use,
     /// never sideways (relay to raw HTTPS would trade 480p for no playback).
+    /// A saved remote URL is re-probed too: it works from the LAN through the
+    /// router (Plex shows the public IP), and nothing else would move it back
+    /// onto the local connection.
     private func upgradeConnectionIfBetterExists(from url: String) async {
         guard let token = authToken,
               let servers = try? await networkManager.getServers(authToken: token) else { return }
         let server = servers.first(where: { urlBelongs(url, to: $0) })
             ?? savedServerName.flatMap { name in servers.first(where: { $0.name == name }) }
-        guard let server,
-              let best = await findBestConnection(for: server, reuseLastGood: false),
+        guard let server else { return }
+        let savedIsLocal = server.connections?.contains {
+            $0.local && (URL(string: $0.uri)?.host == URL(string: url)?.host || url.hasPrefix($0.uri))
+        } == true
+        if Self.isPlayableDirectURL(url) && (savedIsLocal || server.connections?.contains { $0.local } != true) { return }
+        guard let best = await findBestConnection(for: server, reuseLastGood: false),
               Self.isPlayableDirectURL(best),
+              best != url,
               selectedServerURL == url else { return }
         print("🔐 PlexAuthManager: Upgrading connection \(url) -> \(best)")
         selectedServerURL = best

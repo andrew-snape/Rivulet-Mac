@@ -2893,7 +2893,8 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             "X-Plex-Client-Identifier": PlexAPI.clientIdentifier,
             "X-Plex-Product": PlexAPI.productName,
             "X-Plex-Platform": PlexAPI.platform,
-            "X-Plex-Device": PlexAPI.deviceName
+            "X-Plex-Device": PlexAPI.deviceName,
+            "X-Plex-Device-Name": PlexAPI.deviceName
         ]
 
         // Add user context header for Plex Home profile switching
