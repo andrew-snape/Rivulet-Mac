@@ -14,7 +14,7 @@ AVPlayerLayer the app builds.
 
 ## Quick Reference
 
-- **Platform**: macOS 15+, Apple silicon only (`ARCHS = arm64`)
+- **Platform**: macOS 15+, Apple silicon only (`EXCLUDED_ARCHS = x86_64`; Xcode's "recommended settings" strip an explicit `ARCHS = arm64`, so not that)
 - **Language**: Swift 6 toolchain, Swift 5 language mode, default actor isolation `MainActor`
 - **UI**: SwiftUI (`NavigationSplitView` shell), AppKit where SwiftUI has no answer (key monitor, full screen, pasteboard)
 - **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.32.3). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target.
