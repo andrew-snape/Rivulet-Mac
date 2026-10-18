@@ -13,6 +13,10 @@ enum MacChannelFilter: Hashable {
     case group(String)
 }
 
+private var layout: MacLiveTVLayout {
+    MacLiveTVLayout(rawValue: layoutRaw) ?? .channels
+}
+
 /// Live TV: the channel list on the left, the player on the right. Picking a
 /// channel plays it in place; the arrow keys in the list change channel.
 /// In full screen the list steps aside.
@@ -23,7 +27,7 @@ struct MacLiveTVView: View {
     @AppStorage("macChannelFilter") private var filterRaw = "all"
     @State private var query = ""
     @State private var groups: [String] = []
-    @State private var layout = MacLiveTVLayout.channels
+    @AppStorage("macLiveTVLayout") private var layoutRaw = MacLiveTVLayout.channels.rawValue
     @State private var lineupRevision = 0
 
     var body: some View {
@@ -65,9 +69,9 @@ struct MacLiveTVView: View {
 
     private var filterBar: some View {
         VStack(spacing: 8) {
-            Picker("View", selection: $layout) {
-                Text("Channels").tag(MacLiveTVLayout.channels)
-                Text("Guide").tag(MacLiveTVLayout.guide)
+            Picker("View", selection: $layoutRaw) {
+                Text("Channels").tag(MacLiveTVLayout.channels.rawValue)
+                Text("Guide").tag(MacLiveTVLayout.guide.rawValue)
             }
             .pickerStyle(.segmented)
             Picker("Show", selection: $filterRaw) {
@@ -128,7 +132,7 @@ struct MacLiveTVView: View {
     }
 }
 
-private enum MacLiveTVLayout: Hashable {
+private enum MacLiveTVLayout: String {
     case channels
     case guide
 }

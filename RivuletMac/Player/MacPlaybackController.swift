@@ -73,13 +73,16 @@ final class MacPlaybackController: ObservableObject {
 
     /// Pinning is a per-session choice and resets when playback ends.
     func setAlwaysOnTop(_ enabled: Bool) {
-        let shouldPin = session != nil && enabled
-        isAlwaysOnTop = shouldPin
-        MacAppDelegate.mainWindow?.level = shouldPin ? .floating : .normal
+        isAlwaysOnTop = session != nil && enabled
+        MacAppDelegate.mainWindow?.level = windowLevel
     }
 
     func applyWindowLevel(to window: NSWindow) {
-        window.level = session != nil && isAlwaysOnTop ? .floating : .normal
+        window.level = windowLevel
+    }
+
+    private var windowLevel: NSWindow.Level {
+        session != nil && isAlwaysOnTop ? .floating : .normal
     }
 
     func configureRemoteCommands() {
@@ -145,6 +148,10 @@ final class MacPlaybackController: ObservableObject {
     private nonisolated static func dispatchRemoteCommand(
         _ action: @escaping @MainActor () -> MPRemoteCommandHandlerStatus
     ) -> MPRemoteCommandHandlerStatus {
+        // Preserve the handler result on the main-thread path; queue unexpected off-main callbacks.
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated(action)
+        }
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 _ = action()
