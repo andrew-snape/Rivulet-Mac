@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		B40000190000000000000019 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B2000010AAAA000000000001 /* AetherEngine */; };
-		B40000210000000000000021 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = A7F159542F04124A001B2177 /* Sentry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,7 +45,6 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				B40000190000000000000019 /* AetherEngine in Frameworks */,
-				B40000210000000000000021 /* Sentry in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -89,7 +87,6 @@
 			name = "Rivulet Mac";
 			packageProductDependencies = (
 				B2000010AAAA000000000001 /* AetherEngine */,
-				A7F159542F04124A001B2177 /* Sentry */,
 			);
 			productName = "Rivulet Mac";
 			productReference = B40000010000000000000001 /* Rivulet.app */;
@@ -120,7 +117,6 @@
 			mainGroup = A72E03D12EDA297D003A73DA;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A700F81A2EFBA1610042C07D /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */,
 			);
 			preferredProjectObjectVersion = 110;
@@ -370,14 +366,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		A700F81A2EFBA1610042C07D /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 9.1.0;
-			};
-		};
 		B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/superuser404notfound/AetherEngine";
@@ -389,11 +377,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A7F159542F04124A001B2177 /* Sentry */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A700F81A2EFBA1610042C07D /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
-			productName = Sentry;
-		};
 		B2000010AAAA000000000001 /* AetherEngine */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */;

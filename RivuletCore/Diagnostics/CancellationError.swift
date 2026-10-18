@@ -6,7 +6,7 @@ import Foundation
 /// Whether an error is an ordinary task/URL cancellation rather than a real
 /// playback failure. The user backing out of the preview carousel, or picking
 /// a different item, cancels whatever load was in flight, and that must not be
-/// wrapped into a `PlayerError`, reported to Sentry, or used to trigger the
+/// wrapped into a `PlayerError` or used to trigger the
 /// HLS fallback (RIVULET-19). Both spellings are needed: structured
 /// concurrency throws `CancellationError`, URLSession throws NSURLError -999,
 /// and a cancelled load can surface as either depending on how far it got.

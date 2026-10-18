@@ -61,9 +61,6 @@ worktrees/
 .claude/
 
 
-# Secrets (do not commit)
-RivuletCore/Config/Secrets.swift
-
 # Internal developer docs — kept locally, not in the repo.
 Docs/
 

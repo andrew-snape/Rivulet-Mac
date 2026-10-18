@@ -9,7 +9,6 @@
 //
 
 import Foundation
-import Sentry
 
 /// LiveTVProvider implementation for Plex Live TV
 actor PlexLiveTVProvider: LiveTVProvider {
@@ -73,16 +72,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
            Date().timeIntervalSince(lastFetch) < channelCacheDuration,
            !cachedChannels.isEmpty {
 
-            // Log cache hit (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-            breadcrumb.message = "Returning cached Live TV channels"
-            breadcrumb.setData(from: [
-                "channel_count": cachedChannels.count,
-                "cache_age_seconds": Int(Date().timeIntervalSince(lastFetch)),
-                "server_host": URL(string: serverURL)?.host ?? "unknown"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
-
             return cachedChannels
         }
 
@@ -91,54 +80,22 @@ actor PlexLiveTVProvider: LiveTVProvider {
 
     func refreshChannels() async throws -> [UnifiedChannel] {
 
-        // Log refresh start (GitHub #64 - DVB diagnostics)
-        let startBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        startBreadcrumb.message = "Starting Plex Live TV channel refresh"
-        startBreadcrumb.setData(from: [
-            "server_host": URL(string: serverURL)?.host ?? "unknown",
-            "source_id": sourceId
-        ])
-        SentryBridge.addBreadcrumb(startBreadcrumb)
-
         // First check capabilities
-        let caps: PlexLiveTVCapabilities
-        do {
-            caps = try await networkManager.getLiveTVCapabilities(
-                serverURL: serverURL,
-                authToken: authToken
-            )
-        } catch {
-            logFailure(error, operation: "capability_check")
-            throw error
-        }
+        let caps = try await networkManager.getLiveTVCapabilities(
+            serverURL: serverURL,
+            authToken: authToken
+        )
         capabilities = caps
-
-        // Log capabilities result (GitHub #64 - DVB diagnostics)
-        let capsBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        capsBreadcrumb.message = "Plex Live TV capabilities checked"
-        capsBreadcrumb.setData(from: [
-            "allow_tuners": caps.allowTuners,
-            "live_tv_enabled": caps.liveTVEnabled,
-            "has_dvr": caps.hasDVR,
-            "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ])
-        SentryBridge.addBreadcrumb(capsBreadcrumb)
 
         guard caps.liveTVEnabled else {
             throw LiveTVProviderError.notConnected
         }
 
         // Fetch channels
-        let plexChannels: [PlexLiveTVChannel]
-        do {
-            plexChannels = try await networkManager.getLiveTVChannels(
-                serverURL: serverURL,
-                authToken: authToken
-            )
-        } catch {
-            logFailure(error, operation: "channel_fetch")
-            throw error
-        }
+        let plexChannels = try await networkManager.getLiveTVChannels(
+            serverURL: serverURL,
+            authToken: authToken
+        )
 
         // Favourites are account-level, not per-DVR, so this is ONE call for the
         // whole lineup. Rank is array position: that is the order the user
@@ -169,19 +126,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
                 favouriteRank: rank
             )
         }
-
-        // Log channel breakdown (GitHub #64 - DVB diagnostics)
-        let channelsWithStreamURL = channels.filter { $0.streamURL != nil }.count
-        let channelsNeedingTranscode = channels.count - channelsWithStreamURL
-        let breakdownBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        breakdownBreadcrumb.message = "Plex Live TV channel refresh completed"
-        breakdownBreadcrumb.setData(from: [
-            "total_channels": channels.count,
-            "channels_with_stream_url": channelsWithStreamURL,
-            "channels_needing_transcode": channelsNeedingTranscode,
-            "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ])
-        SentryBridge.addBreadcrumb(breakdownBreadcrumb)
 
         // Update cache
         cachedChannels = channels
@@ -215,19 +159,13 @@ actor PlexLiveTVProvider: LiveTVProvider {
         }
 
         // Fetch guide data
-        let guideChannels: [PlexLiveTVGuideChannel]
-        do {
-            guideChannels = try await networkManager.getLiveTVGuide(
-                serverURL: serverURL,
-                authToken: authToken,
-                channelIds: channelRatingKeys.isEmpty ? nil : channelRatingKeys,
-                startTime: startDate,
-                endTime: endDate
-            )
-        } catch {
-            logFailure(error, operation: "epg_fetch", ["channel_count": channels.count])
-            throw error
-        }
+        let guideChannels = try await networkManager.getLiveTVGuide(
+            serverURL: serverURL,
+            authToken: authToken,
+            channelIds: channelRatingKeys.isEmpty ? nil : channelRatingKeys,
+            startTime: startDate,
+            endTime: endDate
+        )
 
         // Build unified channel ID lookup
         // Use uniquingKeysWith to handle duplicate ratingKeys (keep first occurrence)
@@ -309,16 +247,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
     nonisolated func buildStreamURL(for channel: UnifiedChannel) -> URL? {
         guard let originalURL = channel.streamURL else {
 
-            // Log missing stream URL (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "No stream URL available for channel"
-            breadcrumb.setData(from: [
-                "channel_name": channel.name,
-                "channel_id": channel.id,
-                "operation": "build_stream_url"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
-
             return nil
         }
 
@@ -328,17 +256,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
         guard originalURL.path.contains("/transcode/") else {
             // HDHomeRun or other direct URLs - use as-is
 
-            // Log direct URL passthrough (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-            breadcrumb.message = "Using direct stream URL (HDHomeRun)"
-            breadcrumb.setData(from: [
-                "channel_name": channel.name,
-                "channel_id": channel.id,
-                "stream_type": "hdhr_direct",
-                "url_host": originalURL.host ?? "unknown"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
-
             return originalURL
         }
 
@@ -346,21 +263,8 @@ actor PlexLiveTVProvider: LiveTVProvider {
         guard var components = URLComponents(url: originalURL, resolvingAgainstBaseURL: false) else {
             print("📺 PlexLiveTVProvider.buildStreamURL: Failed to parse URL components for '\(channel.name)'")
 
-            // Log URL parsing failure (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .error, category: "plex_livetv")
-            breadcrumb.message = "Failed to parse transcode URL components"
-            breadcrumb.setData(from: [
-                "channel_name": channel.name,
-                "channel_id": channel.id,
-                "original_url_path": originalURL.path
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
-
             return originalURL
         }
-
-        // Extract old session ID for logging
-        let oldSessionId = components.queryItems?.first(where: { $0.name == "session" })?.value
 
         let newSessionId = UUID().uuidString.uppercased()
         var queryItems = components.queryItems ?? []
@@ -378,20 +282,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
         // raw '+'. Without this the rebuilt URL reaches PMS with spaces between
         // the client-profile clauses. See finalizedLiveURL.
         let newURL = PlexLiveTVChannel.finalizedLiveURL(components) ?? originalURL
-
-        // Log session ID regeneration (GitHub #64 - DVB diagnostics)
-        let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        breadcrumb.message = "Generated fresh Plex transcode session"
-        breadcrumb.setData(from: [
-            "channel_name": channel.name,
-            "channel_id": channel.id,
-            "stream_type": "plex_transcode",
-            "old_session_id": oldSessionId.map { String($0.prefix(8)) } ?? "none",
-            "new_session_id": String(newSessionId.prefix(8)),
-            "url_host": newURL.host ?? "unknown",
-            "url_path": newURL.path
-        ])
-        SentryBridge.addBreadcrumb(breadcrumb)
 
         return newURL
     }
@@ -428,34 +318,17 @@ actor PlexLiveTVProvider: LiveTVProvider {
         }
         let channelId = String(parts[2])
 
-        let tune: PlexLiveTVTuneResult
-        do {
-            // Unstructured, so a caller that leaves (Back, a channel switch)
-            // doesn't hang up on PMS mid-tune. PMS finishes the tune anyway and
-            // holds its grab, and only the response names the session to release.
-            tune = try await Task {
-                try await networkManager.tuneLiveTVChannel(
-                    serverURL: serverURL,
-                    authToken: authToken,
-                    dvrKey: dvrKey,
-                    channelIdentifier: channelId
-                )
-            }.value
-        } catch {
-            // A tune the server answered with its own message is a tuner or
-            // antenna fault (RIVULET-6N), not ours.
-            if error is PlexLiveTuneError {
-                logFailure(error, operation: "tune", ["channel_name": channel.name, "dvr_key": dvrKey])
-            } else if !isCancellationError(error) {
-                SentryBridge.capture(error: error) { scope in
-                    scope.setTag(value: "plex_livetv", key: "component")
-                    scope.setExtra(value: channel.name, key: "channel_name")
-                    scope.setExtra(value: dvrKey, key: "dvr_key")
-                    scope.setExtra(value: "tune_failed", key: "operation")
-                }
-            }
-            throw error
-        }
+        // Unstructured, so a caller that leaves (Back, a channel switch)
+        // doesn't hang up on PMS mid-tune. PMS finishes the tune anyway and
+        // holds its grab, and only the response names the session to release.
+        let tune = try await Task {
+            try await networkManager.tuneLiveTVChannel(
+                serverURL: serverURL,
+                authToken: authToken,
+                dvrKey: dvrKey,
+                channelIdentifier: channelId
+            )
+        }.value
 
         let transcodeSessionId = UUID().uuidString
 
@@ -465,7 +338,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
         // an explicit grant falls to the consensus start.m3u8 leg (the
         // flow every working third-party client ships).
         var directPlayKey: String?
-        var decisionOutcome = "decision_unavailable"
         do {
             let decision = try await networkManager.requestLiveTranscodeDecision(
                 serverURL: serverURL,
@@ -477,26 +349,11 @@ actor PlexLiveTVProvider: LiveTVProvider {
             )
             if decision.mdeDecisionCode == 1000, let key = decision.directPlayPartKey {
                 directPlayKey = key
-                decisionOutcome = "direct_play"
-            } else {
-                decisionOutcome = "direct_stream(\(decision.generalDecisionCode.map(String.init) ?? "?"))"
             }
         } catch {
             // Decision failing is not fatal — start.m3u8 with the tuned
-            // path is self-sufficient. Keep the reason for diagnostics.
-            decisionOutcome = "decision_failed"
+            // path is self-sufficient.
         }
-
-        let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        breadcrumb.message = "Tuned live channel to /livetv/sessions"
-        breadcrumb.setData(from: [
-            "channel_name": channel.name,
-            "channel_id": channel.id,
-            "dvr_key": dvrKey,
-            "session_uuid": String(tune.sessionUUID.prefix(8)),
-            "playback_route": decisionOutcome
-        ])
-        SentryBridge.addBreadcrumb(breadcrumb)
 
         let url = directPlayKey.flatMap { directPlayURL(partKey: $0, tune: tune) }
             ?? startURL(tune: tune, transcodeSessionId: transcodeSessionId)
@@ -556,17 +413,6 @@ actor PlexLiveTVProvider: LiveTVProvider {
     }
 
     // MARK: - Private Methods
-
-    /// Lineup/guide fetch failures are the user's server, not Rivulet: a log, not an error.
-    private func logFailure(_ error: Error, operation: String, _ extra: [String: Any] = [:]) {
-        guard !isCancellationError(error) else { return }
-        var attributes = extra
-        attributes["component"] = "plex_livetv"
-        attributes["operation"] = operation
-        attributes["host"] = URL(string: serverURL)?.host ?? "unknown"
-        attributes["error"] = String(describing: error)
-        SentryBridge.log(.warn, "Plex Live TV \(operation) failed", attributes: attributes)
-    }
 
     private func filterEPG(
         _ epg: [String: [UnifiedProgram]],

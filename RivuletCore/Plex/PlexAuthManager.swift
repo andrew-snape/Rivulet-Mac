@@ -12,7 +12,6 @@
 import Foundation
 import SwiftUI
 import Combine
-import Sentry
 
 // MARK: - Auth State
 
@@ -223,12 +222,6 @@ class PlexAuthManager: ObservableObject {
         } catch {
             state = .error(message: "Failed to get PIN: \(error.localizedDescription)")
             scheduleErrorDismissal()
-
-            // Capture PIN request failure to Sentry
-            SentryBridge.capture(error: error) { scope in
-                scope.setTag(value: "plex_auth", key: "component")
-                scope.setTag(value: "pin_request", key: "auth_step")
-            }
         }
     }
 
@@ -377,20 +370,6 @@ class PlexAuthManager: ObservableObject {
             return winner
         }
 
-        // Every candidate failed: the server is off or unreachable, so a log.
-        // The per-probe breadcrumbs above are mirrored as logs too.
-        // Address CLASS only (never the address itself).
-        let candidateSummary = sortedConnections.map { conn -> String in
-            let kind = conn.relay ? "relay" : (conn.local ? "local" : "remote")
-            let net = conn.uri.contains(".plex.direct") ? "plex.direct" : "raw"
-            return "\(conn.protocolType)/\(kind)/\(net):\(conn.port)"
-        }.joined(separator: ",")
-        SentryBridge.log(.warn, "All server connection candidates failed", attributes: [
-            "component": "plex_auth",
-            "operation": "server_connect_failed",
-            "server_name": server.name,
-            "candidates": candidateSummary,
-        ])
         return nil
     }
 
@@ -598,34 +577,13 @@ class PlexAuthManager: ObservableObject {
 
             if let httpResponse = response as? HTTPURLResponse {
                 let ok = (200...299).contains(httpResponse.statusCode)
-                if !ok {
-                    Self.addConnectionTestBreadcrumb(
-                        urlString: urlString, outcome: "http_\(httpResponse.statusCode)")
-                }
                 return ok
             }
             return false
         } catch {
             print("🔐 PlexAuthManager: Connection test error: \(error.localizedDescription)")
-            let nsError = error as NSError
-            Self.addConnectionTestBreadcrumb(
-                urlString: urlString, outcome: "\(nsError.domain)#\(nsError.code)")
             return false
         }
-    }
-
-    /// One breadcrumb per failed connection probe (mirrored as a log), so the
-    /// per-candidate failure trail is visible (GitHub #224).
-    private static func addConnectionTestBreadcrumb(urlString: String, outcome: String) {
-        let breadcrumb = Breadcrumb(level: .warning, category: "plex_auth")
-        breadcrumb.message = "Connection probe failed"
-        breadcrumb.setData(from: [
-            "host": URL(string: urlString)?.host ?? "invalid-url",
-            "port": URL(string: urlString)?.port ?? 0,
-            "scheme": URL(string: urlString)?.scheme ?? "?",
-            "outcome": outcome
-        ])
-        SentryBridge.addBreadcrumb(breadcrumb)
     }
 
     /// Test connection and extract plex.direct hash from certificate if it fails
@@ -661,8 +619,6 @@ class PlexAuthManager: ObservableObject {
 
             // Try to extract plex.direct hash from certificate error
             let nsError = error as NSError
-            Self.addConnectionTestBreadcrumb(
-                urlString: urlString, outcome: "\(nsError.domain)#\(nsError.code)")
             if nsError.code == -1200 || nsError.code == -9802 { // SSL errors
                 if let certHash = extractPlexDirectHash(from: nsError) {
                     return (false, certHash)
@@ -894,12 +850,6 @@ class PlexAuthManager: ObservableObject {
                 print("🔐 PlexAuthManager: Failed to fetch servers: \(error)")
                 isConnected = false
                 connectionError = "Unable to reach Plex. Check your network connection."
-
-                SentryBridge.log(.warn, "Plex server discovery failed", attributes: [
-                    "component": "plex_auth",
-                    "auth_step": "server_discovery",
-                    "error": String(describing: error),
-                ])
             }
             return
         }
@@ -958,13 +908,6 @@ class PlexAuthManager: ObservableObject {
                 print("🔐 PlexAuthManager: Failed to fetch servers for re-selection: \(error)")
                 // Keep existing credentials - just mark as not connected
                 // User can still see cached content
-
-                SentryBridge.log(.warn, "Plex connection verify failed", attributes: [
-                    "component": "plex_auth",
-                    "auth_step": "connection_verify",
-                    "host": URL(string: currentURL)?.host ?? "unknown",
-                    "error": String(describing: error),
-                ])
             }
         }
     }

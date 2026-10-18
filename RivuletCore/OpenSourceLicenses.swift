@@ -11,7 +11,7 @@
 //  and used under the GNU Lesser General Public License v3, with an App Store / DRM exception.
 //  FFmpeg (demux/decode/remux) is dynamically linked via the FFmpegBuild package and used
 //  under the LGPL (v2.1 or later); that build bundles dav1d (BSD 2-Clause, AV1 decode).
-//  libdovi and the Sentry SDK are used
+//  libdovi is used
 //  under the MIT license. Rivulet itself is distributed under the PolyForm Noncommercial
 //  License 1.0.0.
 //
@@ -117,11 +117,6 @@ enum OpenSourceLicenses {
                 name: "libunibreak",
                 summary: "Used by libass for line breaking. libunibreak 6.1, statically linked and used under the zlib License.",
                 licenseText: libunibreakZlib
-            ),
-            Entry(
-                name: "Sentry (sentry-cocoa)",
-                summary: "Used for crash and error diagnostics. Used under the MIT License.",
-                licenseText: sentryMIT
             ),
         ]
     }
@@ -661,30 +656,6 @@ verbatim from src/ure.c of libzvbi v0.2.44.
     MIT License
 
     Copyright (c) 2021 quietvoid
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
-    """#
-
-    static let sentryMIT = #"""
-    The MIT License (MIT)
-
-    Copyright (c) 2015 Sentry
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal

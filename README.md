@@ -6,7 +6,7 @@
 
 **Plex and Live TV on your Mac.**
 
-![macOS 15+](https://img.shields.io/badge/macOS-15+-000000?logo=apple)
+![macOS 27+](https://img.shields.io/badge/macOS-27+-000000?logo=apple)
 ![Apple silicon](https://img.shields.io/badge/Apple_silicon-only-000000?logo=apple)
 ![License](https://img.shields.io/badge/license-PolyForm_NC_1.0.0-blue)
 
@@ -20,10 +20,12 @@ menus and keyboard shortcuts.
 
 - **Plex**: sign in, choose a server and Home profile, browse Home, your movie
   and TV libraries and search. Play with resume, progress sync, Skip Intro and
-  Credits, Up Next, and Home or Away streaming quality.
+  Credits, Up Next, and Home or Away streaming quality. Info, Chapters and
+  Details panes open above the player controls.
 - **Live TV**: M3U playlists with XMLTV guides, Dispatcharr servers, and your
-  Plex server's tuners. A channel list with what's on now, favourites and
-  recently watched.
+  Plex server's tuners. A guide with what's on now, favourites and recently
+  watched. Pop the picture out into a floating window, or watch up to four
+  channels at once in multiview.
 - **Playback**: [AetherEngine](https://github.com/superuser404notfound/AetherEngine)
   plays files directly, including MKV, HDR10, Dolby Vision and Atmos, with a Plex
   transcode as the fallback. Captions follow your Mac's caption settings.
@@ -36,18 +38,22 @@ menus and keyboard shortcuts.
 | ← / → | Back 10 or forward 30 seconds (Plex) |
 | Esc | Close the player |
 | ↑ / ↓ in the channel list | Change channel |
+| ⌥⌘← / ⌥⌘→ | Back 10 seconds or forward |
 | ⌥⌘↑ / ⌥⌘↓ | Previous or next channel |
+| ⇧⌘M | Mute or unmute |
+| ⇧⌘L | Go live |
+| ⌘D | Add or remove the channel from favourites |
+| ⌘. | Stop |
 | ⌃⌘F or double-click | Full screen |
 | ⌘R | Refresh |
 | ⌘, | Settings |
 
 ## Build
 
-You need a Mac with Apple silicon and Xcode.
+You need a Mac with Apple silicon running macOS 27 or later, and Xcode.
 
 1. Clone the repo and open `Rivulet.xcodeproj`.
-2. Copy `RivuletCore/Config/Secrets.swift.template` to `RivuletCore/Config/Secrets.swift`.
-3. Choose the **Rivulet Mac** scheme and press Run. No Apple developer account is needed.
+2. Choose the **Rivulet Mac** scheme and press Run. No Apple developer account is needed.
 
 ## Licence
 

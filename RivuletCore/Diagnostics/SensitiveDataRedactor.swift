@@ -12,16 +12,10 @@
 //  credential for that user's Plex account. IPTV/Xtream providers are worse:
 //  their M3U and EPG URLs commonly carry `username`/`password` in the query.
 //
-//  Two things reach Sentry, and both need covering:
-//    1. Values we attach ourselves (`scope.setExtra(url.absoluteString, ...)`).
-//    2. Events the SDK builds itself — `enableCaptureFailedRequests` attaches
-//       the failing request URL, and NSError descriptions embed the URL too.
-//  Call sites can only fix (1), so the real guarantee is the `beforeSend` hook
-//  in RivuletApp, which runs this over every outgoing event. Call sites are
-//  still cleaned up so we don't ship secrets to a sink that merely scrubs them.
+//  Run any URL or error text through this before it reaches a log.
 //
-//  `nonisolated` to match SentryBridge: this runs on the error path from any
-//  isolation context and must not cost an actor hop.
+//  `nonisolated`: this runs on the error path from any isolation context and
+//  must not cost an actor hop.
 //
 
 import Foundation
@@ -47,8 +41,8 @@ nonisolated enum SensitiveDataRedactor {
     ]
 
     /// Matches `key=value` in a query string for any key in `secretQueryKeys`.
-    /// Value runs to the next `&`, `"`, whitespace, or end — NSError and Sentry
-    /// bodies embed URLs inside prose, so we can't assume a clean terminator.
+    /// Value runs to the next `&`, `"`, whitespace, or end — NSError and
+    /// response bodies embed URLs inside prose, so we can't assume a clean terminator.
     private static let secretPattern: NSRegularExpression? = {
         let keys = secretQueryKeys
             .map { NSRegularExpression.escapedPattern(for: $0) }

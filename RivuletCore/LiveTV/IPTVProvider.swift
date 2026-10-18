@@ -9,7 +9,6 @@
 //
 
 import Foundation
-import Sentry
 
 /// LiveTVProvider implementation for IPTV sources
 actor IPTVProvider: LiveTVProvider {
@@ -145,29 +144,10 @@ actor IPTVProvider: LiveTVProvider {
         let parser = M3UParser()
         let parsedChannels: [M3UParser.ParsedChannel]
 
-        do {
-            if let dispatcharr = dispatcharrService {
-                parsedChannels = try await dispatcharr.fetchChannels()
-            } else {
-                parsedChannels = try await parser.parse(from: url)
-            }
-        } catch {
-            // Only capture unexpected errors to Sentry. HTTP errors mean a dead
-            // user-configured URL; transport errors are the provider being down.
-            let isHTTPError = error is M3UParseError && "\(error)".contains("httpError")
-            if !isHTTPError && shouldCaptureEPGError(error) {
-                let capturedSourceType = self.sourceType
-                let capturedDisplayName = self.displayName
-                SentryBridge.capture(error: error) { scope in
-                    scope.setTag(value: "iptv", key: "component")
-                    scope.setTag(value: String(describing: capturedSourceType), key: "source_type")
-                    scope.setExtra(value: capturedDisplayName, key: "source_name")
-                    // Xtream/IPTV M3U URLs routinely carry username+password in
-                    // the query string.
-                    scope.setExtra(value: SensitiveDataRedactor.safeURLString(url), key: "m3u_url")
-                }
-            }
-            throw error
+        if let dispatcharr = dispatcharrService {
+            parsedChannels = try await dispatcharr.fetchChannels()
+        } else {
+            parsedChannels = try await parser.parse(from: url)
         }
 
         var occurrences: [String: Int] = [:]
@@ -207,27 +187,10 @@ actor IPTVProvider: LiveTVProvider {
         let xmltvParser = XMLTVParser()
         let parseResult: XMLTVParser.ParseResult
 
-        do {
-            if let dispatcharr = dispatcharrService {
-                parseResult = try await dispatcharr.fetchParsedEPG()
-            } else {
-                parseResult = try await xmltvParser.parse(from: epgURL)
-            }
-        } catch {
-            // Only capture unexpected EPG errors. The EPG URL is user-supplied
-            // third-party content, so upstream HTTP failures, DNS/timeout/TLS
-            // errors, and task cancellations are not Rivulet bugs — log them
-            // locally and surface via the UI, but don't file Sentry events.
-            if shouldCaptureEPGError(error) {
-                let capturedDisplayName = self.displayName
-                SentryBridge.capture(error: error) { scope in
-                    scope.setTag(value: "iptv", key: "component")
-                    scope.setTag(value: "epg_fetch", key: "operation")
-                    scope.setExtra(value: capturedDisplayName, key: "source_name")
-                    scope.setExtra(value: SensitiveDataRedactor.safeURLString(epgURL), key: "epg_url")
-                }
-            }
-            throw error
+        if let dispatcharr = dispatcharrService {
+            parseResult = try await dispatcharr.fetchParsedEPG()
+        } else {
+            parseResult = try await xmltvParser.parse(from: epgURL)
         }
 
         let candidates = Dictionary(channels.map { channel in
@@ -306,48 +269,6 @@ actor IPTVProvider: LiveTVProvider {
         cachedEPG = [:]
         lastChannelFetch = nil
         lastEPGFetch = nil
-    }
-
-    // MARK: - Error Classification
-
-    /// Returns `true` only when an EPG fetch error looks like a Rivulet bug
-    /// rather than a third-party / configuration failure. User-supplied EPG
-    /// URLs can return any HTTP status, time out, or fail DNS without it
-    /// being our fault, so those get surfaced via the UI but not filed to
-    /// Sentry. Parse failures on otherwise-valid responses still get captured.
-    private func shouldCaptureEPGError(_ error: Error) -> Bool {
-        // Upstream HTTP failure (4xx/5xx from the EPG server)
-        if error is XMLTVParseError {
-            if case XMLTVParseError.httpError = error {
-                return false
-            }
-        }
-
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            switch nsError.code {
-            case NSURLErrorCancelled,
-                 NSURLErrorTimedOut,
-                 NSURLErrorCannotFindHost,
-                 NSURLErrorCannotConnectToHost,
-                 NSURLErrorNetworkConnectionLost,
-                 NSURLErrorDNSLookupFailed,
-                 NSURLErrorNotConnectedToInternet,
-                 NSURLErrorBadServerResponse,
-                 NSURLErrorSecureConnectionFailed,
-                 NSURLErrorServerCertificateHasBadDate,
-                 NSURLErrorServerCertificateUntrusted,
-                 NSURLErrorServerCertificateHasUnknownRoot,
-                 NSURLErrorServerCertificateNotYetValid,
-                 NSURLErrorClientCertificateRejected,
-                 NSURLErrorClientCertificateRequired:
-                return false
-            default:
-                break
-            }
-        }
-
-        return true
     }
 }
 

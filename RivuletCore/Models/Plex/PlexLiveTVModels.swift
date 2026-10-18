@@ -9,7 +9,6 @@
 //
 
 import Foundation
-import Sentry
 
 // MARK: - Live TV Capabilities
 
@@ -309,18 +308,6 @@ extension PlexLiveTVChannel {
         // Generate a unique session ID for this transcode session
         let sessionId = UUID().uuidString.uppercased()
 
-        // Log transcode URL building start (GitHub #64 - DVB diagnostics)
-        let startBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        startBreadcrumb.message = "Building Plex transcode URL for DVB channel"
-        startBreadcrumb.setData(from: [
-            "channel_name": title,
-            "channel_number": channelNumber ?? "unknown",
-            "channel_key": key,
-            "session_id": String(sessionId.prefix(8)),
-            "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ])
-        SentryBridge.addBreadcrumb(startBreadcrumb)
-
         var components = URLComponents(string: "\(serverURL)/video/:/transcode/universal/start.m3u8")
 
         // Untuned base: `path` points at the EPG channel metadata. Cloud-EPG /
@@ -336,30 +323,6 @@ extension PlexLiveTVChannel {
         )
         // Consensus wire form: '+' profile-clause separators travel as %2B.
         let resultURL = components.flatMap { Self.finalizedLiveURL($0) }
-
-        // Log transcode URL building result (GitHub #64 - DVB diagnostics)
-        if let url = resultURL {
-            let successBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-            successBreadcrumb.message = "Plex transcode URL built successfully"
-            successBreadcrumb.setData(from: [
-                "channel_name": title,
-                "channel_number": channelNumber ?? "unknown",
-                "session_id": String(sessionId.prefix(8)),
-                "url_path": url.path,
-                "url_host": url.host ?? "unknown",
-                "has_query_params": url.query != nil
-            ])
-            SentryBridge.addBreadcrumb(successBreadcrumb)
-        } else {
-            let failBreadcrumb = Breadcrumb(level: .error, category: "plex_livetv")
-            failBreadcrumb.message = "Failed to build Plex transcode URL - URLComponents failed"
-            failBreadcrumb.setData(from: [
-                "channel_name": title,
-                "channel_key": key,
-                "server_url": serverURL
-            ])
-            SentryBridge.addBreadcrumb(failBreadcrumb)
-        }
 
         return resultURL
     }
@@ -498,61 +461,11 @@ extension PlexLiveTVChannel {
         let streamURLValue: URL? = {
             if let hdhrURL = streamURL {
                 // HDHomeRun direct stream URL available
-                let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-                breadcrumb.message = "Using HDHomeRun direct stream URL"
-                breadcrumb.setData(from: [
-                    "channel_name": title,
-                    "channel_number": channelNumber ?? "unknown",
-                    "rating_key": ratingKey,
-                    "channel_key": key,
-                    "stream_type": "hdhr_direct",
-                    "has_stream_url": true,
-                    "server_host": URL(string: serverURL)?.host ?? "unknown"
-                ])
-                SentryBridge.addBreadcrumb(breadcrumb)
                 return URL(string: hdhrURL)
             }
 
             // No HDHomeRun URL - build Plex transcode URL (DVB tuner path)
-            let transcodeURL = buildPlexLiveTVStreamURL(serverURL: serverURL, authToken: authToken)
-
-            // Log detailed info for DVB tuner debugging (GitHub #64)
-            let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-            breadcrumb.message = transcodeURL != nil
-                ? "Built Plex transcode URL for DVB tuner"
-                : "Failed to build Plex transcode URL"
-            breadcrumb.setData(from: [
-                "channel_name": title,
-                "channel_number": channelNumber ?? "unknown",
-                "rating_key": ratingKey,
-                "stream_type": "plex_transcode",
-                "channel_key": key,
-                "server_host": URL(string: serverURL)?.host ?? "unknown",
-                "transcode_url_built": transcodeURL != nil,
-                "transcode_url_host": transcodeURL?.host ?? "none"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
-
-            // If transcode URL failed, capture as an error
-            if transcodeURL == nil {
-                let event = Event(level: .error)
-                event.message = SentryMessage(formatted: "Failed to build Plex Live TV transcode URL")
-                event.extra = [
-                    "channel_name": title,
-                    "channel_number": channelNumber ?? "unknown",
-                    "rating_key": ratingKey,
-                    "channel_key": key,
-                    "server_url": serverURL
-                ]
-                event.tags = [
-                    "component": "plex_livetv",
-                    "operation": "build_transcode_url"
-                ]
-                event.fingerprint = ["plex_livetv", "transcode_url_build_failed"]
-                SentryBridge.capture(event: event)
-            }
-
-            return transcodeURL
+            return buildPlexLiveTVStreamURL(serverURL: serverURL, authToken: authToken)
         }()
 
         // Build logo URL - handle both external URLs and Plex paths

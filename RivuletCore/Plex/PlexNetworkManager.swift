@@ -16,7 +16,6 @@
 //
 
 import Foundation
-import Sentry
 
 // MARK: - Network Priority
 
@@ -33,27 +32,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
     // Default timeout for requests
     private let defaultTimeout: TimeInterval = 30.0
-
-    /// Collapse a request URL into a stable, low-cardinality endpoint identity
-    /// for Sentry tagging and grouping.
-    ///
-    /// A raw Plex URL is worthless as a tag: `/library/metadata/14735` and
-    /// `/library/metadata/183532` are the same endpoint but produce unbounded
-    /// distinct values, so Sentry can neither group failures nor let you ask
-    /// "how often does metadata fetch fail?". Replacing numeric ids with `{id}`
-    /// gives one tag value per endpoint. The query string is always dropped —
-    /// it carries the auth token.
-    nonisolated static func sentryEndpoint(for url: URL) -> String {
-        let normalized = url.path
-            .split(separator: "/", omittingEmptySubsequences: true)
-            .map { component -> String in
-                // Pure-numeric path components are ids (ratingKey, sectionKey…).
-                if !component.isEmpty, component.allSatisfy(\.isNumber) { return "{id}" }
-                return String(component)
-            }
-            .joined(separator: "/")
-        return normalized.isEmpty ? "/" : "/" + normalized
-    }
 
     // URL session with custom delegate for self-signed certs
     private lazy var session: URLSession = {
@@ -136,41 +114,8 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             request.addValue(value, forHTTPHeaderField: key)
         }
 
-        // Stable, low-cardinality endpoint identity for Sentry grouping. The raw
-        // URL is useless as a tag (every ratingKey makes it unique), so distinct
-        // failures of the same endpoint never group. See `sentryEndpoint`.
-        let endpoint = Self.sentryEndpoint(for: url)
-
         let netStart = ProcessInfo.processInfo.systemUptime
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await (timeout == nil ? session : longHoldSession).data(for: request)
-        } catch {
-            // Transport-level failures (timeout -1001, connection lost -1005,
-            // cannot-connect -1004) previously escaped this function completely
-            // uninstrumented. Sentry auto-captured them with NO url, NO endpoint,
-            // NO method — which is why RIVULET-2A / -E / -D are unactionable
-            // walls of NSURLErrorDomain text. Attach the request identity.
-            let nsError = error as NSError
-            let elapsedMs = Int((ProcessInfo.processInfo.systemUptime - netStart) * 1000)
-            // -999 is a user-cancelled request (navigating away). The rest is
-            // almost always the user's server being down or unreachable, so it
-            // is a log, not an error: it was ~60% of the error quota.
-            if nsError.code != NSURLErrorCancelled {
-                SentryBridge.log(.warn, "Plex request failed", attributes: [
-                    "component": "plex_network",
-                    "error_type": "transport",
-                    "endpoint": endpoint,
-                    "method": method,
-                    "urlerror_code": nsError.code,
-                    "path": url.path,
-                    "host": url.host ?? "unknown",
-                    "elapsed_ms": elapsedMs,
-                ])
-            }
-            throw error
-        }
+        let (data, response) = try await (timeout == nil ? session : longHoldSession).data(for: request)
         let netMs = Int((ProcessInfo.processInfo.systemUptime - netStart) * 1000)
         // Startup-tracing: flag any slow call (the 30s timeout candidate). Path
         // only — query strings carry the auth token.
@@ -185,41 +130,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
         guard (200...299).contains(httpResponse.statusCode) else {
             print("🌐 PlexNetwork: ❌ HTTP Error \(httpResponse.statusCode)")
-            let error = PlexAPIError.httpError(statusCode: httpResponse.statusCode, data: data)
-
-            // 404 is an item the server deleted or rematched, 421 a connection
-            // address now answered by another server (RIVULET-2): server state,
-            // so a log. Other 4xx can mean we sent a bad request, so capture.
-            let status = httpResponse.statusCode
-            if status == 404 || status == 421 {
-                SentryBridge.log(.warn, "Plex request returned \(status)", attributes: [
-                    "component": "plex_network",
-                    "error_type": "http",
-                    "endpoint": endpoint,
-                    "method": method,
-                    "status_code": status,
-                ])
-            } else if status != 401 && status != 403 && !(500...599).contains(status) {
-                SentryBridge.capture(error: error) { scope in
-                    scope.setTag(value: "plex_network", key: "component")
-                    scope.setTag(value: "http", key: "error_type")
-                    // Tags (not extras) so Sentry can group and facet by them.
-                    scope.setTag(value: endpoint, key: "endpoint")
-                    scope.setTag(value: method, key: "method")
-                    scope.setTag(value: String(httpResponse.statusCode), key: "status_code")
-                    // The token rides in the query string, so never send the raw
-                    // URL. safeURLString keeps host/path plus the query's KEY
-                    // names, which is all we ever diagnose from.
-                    scope.setExtra(value: SensitiveDataRedactor.safeURLString(url), key: "url")
-                    scope.setExtra(value: netMs, key: "elapsed_ms")
-                    if let responseStr = String(data: data, encoding: .utf8) {
-                        // Plex error pages echo the request URL back at us.
-                        scope.setExtra(value: SensitiveDataRedactor.redact(String(responseStr.prefix(500))), key: "response_body")
-                    }
-                }
-            }
-
-            throw error
+            throw PlexAPIError.httpError(statusCode: httpResponse.statusCode, data: data)
         }
 
         do {
@@ -229,48 +140,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             if let responseStr = String(data: data, encoding: .utf8) {
                 print("🌐 PlexNetwork: Full response: \(responseStr)")
             }
-
-            // Capture JSON decode errors to Sentry
-            SentryBridge.capture(error: error) { scope in
-                scope.setTag(value: "plex_network", key: "component")
-                scope.setTag(value: "json_decode", key: "error_type")
-                scope.setExtra(value: SensitiveDataRedactor.safeURLString(url), key: "url")
-                scope.setExtra(value: String(describing: T.self), key: "expected_type")
-                scope.setExtra(value: data.count, key: "response_size")
-
-                // Try UTF-8 first, fall back to Latin1 (which never fails) to capture something
-                if let responseStr = String(data: data, encoding: .utf8) {
-                    scope.setExtra(value: SensitiveDataRedactor.redact(String(responseStr.prefix(2000))), key: "response_body")
-                } else {
-                    // UTF-8 failed - capture what we can
-                    scope.setTag(value: "true", key: "invalid_utf8")
-
-                    // Latin1 encoding never fails - use it to get a lossy representation
-                    if let latin1Str = String(data: data.prefix(2000), encoding: .isoLatin1) {
-                        scope.setExtra(value: SensitiveDataRedactor.redact(latin1Str), key: "response_body_latin1")
-                    }
-
-                    // Try to find the error position from the underlying error
-                    let nsError = error as NSError
-                    if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
-                       let errorIndex = underlyingError.userInfo["NSJSONSerializationErrorIndex"] as? Int {
-                        scope.setExtra(value: errorIndex, key: "error_byte_position")
-
-                        // Capture hex dump around the error position
-                        let start = max(0, errorIndex - 50)
-                        let end = min(data.count, errorIndex + 50)
-                        let problemArea = data[start..<end]
-                        let hexDump = problemArea.map { String(format: "%02x", $0) }.joined(separator: " ")
-                        scope.setExtra(value: hexDump, key: "hex_around_error")
-
-                        // Also capture as Latin1 string for context
-                        if let contextStr = String(data: Data(problemArea), encoding: .isoLatin1) {
-                            scope.setExtra(value: contextStr, key: "context_around_error")
-                        }
-                    }
-                }
-            }
-
             throw error
         }
     }
@@ -2054,17 +1923,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             let hasDVRs = !dvrs.isEmpty
 
             // Log capabilities check result (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-            breadcrumb.message = "Live TV capabilities check completed"
-            breadcrumb.setData(from: [
-                "allow_tuners": hasDVRs,
-                "live_tv_enabled": hasDVRs,
-                "has_dvr": hasDVRs,
-                "dvr_count": dvrs.count,
-                "dvr_types": dvrs.compactMap { $0.make ?? $0.model }.joined(separator: ", "),
-                "server_host": URL(string: serverURL)?.host ?? "unknown"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
 
             return PlexLiveTVCapabilities(
                 allowTuners: hasDVRs,
@@ -2073,13 +1931,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             )
         } catch {
             // Log capability check failure (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "Live TV capabilities check failed"
-            breadcrumb.setData(from: [
-                "error": error.localizedDescription,
-                "server_host": URL(string: serverURL)?.host ?? "unknown"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
 
             // If the endpoint fails, Live TV is not available
             return PlexLiveTVCapabilities()
@@ -2118,14 +1969,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         guard !dvrs.isEmpty else {
             print("🌐 PlexNetwork: No DVR or lineup found for Live TV")
             // Log missing DVR/lineup (GitHub #64 - DVB diagnostics)
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "No DVR or lineup found for Live TV channels"
-            breadcrumb.setData(from: [
-                "server_host": URL(string: serverURL)?.host ?? "unknown",
-                "has_dvr_array": dvrContainer.MediaContainer.Dvr != nil,
-                "dvr_count": dvrContainer.MediaContainer.Dvr?.count ?? 0
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
             return []
         }
 
@@ -2251,15 +2094,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // channels, so a failure is logged and skipped rather than thrown.
             // Only a total wipeout surfaces, as an empty list.
             guard let listing else {
-                let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-                breadcrumb.message = "Channel fetch failed for one DVR; continuing with the rest"
-                breadcrumb.setData(from: [
-                    "dvr_key": request.dvrKey,
-                    "tuner_name": request.tunerName ?? "unnamed",
-                    "provider_path": request.providerPath,
-                    "dvr_count": dvrs.count
-                ])
-                SentryBridge.addBreadcrumb(breadcrumb)
                 continue
             }
 
@@ -2309,13 +2143,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             }
         }
 
-        let summaryBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
-        summaryBreadcrumb.message = "Live TV channel fetch completed"
-        summaryBreadcrumb.setData(from: [
-            "total_channels": channels.count,
-            "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ])
-        SentryBridge.addBreadcrumb(summaryBreadcrumb)
 
         return channels
     }
@@ -2324,7 +2151,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
     /// the point: callers dedupe first-wins across the pages, so the answer must
     /// not depend on which request landed first. Failures keep their error so a
     /// caller that gives up can throw the real one: a superseded load must still
-    /// read as a cancellation, which the guide and Sentry both drop.
+    /// read as a cancellation, which the guide drops.
     private func fetchConcurrently<T: Decodable & Sendable>(
         _ urls: [URL],
         headers: [String: String],
@@ -2380,10 +2207,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         } catch {
             // Best effort: an account with no favourites and a call that failed
             // both mean the same thing here — no Favourites tab.
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "Favourite channels unavailable"
-            breadcrumb.setData(from: ["error": String(describing: error)])
-            SentryBridge.addBreadcrumb(breadcrumb)
             return []
         }
     }
@@ -2397,7 +2220,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
     ///     ?X-Plex-Session-Identifier={sid}
     ///   → MediaSubscription → MediaGrabOperation → Metadata.key
     ///     = /livetv/sessions/{uuid}   (the session path)
-    /// Some PMS variants (the Sentry RIVULET-5B cloud-EPG shape) carry NO
+    /// Some PMS variants (the cloud-EPG shape) carry NO
     /// Media.uuid anywhere in the tree, so the session key is the primary
     /// parse and Media.uuid only a legacy fallback.
     func tuneLiveTVChannel(
@@ -2438,14 +2261,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         // Codable shape, walk the tree.
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let mediaContainer = root["MediaContainer"] as? [String: Any] else {
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "Tune response was not JSON"
-            breadcrumb.setData(from: [
-                "dvr": dvrKey,
-                "channel": channelId,
-                "response_head": String(data: data.prefix(400), encoding: .utf8) ?? "n/a"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
             throw PlexAPIError.parsingError
         }
 
@@ -2453,21 +2268,12 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         // carrying status -1 plus a message ("Could not tune...").
         if let status = mediaContainer["status"] as? Int, status != 0, status != 200 {
             let serverMessage = String((mediaContainer["message"] as? String ?? "").prefix(200))
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "Tune returned failure status"
-            breadcrumb.setData(from: [
-                "dvr": dvrKey,
-                "channel": channelId,
-                "status": status,
-                "server_message": serverMessage
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
             throw PlexLiveTuneError(serverMessage: serverMessage)
         }
 
         // PRIMARY: the live session's Metadata.key (/livetv/sessions/{uuid}).
         // Present in every observed variant, including the cloud-EPG shape
-        // that carries no Media.uuid at all (Sentry RIVULET-5B). Part keys
+        // that carries no Media.uuid at all (cloud EPG). Part keys
         // (.../index.m3u8) are excluded — those are the raw playlist, not the
         // session path.
         func firstSessionKey(in node: Any) -> String? {
@@ -2569,15 +2375,6 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         } else if let uuid = firstMediaUUID(in: mediaContainer) {
             sessionPath = "/livetv/sessions/\(uuid)"
         } else {
-            let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
-            breadcrumb.message = "Tune succeeded but no session key or Media uuid found"
-            breadcrumb.setData(from: [
-                "dvr": dvrKey,
-                "channel": channelId,
-                "media_container_keys": mediaContainer.keys.sorted().joined(separator: ","),
-                "response_head": String(data: data.prefix(800), encoding: .utf8) ?? "n/a"
-            ])
-            SentryBridge.addBreadcrumb(breadcrumb)
             throw PlexAPIError.invalidResponse
         }
 
@@ -3275,8 +3072,7 @@ enum PlexAPIError: LocalizedError {
 /// tuner being in use.
 ///
 /// Its own type rather than a `PlexAPIError` case: a new case with a payload
-/// renumbers the NSError code of every payload-free case, which is what
-/// existing Sentry issues are grouped by.
+/// renumbers the NSError code of every payload-free case.
 nonisolated struct PlexLiveTuneError: LocalizedError {
     let serverMessage: String
 

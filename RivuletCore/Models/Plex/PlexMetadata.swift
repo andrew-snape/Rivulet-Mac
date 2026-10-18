@@ -69,14 +69,6 @@ nonisolated struct PlexGuid: Codable, Sendable {
     var id: String?
 }
 
-/// A show's external IDs (any may be nil), used to resolve a TMDB id when Plex
-/// didn't hand us a `tmdb://` guid directly.
-nonisolated struct ShowExternalIDs: Sendable, Equatable {
-    var tmdb: Int?
-    var tvdb: Int?
-    var imdb: String?
-}
-
 /// Canonical categories for Plex extras. Declaration order is render order.
 enum ExtraSubtype: Int, CaseIterable, Sendable, Comparable {
     case trailer
@@ -519,41 +511,6 @@ nonisolated struct PlexMetadata: Codable, Identifiable, Hashable, Sendable {
 // MARK: - Computed Properties
 
 extension PlexMetadata {
-    /// Best-effort extraction of TMDB ID from the guid or Guid array
-    var tmdbId: Int? {
-        // Try primary guid first
-        if let guid, let id = PlexMetadata.extractTmdbId(from: guid) {
-            return id
-        }
-        // Fall back to Guid array (legacy Plex agents store external IDs here)
-        if let guids = Guid {
-            for g in guids {
-                if let gid = g.id, let id = PlexMetadata.extractTmdbId(from: gid) {
-                    return id
-                }
-            }
-        }
-        return nil
-    }
-
-    /// TMDB ID for the parent show (extracts from grandparentGuid for episodes)
-    var showTmdbId: Int? {
-        guard let guid = grandparentGuid else { return nil }
-        return PlexMetadata.extractTmdbId(from: guid)
-    }
-
-    /// TMDB ID for the related show when the item is a season or episode.
-    var parentShowTmdbId: Int? {
-        switch type {
-        case "episode":
-            return grandparentGuid.flatMap(PlexMetadata.extractTmdbId)
-        case "season":
-            return parentGuid.flatMap(PlexMetadata.extractTmdbId)
-        default:
-            return nil
-        }
-    }
-
     /// Relative path of the clearLogo image from the Plex `Image` array, if present.
     /// Returns a server-relative path that still needs the server URL + X-Plex-Token to fetch.
     var clearLogoPath: String? {
@@ -606,26 +563,6 @@ extension PlexMetadata {
         return String(token)
     }
 
-    /// For an episode, the SHOW's external IDs read only from the grandparent /
-    /// parent guid STRINGS. It deliberately does NOT read this item's `Guid`
-    /// array: on an episode that array holds the EPISODE's own ids
-    /// (e.g. tmdb://<episodeId>), and using them as a show id sends a wrong,
-    /// non-existent id to Insights. Legacy agents (thetvdb://77921/…,
-    /// themoviedb://<showId>/…) put a usable inline show id in grandparentGuid;
-    /// modern plex:// guids carry none, so the caller must fetch the show's own
-    /// metadata to get its external ids.
-    var showExternalIDs: ShowExternalIDs {
-        var tmdb: Int?
-        var tvdb: Int?
-        var imdb: String?
-        for g in [grandparentGuid, parentGuid].compactMap({ $0 }) {
-            if tmdb == nil { tmdb = PlexMetadata.extractTmdbId(from: g) }
-            if tvdb == nil { tvdb = PlexMetadata.extractTvdbId(from: g) }
-            if imdb == nil { imdb = PlexMetadata.extractImdbId(from: g) }
-        }
-        return ShowExternalIDs(tmdb: tmdb, tvdb: tvdb, imdb: imdb)
-    }
-
     /// Extract a numeric ID from a guid string matching any of the given prefixes
     nonisolated static func extractExternalId(from guid: String, prefixes: [String]) -> Int? {
         let lower = guid.lowercased()
@@ -641,14 +578,6 @@ extension PlexMetadata {
             }
         }
         return nil
-    }
-
-    /// Normalized TMDB media type for the item
-    var tmdbMediaType: TMDBMediaType {
-        if type == "show" || type == "episode" {
-            return .tv
-        }
-        return .movie
     }
 
     /// Lowercased genre tags from Plex metadata
