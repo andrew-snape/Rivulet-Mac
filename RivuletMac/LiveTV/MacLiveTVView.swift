@@ -45,7 +45,7 @@ struct MacLiveTVView: View {
                                 MacChannelList(channels: lineup, query: query, emptyText: emptyText)
                             }
                         }
-                        .frame(width: layout == .guide ? 520 : 340)
+                        .frame(width: layout == .guide ? 600 : 340)
                         Divider()
                     }
                     MacNowPlayingPane(showsDetails: !isFullScreen)
@@ -53,6 +53,7 @@ struct MacLiveTVView: View {
             }
         }
         .navigationTitle("Live TV")
+        .toolbar { if !store.sources.isEmpty && !isFullScreen { toolbarControls } }
         .task {
             await store.elevatePreloadPriority()
             await store.refreshIfStale()
@@ -69,21 +70,6 @@ struct MacLiveTVView: View {
 
     private var filterBar: some View {
         VStack(spacing: 8) {
-            Picker("View", selection: $layoutRaw) {
-                Text("Channels").tag(MacLiveTVLayout.channels.rawValue)
-                Text("Guide").tag(MacLiveTVLayout.guide.rawValue)
-            }
-            .pickerStyle(.segmented)
-            Picker("Show", selection: $filterRaw) {
-                Text("Favourites").tag("favorites")
-                Text("Recently Watched").tag("recent")
-                Text("All Channels").tag("all")
-                if !groups.isEmpty {
-                    Divider()
-                    ForEach(groups, id: \.self) { Text($0).tag("group:" + $0) }
-                }
-            }
-            .labelsHidden()
             TextField("Channels and Programmes", text: $query)
                 .textFieldStyle(.roundedBorder)
             if store.isLoadingChannels || store.isLoadingEPG {
@@ -97,6 +83,28 @@ struct MacLiveTVView: View {
             }
         }
         .padding(10)
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarControls: some ToolbarContent {
+        ToolbarItem {
+            Picker("View", selection: $layoutRaw) {
+                Text("Channels").tag(MacLiveTVLayout.channels.rawValue)
+                Text("Guide").tag(MacLiveTVLayout.guide.rawValue)
+            }
+            .pickerStyle(.segmented)
+        }
+        ToolbarItem {
+            Picker("Show", selection: $filterRaw) {
+                Text("Favourites").tag("favorites")
+                Text("Recently Watched").tag("recent")
+                Text("All Channels").tag("all")
+                if !groups.isEmpty {
+                    Divider()
+                    ForEach(groups, id: \.self) { Text($0).tag("group:" + $0) }
+                }
+            }
+        }
     }
 
     private var filter: MacChannelFilter {
