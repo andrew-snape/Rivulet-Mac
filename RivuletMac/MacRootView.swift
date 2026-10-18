@@ -41,11 +41,12 @@ struct MacRootView: View {
             .macPlexActionHost(open: { path.append($0) })
             if let session = playback.session {
                 MacVODPlayerView(session: session, player: session.player, close: { playback.close() })
-                    .ignoresSafeArea()
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: playback.session != nil)
+        // A Plex title has the window to itself: the sidebar and back buttons step aside.
+        .toolbarVisibility(playback.session == nil ? .automatic : .hidden, for: .windowToolbar)
         // The playback keys act only in this window, not in a sheet or Settings.
         .background(MacWindowReader { MacAppDelegate.mainWindow = $0 })
         .onAppear {
