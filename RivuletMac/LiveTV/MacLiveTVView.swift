@@ -25,6 +25,7 @@ struct MacLiveTVView: View {
     @State private var groups: [String] = []
     @AppStorage("macLiveTVLayout") private var layoutRaw = MacLiveTVLayout.channels.rawValue
     @State private var lineupRevision = 0
+    @AppStorage("macLiveTVShowsList") private var showsList = true
 
     private var layout: MacLiveTVLayout {
         MacLiveTVLayout(rawValue: layoutRaw) ?? .channels
@@ -36,7 +37,7 @@ struct MacLiveTVView: View {
                 MacNoSourcesView()
             } else {
                 HStack(spacing: 0) {
-                    if !isFullScreen {
+                    if !isFullScreen && showsList {
                         VStack(spacing: 0) {
                             filterBar
                             if layout == .guide {
@@ -48,7 +49,7 @@ struct MacLiveTVView: View {
                         .frame(width: layout == .guide ? 600 : 340)
                         Divider()
                     }
-                    MacNowPlayingPane(showsDetails: !isFullScreen)
+                    MacNowPlayingPane(showsDetails: !isFullScreen && showsList)
                 }
             }
         }
@@ -87,6 +88,15 @@ struct MacLiveTVView: View {
 
     @ToolbarContentBuilder
     private var toolbarControls: some ToolbarContent {
+        ToolbarItem {
+            Button {
+                showsList.toggle()
+            } label: {
+                Label(showsList ? "Hide Channels" : "Show Channels", systemImage: "sidebar.squares.left")
+            }
+            .keyboardShortcut("l", modifiers: [.command, .option])
+            .help(showsList ? "Hide the channel list" : "Show the channel list")
+        }
         ToolbarItem {
             Picker("View", selection: $layoutRaw) {
                 Text("Channels").tag(MacLiveTVLayout.channels.rawValue)
