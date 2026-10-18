@@ -55,6 +55,8 @@ struct MacPlexSignInSheet: View {
     @State private var connectingID: String?
     @State private var copied = false
 
+    private static let linkURL = URL(string: "https://plex.tv/link")!
+
     var body: some View {
         VStack(spacing: 0) {
             Text(title)
@@ -144,13 +146,12 @@ struct MacPlexSignInSheet: View {
                     .textSelection(.enabled)
 
                 HStack(spacing: 12) {
-                    if let url = plex.authenticationURL {
-                        Button { openURL(url) } label: {
-                            Label("Open plex.tv/link", systemImage: "safari")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
+                    // The PIN is the short kind plex.tv/link takes, so the link page, not app.plex.tv/auth.
+                    Button { openURL(Self.linkURL) } label: {
+                        Label("Open plex.tv/link", systemImage: "safari")
                     }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(code, forType: .string)
