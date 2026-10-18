@@ -76,7 +76,6 @@ final class MacPlaybackController: ObservableObject {
 
     /// Pinning applies only while a Plex title is in the player, not while browsing.
     func setAlwaysOnTop(_ enabled: Bool) {
-        guard enabled != isAlwaysOnTop else { return }
         isAlwaysOnTop = enabled
         MacAppDelegate.mainWindow?.level = enabled ? .floating : .normal
     }

@@ -11,6 +11,9 @@ struct MacLiveEPGView: View {
 
     @EnvironmentObject private var playback: MacLivePlayback
     @ObservedObject private var store = LiveTVDataStore.shared
+    @State private var epgRevision = 0
+    @State private var cachedSearchQuery = ""
+    @State private var cachedProgramMatches = Set<String>()
 
     private static let channelWidth: CGFloat = 170
     private static let hourWidth: CGFloat = 240
@@ -38,22 +41,32 @@ struct MacLiveEPGView: View {
             }
         }
         .padding(.vertical, 8)
+        .onReceive(store.$epg) { _ in epgRevision += 1 }
+        .task(id: searchKey) { await updateProgramMatches() }
+    }
+
+    private var searchKey: MacEPGSearchKey {
+        MacEPGSearchKey(query: query, epgRevision: epgRevision,
+                        windowHour: Int(Date.now.timeIntervalSince1970 / 3600), channelIDs: channels.map(\.id))
     }
 
     @ViewBuilder
     private func grid(at now: Date) -> some View {
-        let start = Calendar.current.dateInterval(of: .hour, for: now.addingTimeInterval(-2 * 3600))?.start ?? now
-        let end = max(store.epgLoadedThrough ?? now.addingTimeInterval(6 * 3600),
-                      now.addingTimeInterval(6 * 3600))
+        let window = guideWindow(at: now)
+        let start = window.start
+        let end = window.end
         let duration = max(3600, end.timeIntervalSince(start))
         let timelineWidth = CGFloat(duration / 3600) * Self.hourWidth
         let hourCount = Int(ceil(duration / 3600))
-        let result = filteredChannels(start: start, end: end)
-        let visibleChannels = result.channels
+        let result = queryMatches
+        let visibleChannels = filteredChannels(programMatches: result)
         let height = Self.headerHeight + CGFloat(visibleChannels.count) * Self.rowHeight
 
         if visibleChannels.isEmpty {
-            if query.isEmpty {
+            if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               cachedSearchQuery != query.trimmingCharacters(in: .whitespacesAndNewlines) {
+                ProgressView()
+            } else if query.isEmpty {
                 ContentUnavailableView("No Channels", systemImage: "play.tv")
             } else {
                 ContentUnavailableView.search(text: query)
@@ -65,7 +78,7 @@ struct MacLiveEPGView: View {
                         timeHeader(start: start, hourCount: hourCount, timelineWidth: timelineWidth)
                         LazyVStack(spacing: 0) {
                             ForEach(visibleChannels) { channel in
-                                channelRow(channel, programs: result.programsByChannel[channel.id],
+                                channelRow(channel, programs: nil,
                                            start: start, end: end, timelineWidth: timelineWidth)
                             }
                         }
@@ -197,24 +210,56 @@ struct MacLiveEPGView: View {
         .frame(height: Self.rowHeight)
     }
 
-    private func filteredChannels(
-        start: Date,
-        end: Date
-    ) -> (channels: [UnifiedChannel], programsByChannel: [String: [UnifiedProgram]]) {
+    private var queryMatches: Set<String> {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return (channels, [:]) }
-        var programsByChannel: [String: [UnifiedProgram]] = [:]
-        let matchingChannels = channels.filter { channel in
-            if channel.name.localizedCaseInsensitiveContains(text)
-                || channel.channelNumber.map({ String($0).hasPrefix(text) }) == true {
-                return true
-            }
-            let programs = store.getPrograms(for: channel, startDate: start, endDate: end)
-            programsByChannel[channel.id] = programs
-            return programs.contains { $0.displayTitle.localizedCaseInsensitiveContains(text) }
-        }
-        return (matchingChannels, programsByChannel)
+        return cachedSearchQuery == text ? cachedProgramMatches : []
     }
+
+    private func filteredChannels(programMatches: Set<String>) -> [UnifiedChannel] {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return channels }
+        return channels.filter { channel in
+            channel.name.localizedCaseInsensitiveContains(text)
+                || channel.channelNumber.map({ String($0).hasPrefix(text) }) == true
+                || programMatches.contains(channel.id)
+        }
+    }
+
+    private func updateProgramMatches() async {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            cachedSearchQuery = text
+            cachedProgramMatches = []
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(200))
+        guard !Task.isCancelled else { return }
+        let window = guideWindow(at: .now)
+        let matches = Set(channels.compactMap { channel -> String? in
+            guard !channel.name.localizedCaseInsensitiveContains(text),
+                  channel.channelNumber.map({ !String($0).hasPrefix(text) }) ?? true,
+                  store.getPrograms(for: channel, startDate: window.start, endDate: window.end)
+                    .contains(where: { $0.displayTitle.localizedCaseInsensitiveContains(text) }) else { return nil }
+            return channel.id
+        })
+        guard !Task.isCancelled else { return }
+        cachedSearchQuery = text
+        cachedProgramMatches = matches
+    }
+
+    private func guideWindow(at now: Date) -> (start: Date, end: Date) {
+        let start = Calendar.current.dateInterval(of: .hour, for: now.addingTimeInterval(-2 * 3600))?.start ?? now
+        let end = max(store.epgLoadedThrough ?? now.addingTimeInterval(6 * 3600),
+                      now.addingTimeInterval(6 * 3600))
+        return (start, end)
+    }
+}
+
+private struct MacEPGSearchKey: Equatable {
+    let query: String
+    let epgRevision: Int
+    let windowHour: Int
+    let channelIDs: [String]
 }
 
 private struct MacEPGProgramCell: View {
