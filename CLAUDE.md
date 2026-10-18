@@ -71,6 +71,11 @@ from the app, the app injects it at launch, before touching the stores:
   `com.apple.security.network.server` that socket cannot listen, and Plex
   direct play and raw MPEG-TS never start. The engine's own demo app is not
   sandboxed, so its docs never mention this.
+- **`macPlexActionHost` wraps the `NavigationSplitView`, not the detail
+  `NavigationStack`.** The split view hosts the stack's pushed pages, and they
+  miss environment values set inside its detail column: with the host on the
+  stack, every button on a detail page (Play, episodes, watchlist, the item
+  menu) read the default no-op `plexActions`.
 - **Playback trusts the same certificates as the Plex API session.**
   `EngineTLS.serverTrustEvaluator` answers with
   `PlexCertificateDelegate.trustsUnverifiedCertificate` (IPv4 literal,
