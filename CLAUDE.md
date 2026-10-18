@@ -1,7 +1,7 @@
 # Rivulet for Mac - Claude Context
 
 Rivulet for Mac is a macOS media client for Plex and IPTV, for Apple silicon
-Macs (arm64 only, macOS 15+). It is a port of Rivulet, a tvOS app; the tvOS and
+Macs (arm64 only, macOS 27+). It is a port of Rivulet, a tvOS app; the tvOS and
 iOS apps were removed from this repo, and their shared Plex and Live TV code
 lives on in `RivuletCore/`. Views are SwiftUI with small AppKit bridges.
 
@@ -14,10 +14,10 @@ AVPlayerLayer the app builds.
 
 ## Quick Reference
 
-- **Platform**: macOS 15+, Apple silicon only (`EXCLUDED_ARCHS = x86_64`; Xcode's "recommended settings" strip an explicit `ARCHS = arm64`, so not that)
+- **Platform**: macOS 27+ (Golden Gate), Apple silicon only (`EXCLUDED_ARCHS = x86_64`; Xcode's "recommended settings" strip an explicit `ARCHS = arm64`, so not that)
 - **Language**: Swift 6 language mode, default actor isolation `MainActor`
 - **UI**: SwiftUI (`NavigationSplitView` shell), AppKit where SwiftUI has no answer (key monitor, full screen, pasteboard)
-- **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.39.0, which itself requires macOS 15). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target. Its LibTrueHD and LibDTSX object-audio packages are not even fetched: they sit behind package traits, and Rivulet enables none.
+- **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.39.0, which itself requires macOS 15, below our 27 target). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target. Its LibTrueHD and LibDTSX object-audio packages are not even fetched: they sit behind package traits, and Rivulet enables none.
 - **App icon**: `RivuletMac/Assets.xcassets/AppIcon.appiconset`, rendered from `Branding/logo_square_1024.png` on the macOS icon grid (824 pt squircle on a 1024 canvas).
 - **Signing**: "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`, no team). Sandboxed with outgoing and incoming network access, nothing else; hardened runtime off (only notarisation needs it).
 - **Repo is public**: keep commit messages short and plain.
