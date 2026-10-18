@@ -13,6 +13,7 @@ struct MacLiveEPGView: View {
     @EnvironmentObject private var playback: MacLivePlayback
     @ObservedObject private var store = LiveTVDataStore.shared
     @State private var epgRevision = 0
+    @State private var searchWindowHour = 0
     @State private var cachedSearchQuery = ""
     @State private var cachedProgramMatches = Set<String>()
 
@@ -49,14 +50,19 @@ struct MacLiveEPGView: View {
         .padding(.vertical, 8)
         .onReceive(store.$epg) { _ in epgRevision += 1 }
         .task(id: searchKey) { await updateProgramMatches() }
+        .task { await monitorSearchWindowHour() }
     }
 
     private var searchKey: MacEPGSearchKey {
         MacEPGSearchKey(
-            query: query, epgRevision: epgRevision,
-            windowHour: Int(Date.now.timeIntervalSince1970 / Self.secondsPerHour),
+            query: trimmedQuery, epgRevision: epgRevision,
+            windowHour: searchWindowHour,
             lineupRevision: lineupRevision
         )
+    }
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @ViewBuilder
@@ -72,13 +78,12 @@ struct MacLiveEPGView: View {
         let height = Self.headerHeight + CGFloat(visibleChannels.count) * Self.rowHeight
 
         if visibleChannels.isEmpty {
-            if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               cachedSearchQuery != query.trimmingCharacters(in: .whitespacesAndNewlines) {
+            if !trimmedQuery.isEmpty, cachedSearchQuery != trimmedQuery {
                 ProgressView()
-            } else if query.isEmpty {
+            } else if trimmedQuery.isEmpty {
                 ContentUnavailableView("No Channels", systemImage: "play.tv")
             } else {
-                ContentUnavailableView.search(text: query)
+                ContentUnavailableView.search(text: trimmedQuery)
             }
         } else {
             ScrollView([.horizontal, .vertical]) {
@@ -136,12 +141,11 @@ struct MacLiveEPGView: View {
     }
 
     private var queryMatches: Set<String> {
-        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cachedSearchQuery == text ? cachedProgramMatches : []
+        return cachedSearchQuery == trimmedQuery ? cachedProgramMatches : []
     }
 
     private func filteredChannels(programMatches: Set<String>) -> [UnifiedChannel] {
-        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = trimmedQuery
         guard !text.isEmpty else { return channels }
         return channels.filter { channel in
             channel.name.localizedCaseInsensitiveContains(text)
@@ -151,7 +155,7 @@ struct MacLiveEPGView: View {
     }
 
     private func updateProgramMatches() async {
-        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = trimmedQuery
         guard !text.isEmpty else {
             cachedSearchQuery = text
             cachedProgramMatches = []
@@ -160,16 +164,37 @@ struct MacLiveEPGView: View {
         try? await Task.sleep(for: .milliseconds(200))
         guard !Task.isCancelled else { return }
         let window = guideWindow(at: .now)
-        let matches = Set(channels.compactMap { channel -> String? in
+        var matches = Set<String>()
+        for (index, channel) in channels.enumerated() {
+            if index.isMultiple(of: 16), index > 0 {
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+            }
             guard !channel.name.localizedCaseInsensitiveContains(text),
                   channel.channelNumber.map({ !String($0).hasPrefix(text) }) ?? true,
                   store.getPrograms(for: channel, startDate: window.start, endDate: window.end)
-                    .contains(where: { $0.displayTitle.localizedCaseInsensitiveContains(text) }) else { return nil }
-            return channel.id
-        })
+                    .contains(where: { $0.displayTitle.localizedCaseInsensitiveContains(text) }) else { continue }
+            matches.insert(channel.id)
+        }
         guard !Task.isCancelled else { return }
         cachedSearchQuery = text
         cachedProgramMatches = matches
+    }
+
+    private func monitorSearchWindowHour() async {
+        while !Task.isCancelled {
+            let now = Date.now
+            let hour = Int(now.timeIntervalSince1970 / Self.secondsPerHour)
+            if searchWindowHour != hour {
+                searchWindowHour = hour
+            }
+            let nextHour = Date(timeIntervalSince1970: Double(hour + 1) * Self.secondsPerHour)
+            do {
+                try await Task.sleep(for: .seconds(max(0.1, nextHour.timeIntervalSince(now))))
+            } catch {
+                return
+            }
+        }
     }
 
     private func guideWindow(at now: Date) -> (start: Date, end: Date) {
