@@ -28,6 +28,7 @@ struct MacRootView: View {
     @State private var isFullScreen = false
     @State private var choosingProfile = false
     @State private var showingSignIn = false
+    @State private var accountHovering = false
 
     var body: some View {
         ZStack {
@@ -140,14 +141,32 @@ struct MacRootView: View {
                 Divider()
                 Button("Sign Out of Plex", role: .destructive) { plex.signOut() }
             } label: {
-                HStack(spacing: 8) {
-                    MacPlexAvatar(url: profiles.selectedUser?.avatarURL ?? plex.profileImageURL, size: 26)
-                    Text(profiles.selectedUser?.displayName ?? plex.profileDisplayName ?? "Plex")
-                        .lineLimit(1)
+                HStack(spacing: 10) {
+                    MacPlexAvatar(url: profiles.selectedUser?.avatarURL ?? plex.profileImageURL, size: 30)
+                        .fixedSize()
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(profiles.selectedUser?.displayName ?? plex.profileDisplayName ?? "Plex")
+                            .font(.callout.weight(.medium))
+                            .lineLimit(1)
+                        if let server = plex.selectedServerName {
+                            Text(server)
+                                .font(.caption)
+                                .foregroundStyle(MacTheme.textSecondary)
+                                .lineLimit(1)
+                        }
+                    }
                     Spacer(minLength: 0)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
+                .padding(8)
+                .background(MacTheme.surface.opacity(accountHovering ? 0.8 : 0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .contentShape(Rectangle())
+                .onHover { accountHovering = $0 }
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
             .menuIndicator(.hidden)
         } else {
             Button {
