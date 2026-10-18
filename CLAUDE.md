@@ -15,7 +15,7 @@ AVPlayerLayer the app builds.
 ## Quick Reference
 
 - **Platform**: macOS 15+, Apple silicon only (`EXCLUDED_ARCHS = x86_64`; Xcode's "recommended settings" strip an explicit `ARCHS = arm64`, so not that)
-- **Language**: Swift 6 toolchain, Swift 5 language mode, default actor isolation `MainActor`
+- **Language**: Swift 6 language mode, default actor isolation `MainActor`
 - **UI**: SwiftUI (`NavigationSplitView` shell), AppKit where SwiftUI has no answer (key monitor, full screen, pasteboard)
 - **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.39.0, which itself requires macOS 15). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target. Its LibTrueHD and LibDTSX object-audio packages are not even fetched: they sit behind package traits, and Rivulet enables none.
 - **App icon**: `RivuletMac/Assets.xcassets/AppIcon.appiconset`, rendered from `Branding/logo_square_1024.png` on the macOS icon grid (824 pt squircle on a 1024 canvas).

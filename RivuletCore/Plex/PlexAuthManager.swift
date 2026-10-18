@@ -337,7 +337,7 @@ class PlexAuthManager: ObservableObject {
         // accept (any connection, score order) outranks every raw-HTTPS URL,
         // which only the API can use (#314), and relay stays last. A remote
         // plex.direct URL therefore beats a local raw IP over HTTPS.
-        var chains: [() async -> String?] = []
+        var chains: [@Sendable () async -> String?] = []
 
         let directConnections = sortedConnections.filter { !$0.relay }
         for connection in directConnections {
@@ -390,7 +390,7 @@ class PlexAuthManager: ObservableObject {
     /// PRIORITY (index) order: a success at index i wins only once every
     /// chain at a lower index has completed without success. Remaining
     /// chains are cancelled once a winner is chosen.
-    private func raceByPriority(_ chains: [() async -> String?]) async -> String? {
+    private func raceByPriority(_ chains: [@Sendable () async -> String?]) async -> String? {
         await withTaskGroup(of: (Int, String?).self) { group in
             for (index, probe) in chains.enumerated() {
                 group.addTask { (index, await probe()) }

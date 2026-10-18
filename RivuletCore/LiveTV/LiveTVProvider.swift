@@ -215,9 +215,10 @@ nonisolated struct UnifiedProgram: Identifiable, Hashable, Sendable {
     /// slot), as opposed to a programme.
     var isEmptySlot: Bool { title.contains(Self.emptySlot) }
 
-    private static let liveMarker = /^\s*(?:\[live\]|\(live\)|live\s*[:|]|live\s+[-–]\s)\s*/.ignoresCase()
-    private static let upcomingMarker = /^\s*upcoming\s*[:|]\s*/.ignoresCase()
-    private static let emptySlot = /^\s*(?:no (?:game|event|match)e?s?(?: scheduled)?|off[- ]?air)\s*$/.ignoresCase()
+    // Regex is not marked Sendable; these are built once and only ever read.
+    nonisolated(unsafe) private static let liveMarker = /^\s*(?:\[live\]|\(live\)|live\s*[:|]|live\s+[-–]\s)\s*/.ignoresCase()
+    nonisolated(unsafe) private static let upcomingMarker = /^\s*upcoming\s*[:|]\s*/.ignoresCase()
+    nonisolated(unsafe) private static let emptySlot = /^\s*(?:no (?:game|event|match)e?s?(?: scheduled)?|off[- ]?air)\s*$/.ignoresCase()
 
     /// "Live: X", "LIVE | X", "Live - X", "[LIVE] X", "UPCOMING: X" → "X". Show
     /// names that start with the word ("Live PD", "LiveNOW from FOX") are left alone.
