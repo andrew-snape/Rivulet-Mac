@@ -69,12 +69,14 @@ final class MacPlaybackController: ObservableObject {
     }
 
     func setAlwaysOnTop(_ enabled: Bool) {
-        guard enabled != isAlwaysOnTop else { return }
+        guard enabled != isAlwaysOnTop, let window = MacAppDelegate.mainWindow else { return }
         isAlwaysOnTop = enabled
-        MacAppDelegate.mainWindow?.level = enabled ? .floating : .normal
+        window.level = enabled ? .floating : .normal
     }
 
     private func configureRemoteCommands() {
+        // This controller is an app-lifetime StateObject, so the shared command
+        // center receives one set of handlers for the lifetime of the app.
         let commands = MPRemoteCommandCenter.shared()
         commands.playCommand.addTarget { [weak self] _ in self?.remotePlay() ?? .commandFailed }
         commands.pauseCommand.addTarget { [weak self] _ in self?.remotePause() ?? .commandFailed }
@@ -106,7 +108,11 @@ final class MacPlaybackController: ObservableObject {
             .sink { [weak self] _ in self?.updateNowPlaying() }
             .store(in: &nowPlayingObservations)
         session.player.$currentTime
-            .throttle(for: .seconds(5), scheduler: RunLoop.main, latest: true)
+            .throttle(for: .seconds(5), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] _ in self?.updateNowPlaying() }
+            .store(in: &nowPlayingObservations)
+        session.player.$pendingSeekTarget
+            .removeDuplicates()
             .sink { [weak self] _ in self?.updateNowPlaying() }
             .store(in: &nowPlayingObservations)
         session.player.$duration
