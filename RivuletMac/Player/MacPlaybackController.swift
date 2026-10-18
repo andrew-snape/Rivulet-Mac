@@ -11,6 +11,8 @@ import SwiftUI
 @MainActor
 final class MacPlaybackController: ObservableObject {
     private static let nowPlayingUpdateInterval: TimeInterval = 5
+    private static let remoteSkipBackwardInterval: TimeInterval = 10
+    private static let remoteSkipForwardInterval: TimeInterval = 30
 
     @Published private(set) var session: MacPlexPlayback?
     @Published private(set) var isAlwaysOnTop = false
@@ -62,7 +64,9 @@ final class MacPlaybackController: ObservableObject {
         session.player.stop()
         stateObservation = nil
         nowPlayingObservations.removeAll()
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        let nowPlaying = MPNowPlayingInfoCenter.default()
+        nowPlaying.nowPlayingInfo = nil
+        nowPlaying.playbackState = .stopped
         setAlwaysOnTop(false)
         updateRemoteCommandAvailability(for: nil)
         keepAwake(false)
@@ -70,6 +74,7 @@ final class MacPlaybackController: ObservableObject {
         return reported
     }
 
+    /// Pinning applies only while a Plex title is in the player, not while browsing.
     func setAlwaysOnTop(_ enabled: Bool) {
         guard enabled != isAlwaysOnTop else { return }
         isAlwaysOnTop = enabled
@@ -89,10 +94,20 @@ final class MacPlaybackController: ObservableObject {
         commands.togglePlayPauseCommand.addTarget { [weak self] _ in self?.remoteToggle() ?? .commandFailed }
         commands.stopCommand.addTarget { [weak self] _ in self?.remoteStop() ?? .commandFailed }
 
-        commands.skipBackwardCommand.preferredIntervals = [10]
-        commands.skipBackwardCommand.addTarget { [weak self] _ in self?.remoteSkip(by: -10) ?? .commandFailed }
-        commands.skipForwardCommand.preferredIntervals = [30]
-        commands.skipForwardCommand.addTarget { [weak self] _ in self?.remoteSkip(by: 30) ?? .commandFailed }
+        commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipBackwardInterval)]
+        commands.skipBackwardCommand.addTarget { [weak self] event in
+            guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
+                return .commandFailed
+            }
+            return self?.remoteSkip(by: -abs(event.interval)) ?? .commandFailed
+        }
+        commands.skipForwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipForwardInterval)]
+        commands.skipForwardCommand.addTarget { [weak self] event in
+            guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
+                return .commandFailed
+            }
+            return self?.remoteSkip(by: abs(event.interval)) ?? .commandFailed
+        }
 
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let self,

@@ -33,7 +33,9 @@ struct MacLiveEPGView: View {
             }
             .padding(.horizontal, 10)
 
-            grid(at: .now)
+            TimelineView(.periodic(from: .now, by: 3600)) { context in
+                grid(at: context.date)
+            }
         }
         .padding(.vertical, 8)
     }
@@ -46,10 +48,8 @@ struct MacLiveEPGView: View {
         let duration = max(3600, end.timeIntervalSince(start))
         let timelineWidth = CGFloat(duration / 3600) * Self.hourWidth
         let hourCount = Int(ceil(duration / 3600))
-        let programsByChannel = Dictionary(uniqueKeysWithValues: channels.map {
-            ($0.id, store.getPrograms(for: $0, startDate: start, endDate: end))
-        })
-        let visibleChannels = filteredChannels(programsByChannel: programsByChannel)
+        let result = filteredChannels(start: start, end: end)
+        let visibleChannels = result.channels
         let height = Self.headerHeight + CGFloat(visibleChannels.count) * Self.rowHeight
 
         if visibleChannels.isEmpty {
@@ -65,7 +65,7 @@ struct MacLiveEPGView: View {
                         timeHeader(start: start, hourCount: hourCount, timelineWidth: timelineWidth)
                         LazyVStack(spacing: 0) {
                             ForEach(visibleChannels) { channel in
-                                channelRow(channel, programs: programsByChannel[channel.id] ?? [],
+                                channelRow(channel, programs: result.programsByChannel[channel.id],
                                            start: start, end: end, timelineWidth: timelineWidth)
                             }
                         }
@@ -112,11 +112,12 @@ struct MacLiveEPGView: View {
 
     private func channelRow(
         _ channel: UnifiedChannel,
-        programs: [UnifiedProgram],
+        programs: [UnifiedProgram]?,
         start: Date,
         end: Date,
         timelineWidth: CGFloat
     ) -> some View {
+        let programs = programs ?? store.getPrograms(for: channel, startDate: start, endDate: end)
         return HStack(spacing: 0) {
             Button {
                 playback.play(channel)
@@ -196,17 +197,23 @@ struct MacLiveEPGView: View {
         .frame(height: Self.rowHeight)
     }
 
-    private func filteredChannels(programsByChannel: [String: [UnifiedProgram]]) -> [UnifiedChannel] {
+    private func filteredChannels(
+        start: Date,
+        end: Date
+    ) -> (channels: [UnifiedChannel], programsByChannel: [String: [UnifiedProgram]]) {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return channels }
-        return channels.filter { channel in
+        guard !text.isEmpty else { return (channels, [:]) }
+        var programsByChannel: [String: [UnifiedProgram]] = [:]
+        let matchingChannels = channels.filter { channel in
             if channel.name.localizedCaseInsensitiveContains(text)
                 || channel.channelNumber.map({ String($0).hasPrefix(text) }) == true {
                 return true
             }
-            return programsByChannel[channel.id, default: []]
-                .contains { $0.displayTitle.localizedCaseInsensitiveContains(text) }
+            let programs = store.getPrograms(for: channel, startDate: start, endDate: end)
+            programsByChannel[channel.id] = programs
+            return programs.contains { $0.displayTitle.localizedCaseInsensitiveContains(text) }
         }
+        return (matchingChannels, programsByChannel)
     }
 }
 
