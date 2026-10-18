@@ -20,10 +20,10 @@ struct MacLiveEPGView: View {
     @State private var scheduleSignatures: [String: Int] = [:]
     @State private var rowScheduleRevisions: [String: Int] = [:]
 
-    fileprivate static let channelWidth: CGFloat = 170
-    fileprivate static let hourWidth: CGFloat = 240
-    fileprivate static let headerHeight: CGFloat = 38
-    fileprivate static let rowHeight: CGFloat = 74
+    fileprivate static let channelWidth: CGFloat = 160
+    fileprivate static let hourWidth: CGFloat = 300
+    fileprivate static let headerHeight: CGFloat = 44
+    fileprivate static let rowHeight: CGFloat = 84
     fileprivate static let secondsPerHour: TimeInterval = 3600
     fileprivate static let secondsPerMinute: TimeInterval = 60
     fileprivate static let guideHoursPerLoad = 6
@@ -48,6 +48,8 @@ struct MacLiveEPGView: View {
             grid(at: guideNow)
         }
         .padding(.vertical, 20)
+        .background(MacEPGTheme.background)
+        .environment(\.colorScheme, .dark)
         .onReceive(store.$epg.debounce(for: .milliseconds(150), scheduler: RunLoop.main)) { schedules in
             updateScheduleRevisions(schedules)
         }
@@ -120,31 +122,28 @@ struct MacLiveEPGView: View {
 
     private func timeHeader(start: Date, hourCount: Int, timelineWidth: CGFloat) -> some View {
         HStack(spacing: 0) {
-            Text("Channel")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            Text(start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(MacEPGTheme.textSecondary)
+                .frame(width: Self.channelWidth - MacEPGTheme.gap, height: MacEPGTheme.boxHeight)
+                .background(MacEPGTheme.columnFill, in: MacEPGTheme.shape)
                 .frame(width: Self.channelWidth, height: Self.headerHeight, alignment: .leading)
-                .padding(.leading, 10)
 
             HStack(spacing: 0) {
                 ForEach(0..<hourCount, id: \.self) { index in
                     let width = min(Self.hourWidth, timelineWidth - CGFloat(index) * Self.hourWidth)
                     Text(start.addingTimeInterval(Double(index) * Self.secondsPerHour)
                         .formatted(.dateTime.hour().minute()))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(MacEPGTheme.textSecondary)
+                        .padding(.leading, 14)
+                        .frame(width: max(width - MacEPGTheme.gap, 0), height: MacEPGTheme.boxHeight,
+                               alignment: .leading)
+                        .background(MacEPGTheme.columnFill, in: MacEPGTheme.shape)
                         .frame(width: width, height: Self.headerHeight, alignment: .leading)
-                        .padding(.leading, 8)
-                        .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(Color(nsColor: .separatorColor))
-                                .frame(width: 1)
-                        }
                 }
             }
         }
-        .background(.background)
-        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var queryMatches: Set<String> {
@@ -289,7 +288,10 @@ private struct MacEPGChannelRow: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 10)
+                .frame(width: MacLiveEPGView.channelWidth - MacEPGTheme.gap,
+                       height: MacLiveEPGView.rowHeight - MacEPGTheme.gap, alignment: .leading)
+                .background(MacEPGTheme.columnFill, in: MacEPGTheme.shape)
                 .frame(width: MacLiveEPGView.channelWidth, height: MacLiveEPGView.rowHeight, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -303,20 +305,11 @@ private struct MacEPGChannelRow: View {
             }
 
             ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color(nsColor: .windowBackgroundColor))
-                ForEach(0..<Int(ceil(timelineWidth / MacLiveEPGView.hourWidth)), id: \.self) { index in
-                    Rectangle()
-                        .fill(Color(nsColor: .separatorColor).opacity(0.35))
-                        .frame(width: 1)
-                        .offset(x: CGFloat(index) * MacLiveEPGView.hourWidth)
-                }
-
                 if let visiblePrograms {
                     if visiblePrograms.isEmpty {
                         Text("No guide data")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MacEPGTheme.textSecondary)
                             .padding(.leading, 8)
                             .frame(height: MacLiveEPGView.rowHeight, alignment: .center)
                     } else {
@@ -330,8 +323,9 @@ private struct MacEPGChannelRow: View {
                                 playback.play(channel)
                             } label: {
                                 MacEPGProgramCell(program: program, now: now)
-                                    .frame(width: width, height: MacLiveEPGView.rowHeight - 8)
-                                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .frame(width: max(width - MacEPGTheme.gap, 0),
+                                           height: MacLiveEPGView.rowHeight - MacEPGTheme.gap)
+                                    .contentShape(MacEPGTheme.shape)
                             }
                             .buttonStyle(.plain)
                             .help("\(program.displayTitle), \(program.timeRange). Watch \(channel.name)")
@@ -353,7 +347,6 @@ private struct MacEPGChannelRow: View {
                 }
             }
             .frame(width: timelineWidth, height: MacLiveEPGView.rowHeight)
-            .overlay(alignment: .bottom) { Divider() }
         }
         .frame(height: MacLiveEPGView.rowHeight)
         .task(id: scheduleKey) {
@@ -384,19 +377,19 @@ private struct MacEPGProgramCell: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Text(program.displayTitle)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(2)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
                 Spacer(minLength: 0)
                 if program.isLive {
                     Circle().fill(.red).frame(width: 6, height: 6)
                         .accessibilityLabel("Live")
                 } else if program.isNew {
-                    Text("NEW").font(.system(size: 8, weight: .bold)).foregroundStyle(.tint)
+                    Text("NEW").font(.system(size: 9, weight: .bold)).foregroundStyle(.tint)
                 }
             }
             Text(program.timeRange)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(MacEPGTheme.textSecondary)
                 .lineLimit(1)
             if isCurrent {
                 TimelineView(.periodic(from: .now, by: MacLiveEPGView.secondsPerMinute)) { context in
@@ -406,15 +399,14 @@ private struct MacEPGProgramCell: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
-            isCurrent ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            isCurrent ? MacEPGTheme.surface : MacEPGTheme.columnFill,
+            in: MacEPGTheme.shape
         )
-        .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
-        .opacity(isPast ? 0.62 : 1)
+        .opacity(isPast ? 0.6 : 1)
     }
 }
 
@@ -444,4 +436,16 @@ private struct MacEPGNowIndicator: View {
             .frame(width: channelWidth + timelineWidth, height: height, alignment: .topLeading)
         }
     }
+}
+
+/// The tvOS guide's palette and shapes: dark boxes, one continuous 14 pt corner, 4 pt gaps.
+private enum MacEPGTheme {
+    static let background = Color(red: 0.10, green: 0.10, blue: 0.115)
+    static let surface = Color(red: 0.21, green: 0.21, blue: 0.23)
+    static let columnFill = Color(red: 0.17, green: 0.17, blue: 0.19)
+    static let textSecondary = Color.white.opacity(0.55)
+    static let corner: CGFloat = 14
+    static let gap: CGFloat = 4
+    static let boxHeight: CGFloat = 34
+    static let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
 }
