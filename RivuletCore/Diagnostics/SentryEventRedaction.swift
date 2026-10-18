@@ -66,7 +66,7 @@ nonisolated enum SentryEventRedaction {
             for crumb in breadcrumbs {
                 crumb.message = SensitiveDataRedactor.redactOptional(crumb.message)
                 if let data = crumb.data {
-                    crumb.data = data.mapValues(redactAny)
+                    crumb.setData(from: data.mapValues(redactAny))
                 }
             }
         }

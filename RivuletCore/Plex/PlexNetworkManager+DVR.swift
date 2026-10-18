@@ -324,7 +324,7 @@ extension PlexNetworkManager {
     }
 
     /// "/media/subscriptions/12" and "12" both name subscription 12.
-    private static func lastPathComponent(_ value: String) -> String {
+    private nonisolated static func lastPathComponent(_ value: String) -> String {
         value.split(separator: "/").last.map(String.init) ?? value
     }
 

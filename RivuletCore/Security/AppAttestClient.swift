@@ -32,7 +32,7 @@ import DeviceCheck
 import CryptoKit
 import os
 
-private let log = Logger(subsystem: "com.rivulet.app", category: "AppAttest")
+private nonisolated let log = Logger(subsystem: "com.rivulet.app", category: "AppAttest")
 
 actor AppAttestClient {
     static let shared = AppAttestClient()
@@ -227,7 +227,7 @@ enum AttestClientError: Error {
 /// The key id is not secret (it's a public identifier), but it must SURVIVE
 /// app updates and be device-local. UserDefaults would be wiped on reinstall,
 /// forcing a needless re-attest; the Keychain persists.
-private enum Keychain {
+private nonisolated enum Keychain {
     private static let service = "com.gstudios.rivulet.attest"
 
     static func save(_ account: String, value: String) {
