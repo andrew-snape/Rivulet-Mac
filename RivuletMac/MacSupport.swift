@@ -46,7 +46,9 @@ extension UnifiedProgram {
 
 // MARK: - Artwork
 
-/// Memory cache for channel logos. Mirrors the iOS cache, with NSImage.
+/// Memory cache for artwork. Images are decoded once, off the main thread, so
+/// drawing a row never pays for a decode; the memory cache is bounded by bytes
+/// and responses persist on disk across launches.
 actor MacArtworkCache {
     static let shared = MacArtworkCache()
 
@@ -55,10 +57,16 @@ actor MacArtworkCache {
     nonisolated(unsafe) private let images = NSCache<NSURL, NSImage>()
     private var downloads: [URL: Task<NSImage?, Never>] = [:]
     /// Trusts the self-signed certificates a raw-IP server presents, as the API client does.
-    private static let session = URLSession(configuration: .default, delegate: PlexCertificateDelegate(), delegateQueue: nil)
+    /// Responses land in a disk cache, so relaunching does not download every poster again.
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = URLCache(memoryCapacity: 0, diskCapacity: 300 * 1024 * 1024)
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        return URLSession(configuration: configuration, delegate: PlexCertificateDelegate(), delegateQueue: nil)
+    }()
 
     private init() {
-        images.countLimit = 600
+        images.totalCostLimit = 256 * 1024 * 1024
     }
 
     nonisolated func cachedImage(for url: URL) -> NSImage? {
@@ -74,16 +82,25 @@ actor MacArtworkCache {
                   ((response as? HTTPURLResponse)?.statusCode ?? 200) < 400 else {
                 return nil
             }
-            return NSImage(data: data)
+            return Self.decode(data)
         }
         downloads[url] = task
         let image = await task.value
         downloads[url] = nil
 
-        if let image {
-            images.setObject(image, forKey: url as NSURL)
+        if let image, let cost = image.representations.first.map({ $0.pixelsWide * $0.pixelsHigh * 4 }) {
+            images.setObject(image, forKey: url as NSURL, cost: cost)
         }
         return image
+    }
+
+    /// Decodes now, on the calling thread: NSImage(data:) defers it to the first draw.
+    private nonisolated static func decode(_ data: Data) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, [
+                  kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { return nil }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
     }
 }
 
