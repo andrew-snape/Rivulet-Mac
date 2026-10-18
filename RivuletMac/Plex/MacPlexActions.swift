@@ -20,8 +20,9 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// The one place Plex playback starts. Applied once, around the content
-    /// column; `open` pushes a detail page onto that column's stack.
+    /// The one place Plex playback starts. Applied once, around the split view
+    /// (pushed pages miss what is set inside its detail column); `open` pushes
+    /// a detail page onto that column's stack.
     func macPlexActionHost(open: @escaping (PlexMetadata) -> Void) -> some View {
         modifier(MacPlexActionHost(open: open))
     }

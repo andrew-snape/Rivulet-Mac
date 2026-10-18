@@ -36,6 +36,9 @@ struct MacRootView: View {
             } detail: {
                 detail
             }
+            // Around the split view, not the detail stack: the split view hosts the
+            // stack's pushed pages, which miss environment set inside its detail column.
+            .macPlexActionHost(open: { path.append($0) })
             if let session = playback.session {
                 MacVODPlayerView(session: session, player: session.player, close: { playback.close() })
                     .ignoresSafeArea()
@@ -162,7 +165,6 @@ struct MacRootView: View {
                     .navigationDestination(for: MacPlexHubRoute.self) { MacPlexHubGridView(route: $0) }
             }
             .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
-            .macPlexActionHost(open: { path.append($0) })
         }
     }
 
