@@ -27,6 +27,15 @@ struct MacLiveTVView: View {
     @State private var lineupRevision = 0
     @AppStorage("macLiveTVShowsList") private var showsList = true
 
+    /// The guide has the window to itself until a channel is playing.
+    private var showsPlayer: Bool {
+        layout == .channels || isFullScreen || !showsList || playback.channel != nil
+    }
+
+    private var sharesWithGuide: Bool {
+        layout == .guide && !isFullScreen && showsList
+    }
+
     private var layout: MacLiveTVLayout {
         MacLiveTVLayout(rawValue: layoutRaw) ?? .channels
     }
@@ -46,10 +55,16 @@ struct MacLiveTVView: View {
                                 MacChannelList(channels: lineup, query: query, emptyText: emptyText)
                             }
                         }
-                        .frame(width: layout == .guide ? 600 : 340)
-                        Divider()
+                        // The guide takes the room it can; the channel list stays narrow.
+                        .frame(minWidth: layout == .guide ? 360 : 340,
+                               maxWidth: layout == .guide ? .infinity : 340)
+                        if showsPlayer { Divider() }
                     }
-                    MacNowPlayingPane(showsDetails: !isFullScreen && showsList)
+                    if showsPlayer {
+                        MacNowPlayingPane(showsDetails: !isFullScreen && showsList)
+                            .frame(minWidth: sharesWithGuide ? 340 : nil,
+                                   maxWidth: sharesWithGuide ? 520 : .infinity)
+                    }
                 }
             }
         }
