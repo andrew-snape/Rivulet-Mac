@@ -1,5 +1,5 @@
 {
-  "originHash" : "81c05ff5b286ae2a06fe415b7b167a19f667a47f4d854912c4caa76ec5f49be9",
+  "originHash" : "df32142ac53bceac7d6a27dc0bc0ee42530cabdde75c1fb9a0573c694b660a2b",
   "pins" : [
     {
       "identity" : "aetherengine",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "2c420d31d0c31b525fa9e7c552ef0fc9d924befc",
-        "version" : "9.17.1"
+        "revision" : "4bb2282661ee6ca2212aa01d19a1214394cd3c45",
+        "version" : "9.30.2"
       }
     },
     {
