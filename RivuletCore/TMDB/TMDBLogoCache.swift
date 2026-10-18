@@ -95,7 +95,7 @@ actor TMDBLogoCache {
             return nil
         }
 
-        let path = response.bestLogoPath
+        let path = await response.bestLogoPath
         memory[key] = path
         saveToDisk(key: key, entry: CachedEntry(resolvedAt: Date(), logoPath: path))
         return path
@@ -104,7 +104,7 @@ actor TMDBLogoCache {
     // MARK: - Networking
 
     private func fetchData(tmdbId: Int, type: TMDBMediaType) async throws -> Data {
-        guard let base = URL(string: "tmdb/images/\(tmdbId)", relativeTo: TMDBConfig.proxyBaseURL) else {
+        guard let base = URL(string: "tmdb/images/\(tmdbId)", relativeTo: await TMDBConfig.proxyBaseURL) else {
             throw URLError(.badURL)
         }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: true)

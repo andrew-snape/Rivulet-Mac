@@ -87,8 +87,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				B40000020000000000000002 /* RivuletMac */,
 				B30000200000000000000020 /* RivuletCore */,
+				B40000020000000000000002 /* RivuletMac */,
 			);
 			name = "Rivulet Mac";
 			packageProductDependencies = (
@@ -107,7 +107,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2710;
 				TargetAttributes = {
 					B40000040000000000000004 = {
 						CreatedOnToolsVersion = 27.0;
@@ -279,7 +279,6 @@
 		B40000090000000000000009 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RivuletMac/RivuletMac.entitlements;
 				CODE_SIGN_IDENTITY = "-";
@@ -318,7 +317,6 @@
 		B400000A000000000000000A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RivuletMac/RivuletMac.entitlements;
 				CODE_SIGN_IDENTITY = "-";
