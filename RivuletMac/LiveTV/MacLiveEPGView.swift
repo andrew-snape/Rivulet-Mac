@@ -30,10 +30,10 @@ struct MacLiveEPGView: View {
     fileprivate static let hoursBeforeNow = 0
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 14) {
             HStack {
                 Text("TV Guide")
-                    .font(.headline)
+                    .font(.title2.bold())
                 Spacer()
                 if store.isLoadingEPG {
                     ProgressView().controlSize(.small)
@@ -43,11 +43,11 @@ struct MacLiveEPGView: View {
                 }
                 .disabled(store.isExtendingEPG || store.epgLoadedThrough == nil)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, MacTile.margin)
 
             grid(at: guideNow)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 20)
         .onReceive(store.$epg.debounce(for: .milliseconds(150), scheduler: RunLoop.main)) { schedules in
             updateScheduleRevisions(schedules)
         }
@@ -331,7 +331,7 @@ private struct MacEPGChannelRow: View {
                             } label: {
                                 MacEPGProgramCell(program: program, now: now)
                                     .frame(width: width, height: MacLiveEPGView.rowHeight - 8)
-                                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .help("\(program.displayTitle), \(program.timeRange). Watch \(channel.name)")
@@ -411,12 +411,9 @@ private struct MacEPGProgramCell: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
             isCurrent ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
-        }
+        .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
         .opacity(isPast ? 0.62 : 1)
     }
 }
