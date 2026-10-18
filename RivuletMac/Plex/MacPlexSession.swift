@@ -41,6 +41,8 @@ final class MacPlexSession {
     private(set) var libraries: [PlexLibrary] = []
     /// Home rows after Continue Watching: promoted hubs of the pinned libraries.
     private(set) var shelves: [PlexHub] = []
+    /// The library each of `shelves` came from, index for index.
+    private(set) var shelfLibraryKeys: [String] = []
     private(set) var continueWatching: PlexHub?
     private(set) var isLoadingContent = false
     private(set) var contentError: String?
@@ -163,9 +165,13 @@ final class MacPlexSession {
             libraryHubs = Dictionary(uniqueKeysWithValues: pinned.compactMap { library in
                 (home.hubsByLibrary[library.key] ?? libraryHubs[library.key]).map { (library.key, $0) }
             })
-            shelves = pinned.flatMap { libraryHubs[$0.key] ?? [] }.filter {
-                $0.promoted == true && !$0.isContinueWatching && !$0.items.isEmpty
+            let entries = pinned.flatMap { library in
+                (libraryHubs[library.key] ?? []).map { (key: library.key, hub: $0) }
+            }.filter {
+                $0.hub.promoted == true && !$0.hub.isContinueWatching && !$0.hub.items.isEmpty
             }
+            shelves = entries.map(\.hub)
+            shelfLibraryKeys = entries.map(\.key)
             selectedServerName = auth.selectedServer?.name ?? auth.savedServerName
             contentError = nil
             lastContentRefresh = .now
@@ -535,6 +541,7 @@ final class MacPlexSession {
     func clearContent() {
         libraries = []
         shelves = []
+        shelfLibraryKeys = []
         continueWatching = nil
         contentError = nil
         lastContentRefresh = nil

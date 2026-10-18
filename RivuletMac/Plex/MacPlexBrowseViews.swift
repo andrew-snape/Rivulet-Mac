@@ -8,16 +8,45 @@ import SwiftUI
 /// Continue Watching, then each pinned library's promoted rows.
 struct MacPlexHomeView: View {
     @Environment(MacPlexSession.self) private var plex
+    @AppStorage(MacSidebarLayout.hiddenKey) private var sidebarHidden = ""
+
+    /// Home leaves out what the sidebar hides: shelves from a hidden library,
+    /// and Continue Watching entries that belong to one.
+    private var hiddenLibraries: Set<String> {
+        Set(MacSidebarLayout.ids(sidebarHidden).compactMap { id in
+            id.hasPrefix("library.") ? String(id.dropFirst("library.".count)) : nil
+        })
+    }
+
+    private var visibleShelves: [PlexHub] {
+        let hidden = hiddenLibraries
+        return zip(plex.shelves, plex.shelfLibraryKeys).filter { !hidden.contains($0.1) }.map(\.0)
+    }
+
+    private var visibleContinueWatching: PlexHub? {
+        guard var hub = plex.continueWatching else { return nil }
+        let hidden = hiddenLibraries
+        if !hidden.isEmpty {
+            hub.Metadata = hub.Metadata?.filter { item in
+                // Plex sends the library as an id, or only as "/library/sections/N".
+                let key = item.librarySectionID.map(String.init) ?? item.librarySectionKey?.split(separator: "/").last.map(String.init)
+                return key.map { !hidden.contains($0) } ?? true
+            }
+        }
+        return hub.items.isEmpty ? nil : hub
+    }
 
     var body: some View {
+        let continueWatching = visibleContinueWatching
+        let shelves = visibleShelves
         Group {
-            if plex.continueWatching != nil || !plex.shelves.isEmpty {
+            if continueWatching != nil || !shelves.isEmpty {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 30) {
-                        if let continueWatching = plex.continueWatching {
+                        if let continueWatching {
                             MacPlexShelfView(hub: continueWatching)
                         }
-                        ForEach(plex.shelves) { MacPlexShelfView(hub: $0) }
+                        ForEach(shelves) { MacPlexShelfView(hub: $0) }
                     }
                     .padding(.vertical, 20)
                 }
