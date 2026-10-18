@@ -305,20 +305,20 @@ extension PlexLiveTVChannel {
     /// The URL includes comprehensive client profile information that Plex requires to
     /// properly start a transcode session. Without these parameters, DVB tuners will fail
     /// to start playback (Fixes GitHub #64, RIVULET-15).
-    private func buildPlexLiveTVStreamURL(serverURL: String, authToken: String) -> URL? {
+    private nonisolated func buildPlexLiveTVStreamURL(serverURL: String, authToken: String) -> URL? {
         // Generate a unique session ID for this transcode session
         let sessionId = UUID().uuidString.uppercased()
 
         // Log transcode URL building start (GitHub #64 - DVB diagnostics)
         let startBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         startBreadcrumb.message = "Building Plex transcode URL for DVB channel"
-        startBreadcrumb.data = [
+        startBreadcrumb.setData(from: [
             "channel_name": title,
             "channel_number": channelNumber ?? "unknown",
             "channel_key": key,
             "session_id": String(sessionId.prefix(8)),
             "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ]
+        ])
         SentryBridge.addBreadcrumb(startBreadcrumb)
 
         var components = URLComponents(string: "\(serverURL)/video/:/transcode/universal/start.m3u8")
@@ -341,23 +341,23 @@ extension PlexLiveTVChannel {
         if let url = resultURL {
             let successBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
             successBreadcrumb.message = "Plex transcode URL built successfully"
-            successBreadcrumb.data = [
+            successBreadcrumb.setData(from: [
                 "channel_name": title,
                 "channel_number": channelNumber ?? "unknown",
                 "session_id": String(sessionId.prefix(8)),
                 "url_path": url.path,
                 "url_host": url.host ?? "unknown",
                 "has_query_params": url.query != nil
-            ]
+            ])
             SentryBridge.addBreadcrumb(successBreadcrumb)
         } else {
             let failBreadcrumb = Breadcrumb(level: .error, category: "plex_livetv")
             failBreadcrumb.message = "Failed to build Plex transcode URL - URLComponents failed"
-            failBreadcrumb.data = [
+            failBreadcrumb.setData(from: [
                 "channel_name": title,
                 "channel_key": key,
                 "server_url": serverURL
-            ]
+            ])
             SentryBridge.addBreadcrumb(failBreadcrumb)
         }
 
@@ -371,7 +371,7 @@ extension PlexLiveTVChannel {
     /// `session` (transcode session), `X-Plex-Session-Identifier` (from tune,
     /// links the transcode to the tuner grab's consumer), and the client
     /// identifier.
-    static func universalLiveQueryItems(
+    nonisolated static func universalLiveQueryItems(
         sessionPath: String,
         sessionIdentifier: String,
         transcodeSessionId: String,
@@ -434,7 +434,7 @@ extension PlexLiveTVChannel {
     ///
     /// (`%2C` needs no such care: it survives the round trip because the `%`
     /// itself gets encoded to `%25`, and decoded back, symmetrically.)
-    static func finalizedLiveURL(_ components: URLComponents) -> URL? {
+    nonisolated static func finalizedLiveURL(_ components: URLComponents) -> URL? {
         var components = components
         if let escaped = components.percentEncodedQuery?
             .replacingOccurrences(of: "+", with: "%2B") {
@@ -448,7 +448,7 @@ extension PlexLiveTVChannel {
     /// (the PMS OpenAPI spec's own example uses exactly this shape). The whole
     /// value is then percent-encoded ONCE when placed in the query string —
     /// URLComponents handles that, plus the '+'→%2B pass callers apply.
-    static func liveClientProfileExtras() -> String {
+    nonisolated static func liveClientProfileExtras() -> String {
         let clauses = [
             // Direct-play profiles: AetherEngine demuxes raw MPEG-TS HLS and
             // software-decodes MPEG-2 / mp2, so declare the raw broadcast
@@ -481,7 +481,7 @@ extension PlexLiveTVChannel {
     }
 
     /// Convert to UnifiedChannel
-    func toUnifiedChannel(
+    nonisolated func toUnifiedChannel(
         sourceId: String,
         serverURL: String,
         authToken: String,
@@ -500,7 +500,7 @@ extension PlexLiveTVChannel {
                 // HDHomeRun direct stream URL available
                 let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
                 breadcrumb.message = "Using HDHomeRun direct stream URL"
-                breadcrumb.data = [
+                breadcrumb.setData(from: [
                     "channel_name": title,
                     "channel_number": channelNumber ?? "unknown",
                     "rating_key": ratingKey,
@@ -508,7 +508,7 @@ extension PlexLiveTVChannel {
                     "stream_type": "hdhr_direct",
                     "has_stream_url": true,
                     "server_host": URL(string: serverURL)?.host ?? "unknown"
-                ]
+                ])
                 SentryBridge.addBreadcrumb(breadcrumb)
                 return URL(string: hdhrURL)
             }
@@ -521,7 +521,7 @@ extension PlexLiveTVChannel {
             breadcrumb.message = transcodeURL != nil
                 ? "Built Plex transcode URL for DVB tuner"
                 : "Failed to build Plex transcode URL"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "channel_name": title,
                 "channel_number": channelNumber ?? "unknown",
                 "rating_key": ratingKey,
@@ -530,7 +530,7 @@ extension PlexLiveTVChannel {
                 "server_host": URL(string: serverURL)?.host ?? "unknown",
                 "transcode_url_built": transcodeURL != nil,
                 "transcode_url_host": transcodeURL?.host ?? "none"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             // If transcode URL failed, capture as an error
@@ -591,7 +591,7 @@ extension PlexLiveTVProgram {
     /// guide's artwork slots: `thumb` (2:3 poster) and `art` (16:9 background).
     /// Both are resolved to full URLs (absolute passthrough, or Plex server path
     /// + token) so they work the same as the XMLTV `posterURL` / `landscapeURL`.
-    func toUnifiedProgram(unifiedChannelId: String, serverURL: String, authToken: String) -> UnifiedProgram? {
+    nonisolated func toUnifiedProgram(unifiedChannelId: String, serverURL: String, authToken: String) -> UnifiedProgram? {
         guard let start = startDate, let end = endDate else {
             return nil
         }
@@ -644,7 +644,7 @@ extension PlexLiveTVProgram {
 
     /// Resolve a Plex image path to a full URL: external http(s) URLs pass
     /// through; Plex server paths get the server prefix + auth token.
-    private static func plexImageURL(_ path: String?, serverURL: String, authToken: String) -> URL? {
+    private nonisolated static func plexImageURL(_ path: String?, serverURL: String, authToken: String) -> URL? {
         guard let path, !path.isEmpty else { return nil }
         if path.hasPrefix("http://") || path.hasPrefix("https://") {
             return URL(string: path)

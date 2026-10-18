@@ -29,7 +29,7 @@ enum NetworkPriority {
 // MARK: - Plex Network Manager
 
 class PlexNetworkManager: NSObject, @unchecked Sendable {
-    static let shared = PlexNetworkManager()
+    nonisolated static let shared = PlexNetworkManager()
 
     // Default timeout for requests
     private let defaultTimeout: TimeInterval = 30.0
@@ -83,7 +83,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
     // Not private: callers inject a manager (see PlexProvider.init), so tests
     // subclass this to stub responses. App code still uses `.shared`.
-    override init() {
+    nonisolated override init() {
         super.init()
     }
 
@@ -1920,8 +1920,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            let (_, response) = try await session.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            _ = try await session.data(for: request)
         } catch {
             // Best-effort — don't block on failure
             print("[Plex] Failed to stop transcode session \(sessionId): \(error.localizedDescription)")
@@ -2057,14 +2056,14 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // Log capabilities check result (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
             breadcrumb.message = "Live TV capabilities check completed"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "allow_tuners": hasDVRs,
                 "live_tv_enabled": hasDVRs,
                 "has_dvr": hasDVRs,
                 "dvr_count": dvrs.count,
                 "dvr_types": dvrs.compactMap { $0.make ?? $0.model }.joined(separator: ", "),
                 "server_host": URL(string: serverURL)?.host ?? "unknown"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             return PlexLiveTVCapabilities(
@@ -2076,10 +2075,10 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // Log capability check failure (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "Live TV capabilities check failed"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "error": error.localizedDescription,
                 "server_host": URL(string: serverURL)?.host ?? "unknown"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             // If the endpoint fails, Live TV is not available
@@ -2121,11 +2120,11 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // Log missing DVR/lineup (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "No DVR or lineup found for Live TV channels"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "server_host": URL(string: serverURL)?.host ?? "unknown",
                 "has_dvr_array": dvrContainer.MediaContainer.Dvr != nil,
                 "dvr_count": dvrContainer.MediaContainer.Dvr?.count ?? 0
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
             return []
         }
@@ -2254,12 +2253,12 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             guard let listing else {
                 let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
                 breadcrumb.message = "Channel fetch failed for one DVR; continuing with the rest"
-                breadcrumb.data = [
+                breadcrumb.setData(from: [
                     "dvr_key": request.dvrKey,
                     "tuner_name": request.tunerName ?? "unnamed",
                     "provider_path": request.providerPath,
                     "dvr_count": dvrs.count
-                ]
+                ])
                 SentryBridge.addBreadcrumb(breadcrumb)
                 continue
             }
@@ -2312,10 +2311,10 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
         let summaryBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         summaryBreadcrumb.message = "Live TV channel fetch completed"
-        summaryBreadcrumb.data = [
+        summaryBreadcrumb.setData(from: [
             "total_channels": channels.count,
             "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ]
+        ])
         SentryBridge.addBreadcrumb(summaryBreadcrumb)
 
         return channels
@@ -2383,7 +2382,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // both mean the same thing here — no Favourites tab.
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "Favourite channels unavailable"
-            breadcrumb.data = ["error": String(describing: error)]
+            breadcrumb.setData(from: ["error": String(describing: error)])
             SentryBridge.addBreadcrumb(breadcrumb)
             return []
         }
@@ -2441,11 +2440,11 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
               let mediaContainer = root["MediaContainer"] as? [String: Any] else {
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "Tune response was not JSON"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "dvr": dvrKey,
                 "channel": channelId,
                 "response_head": String(data: data.prefix(400), encoding: .utf8) ?? "n/a"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
             throw PlexAPIError.parsingError
         }
@@ -2456,12 +2455,12 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             let serverMessage = String((mediaContainer["message"] as? String ?? "").prefix(200))
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "Tune returned failure status"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "dvr": dvrKey,
                 "channel": channelId,
                 "status": status,
                 "server_message": serverMessage
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
             throw PlexLiveTuneError(serverMessage: serverMessage)
         }
@@ -2572,12 +2571,12 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         } else {
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "Tune succeeded but no session key or Media uuid found"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "dvr": dvrKey,
                 "channel": channelId,
                 "media_container_keys": mediaContainer.keys.sorted().joined(separator: ","),
                 "response_head": String(data: data.prefix(800), encoding: .utf8) ?? "n/a"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
             throw PlexAPIError.invalidResponse
         }

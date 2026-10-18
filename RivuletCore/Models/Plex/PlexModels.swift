@@ -16,7 +16,7 @@ import Foundation
 /// Plex API constants
 enum PlexAPI: Sendable {
     static let baseUrl = "https://plex.tv"
-    static let productName = "Rivulet"
+    nonisolated static let productName = "Rivulet"
 
     /// Host-injected, defaulting to the tvOS app's values. The iOS app
     /// overrides both at launch (RivuletiOSApp.init), before any request is
@@ -31,7 +31,7 @@ enum PlexAPI: Sendable {
     /// Plex uses this to distinguish devices in its Dashboard, attribute transcode
     /// sessions, and route /player control messages — sharing one identifier across
     /// devices causes Dashboard merges and cross-device transcode session collisions.
-    static let clientIdentifier: String = {
+    nonisolated static let clientIdentifier: String = {
         let key = "plexClientIdentifier"
         let defaults = UserDefaults.standard
         if let stored = defaults.string(forKey: key), !stored.isEmpty {

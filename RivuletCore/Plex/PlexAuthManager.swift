@@ -611,12 +611,12 @@ class PlexAuthManager: ObservableObject {
     private static func addConnectionTestBreadcrumb(urlString: String, outcome: String) {
         let breadcrumb = Breadcrumb(level: .warning, category: "plex_auth")
         breadcrumb.message = "Connection probe failed"
-        breadcrumb.data = [
+        breadcrumb.setData(from: [
             "host": URL(string: urlString)?.host ?? "invalid-url",
             "port": URL(string: urlString)?.port ?? 0,
             "scheme": URL(string: urlString)?.scheme ?? "?",
             "outcome": outcome
-        ]
+        ])
         SentryBridge.addBreadcrumb(breadcrumb)
     }
 

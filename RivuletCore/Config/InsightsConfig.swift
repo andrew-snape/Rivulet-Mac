@@ -10,7 +10,7 @@
 
 import Foundation
 
-enum InsightsConfig {
+nonisolated enum InsightsConfig {
     /// Base URL of the insights-api Worker that serves trivia JSON from R2.
     static let apiBaseURL = URL(string: "https://insights-api.baingurley.workers.dev")!
 

@@ -18,7 +18,7 @@
 import Foundation
 import os
 
-enum StartupTimer {
+nonisolated enum StartupTimer {
     /// Launch reference: the moment the PROCESS started, not the moment this type
     /// was first touched.
     ///
@@ -29,7 +29,7 @@ enum StartupTimer {
     /// properties BEFORE the initializer body runs, so the 7-model SwiftData
     /// container is already open by the time `arm()` is reached. A launch trace
     /// that starts after the expensive part cannot find the expensive part.
-    nonisolated(unsafe) private static let launchUptime = processStartUptime()
+    private static let launchUptime = processStartUptime()
 
     private static let log = Logger(subsystem: "com.bain.Rivulet", category: "Startup")
 
@@ -52,12 +52,12 @@ enum StartupTimer {
     }
 
     /// Force the launch reference to be captured now (call as early as possible).
-    nonisolated static func arm() { _ = launchUptime }
+    static func arm() { _ = launchUptime }
 
-    /// Log a milestone with elapsed-since-launch. Nonisolated so it can be
-    /// called from any executor, including deinit (the module's default
-    /// MainActor isolation would otherwise apply).
-    nonisolated static func mark(_ event: String) {
+    /// Log a milestone with elapsed-since-launch. Callable from any executor,
+    /// including deinit (the type is nonisolated, opting out of the module's
+    /// default MainActor isolation).
+    static func mark(_ event: String) {
         let ms = (ProcessInfo.processInfo.systemUptime - launchUptime) * 1000
         log.info("[Startup +\(Int(ms), privacy: .public)ms] \(event, privacy: .public)")
     }

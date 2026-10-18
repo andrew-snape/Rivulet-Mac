@@ -104,3 +104,11 @@ nonisolated enum SentryBridge {
         #endif
     }
 }
+
+extension Breadcrumb {
+    /// Sets each value through `setData(value:key:)`: Sentry 9.30 deprecates
+    /// assigning `data`, whose setter is to become read-only.
+    nonisolated func setData(from values: [String: Any]) {
+        for (key, value) in values { setData(value: value, key: key) }
+    }
+}

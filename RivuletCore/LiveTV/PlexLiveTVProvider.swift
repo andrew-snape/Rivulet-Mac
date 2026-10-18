@@ -76,11 +76,11 @@ actor PlexLiveTVProvider: LiveTVProvider {
             // Log cache hit (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
             breadcrumb.message = "Returning cached Live TV channels"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "channel_count": cachedChannels.count,
                 "cache_age_seconds": Int(Date().timeIntervalSince(lastFetch)),
                 "server_host": URL(string: serverURL)?.host ?? "unknown"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             return cachedChannels
@@ -94,10 +94,10 @@ actor PlexLiveTVProvider: LiveTVProvider {
         // Log refresh start (GitHub #64 - DVB diagnostics)
         let startBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         startBreadcrumb.message = "Starting Plex Live TV channel refresh"
-        startBreadcrumb.data = [
+        startBreadcrumb.setData(from: [
             "server_host": URL(string: serverURL)?.host ?? "unknown",
             "source_id": sourceId
-        ]
+        ])
         SentryBridge.addBreadcrumb(startBreadcrumb)
 
         // First check capabilities
@@ -116,12 +116,12 @@ actor PlexLiveTVProvider: LiveTVProvider {
         // Log capabilities result (GitHub #64 - DVB diagnostics)
         let capsBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         capsBreadcrumb.message = "Plex Live TV capabilities checked"
-        capsBreadcrumb.data = [
+        capsBreadcrumb.setData(from: [
             "allow_tuners": caps.allowTuners,
             "live_tv_enabled": caps.liveTVEnabled,
             "has_dvr": caps.hasDVR,
             "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ]
+        ])
         SentryBridge.addBreadcrumb(capsBreadcrumb)
 
         guard caps.liveTVEnabled else {
@@ -175,12 +175,12 @@ actor PlexLiveTVProvider: LiveTVProvider {
         let channelsNeedingTranscode = channels.count - channelsWithStreamURL
         let breakdownBreadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         breakdownBreadcrumb.message = "Plex Live TV channel refresh completed"
-        breakdownBreadcrumb.data = [
+        breakdownBreadcrumb.setData(from: [
             "total_channels": channels.count,
             "channels_with_stream_url": channelsWithStreamURL,
             "channels_needing_transcode": channelsNeedingTranscode,
             "server_host": URL(string: serverURL)?.host ?? "unknown"
-        ]
+        ])
         SentryBridge.addBreadcrumb(breakdownBreadcrumb)
 
         // Update cache
@@ -312,11 +312,11 @@ actor PlexLiveTVProvider: LiveTVProvider {
             // Log missing stream URL (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .warning, category: "plex_livetv")
             breadcrumb.message = "No stream URL available for channel"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "channel_name": channel.name,
                 "channel_id": channel.id,
                 "operation": "build_stream_url"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             return nil
@@ -331,12 +331,12 @@ actor PlexLiveTVProvider: LiveTVProvider {
             // Log direct URL passthrough (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
             breadcrumb.message = "Using direct stream URL (HDHomeRun)"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "channel_name": channel.name,
                 "channel_id": channel.id,
                 "stream_type": "hdhr_direct",
                 "url_host": originalURL.host ?? "unknown"
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             return originalURL
@@ -349,11 +349,11 @@ actor PlexLiveTVProvider: LiveTVProvider {
             // Log URL parsing failure (GitHub #64 - DVB diagnostics)
             let breadcrumb = Breadcrumb(level: .error, category: "plex_livetv")
             breadcrumb.message = "Failed to parse transcode URL components"
-            breadcrumb.data = [
+            breadcrumb.setData(from: [
                 "channel_name": channel.name,
                 "channel_id": channel.id,
                 "original_url_path": originalURL.path
-            ]
+            ])
             SentryBridge.addBreadcrumb(breadcrumb)
 
             return originalURL
@@ -382,7 +382,7 @@ actor PlexLiveTVProvider: LiveTVProvider {
         // Log session ID regeneration (GitHub #64 - DVB diagnostics)
         let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         breadcrumb.message = "Generated fresh Plex transcode session"
-        breadcrumb.data = [
+        breadcrumb.setData(from: [
             "channel_name": channel.name,
             "channel_id": channel.id,
             "stream_type": "plex_transcode",
@@ -390,7 +390,7 @@ actor PlexLiveTVProvider: LiveTVProvider {
             "new_session_id": String(newSessionId.prefix(8)),
             "url_host": newURL.host ?? "unknown",
             "url_path": newURL.path
-        ]
+        ])
         SentryBridge.addBreadcrumb(breadcrumb)
 
         return newURL
@@ -489,13 +489,13 @@ actor PlexLiveTVProvider: LiveTVProvider {
 
         let breadcrumb = Breadcrumb(level: .info, category: "plex_livetv")
         breadcrumb.message = "Tuned live channel to /livetv/sessions"
-        breadcrumb.data = [
+        breadcrumb.setData(from: [
             "channel_name": channel.name,
             "channel_id": channel.id,
             "dvr_key": dvrKey,
             "session_uuid": String(tune.sessionUUID.prefix(8)),
             "playback_route": decisionOutcome
-        ]
+        ])
         SentryBridge.addBreadcrumb(breadcrumb)
 
         let url = directPlayKey.flatMap { directPlayURL(partKey: $0, tune: tune) }
@@ -760,7 +760,7 @@ extension PlexLiveTVProvider: LiveTVRecordingProvider {
         try await networkManager.deleteSubscription(serverURL: serverURL, authToken: authToken, id: rule.id)
     }
 
-    private static func imageURL(_ path: String, serverURL: String, authToken: String) -> URL? {
+    private nonisolated static func imageURL(_ path: String, serverURL: String, authToken: String) -> URL? {
         if path.hasPrefix("http://") || path.hasPrefix("https://") { return URL(string: path) }
         return URL(string: "\(serverURL)\(path)?X-Plex-Token=\(authToken)")
     }
@@ -768,7 +768,7 @@ extension PlexLiveTVProvider: LiveTVRecordingProvider {
 
 private extension PlexSubscriptionTemplateOption {
     /// This rule with Plex's airings preference set: every airing, or new only.
-    func withOnlyNewAirings(_ newOnly: Bool) -> Self {
+    nonisolated func withOnlyNewAirings(_ newOnly: Bool) -> Self {
         Self(title: title, type: type, parameters: parameters,
              targetLibrarySectionID: targetLibrarySectionID,
              targetSectionLocationID: targetSectionLocationID,

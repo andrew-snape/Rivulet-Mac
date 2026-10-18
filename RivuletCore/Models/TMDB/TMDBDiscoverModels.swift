@@ -10,7 +10,7 @@
 
 import Foundation
 
-enum TMDBDiscoverSection: String, CaseIterable, Identifiable, Sendable {
+nonisolated enum TMDBDiscoverSection: String, CaseIterable, Identifiable, Sendable {
     case movieTrending
     case moviePopular
     case movieNowPlaying
@@ -71,7 +71,7 @@ enum TMDBDiscoverSection: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-struct TMDBListItem: Codable, Identifiable, Hashable, Sendable {
+nonisolated struct TMDBListItem: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let title: String
     let overview: String?
@@ -146,7 +146,7 @@ struct TMDBListItem: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct TMDBItemDetail: Codable, Identifiable, Sendable {
+nonisolated struct TMDBItemDetail: Codable, Identifiable, Sendable {
     let id: Int
     let title: String
     let overview: String?

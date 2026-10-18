@@ -13,7 +13,7 @@
 
 import Foundation
 
-struct TMDBImagesResponse: Decodable, Sendable {
+nonisolated struct TMDBImagesResponse: Decodable, Sendable {
     let logos: [TMDBImageEntry]
 
     enum CodingKeys: String, CodingKey {
@@ -30,7 +30,7 @@ struct TMDBImagesResponse: Decodable, Sendable {
     }
 }
 
-struct TMDBImageEntry: Decodable, Sendable {
+nonisolated struct TMDBImageEntry: Decodable, Sendable {
     let filePath: String?
     let iso6391: String?
     let voteAverage: Double?
@@ -49,7 +49,7 @@ extension TMDBImagesResponse {
     /// 3. Else any remaining
     /// 4. Within a tier: highest `voteAverage`
     /// Entries with a missing/empty `file_path` are skipped.
-    var bestLogoPath: String? {
+    nonisolated var bestLogoPath: String? {
         let candidates = logos.filter { ($0.filePath?.isEmpty == false) }
         guard !candidates.isEmpty else { return nil }
 

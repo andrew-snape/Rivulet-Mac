@@ -13,22 +13,22 @@
 
 import Foundation
 
-enum TMDBMediaType: String, Codable, Sendable {
+nonisolated enum TMDBMediaType: String, Codable, Sendable {
     case movie
     case tv
 }
 
-struct TMDBKeyword: Codable {
+nonisolated struct TMDBKeyword: Codable {
     let id: Int?
     let name: String?
 }
 
-struct TMDBGenre: Codable, Sendable {
+nonisolated struct TMDBGenre: Codable, Sendable {
     let id: Int?
     let name: String?
 }
 
-struct TMDBDetails: Codable {
+nonisolated struct TMDBDetails: Codable {
     let genres: [TMDBGenre]?
     let voteAverage: Double?
     let voteCount: Int?
@@ -40,7 +40,7 @@ struct TMDBDetails: Codable {
     }
 }
 
-struct TMDBCredit: Codable, Sendable {
+nonisolated struct TMDBCredit: Codable, Sendable {
     let id: Int?
     let name: String?
     let job: String?
@@ -62,7 +62,7 @@ struct TMDBPersonDetails: Codable, Sendable {
     }
 }
 
-private struct TMDBKeywordsResponse: Codable {
+private nonisolated struct TMDBKeywordsResponse: Codable {
     let keywords: [TMDBKeyword]?
     let results: [TMDBKeyword]?
 
@@ -73,7 +73,7 @@ private struct TMDBKeywordsResponse: Codable {
     }
 }
 
-private struct TMDBCreditsResponse: Codable {
+private nonisolated struct TMDBCreditsResponse: Codable {
     let cast: [TMDBCredit]?
     let crew: [TMDBCredit]?
 }

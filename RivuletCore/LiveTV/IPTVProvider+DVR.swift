@@ -312,7 +312,7 @@ extension IPTVProvider: LiveTVRecordingProvider {
         return nil
     }
 
-    private static func status(of recording: DispatcharrRecording, now: Date) -> LiveTVScheduledRecording.Status {
+    private nonisolated static func status(of recording: DispatcharrRecording, now: Date) -> LiveTVScheduledRecording.Status {
         switch recording.properties.status {
         case "recording": return .recording
         case "completed", "stopped": return .completed
@@ -326,7 +326,7 @@ extension IPTVProvider: LiveTVRecordingProvider {
     }
 
     /// Dispatcharr numbers days from Monday (0) to Sunday (6).
-    private static func dayNames(_ days: [Int]) -> String? {
+    private nonisolated static func dayNames(_ days: [Int]) -> String? {
         let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         let valid = days.filter { (0...6).contains($0) }.sorted()
         guard !valid.isEmpty else { return nil }
