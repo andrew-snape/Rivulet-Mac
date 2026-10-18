@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 import AppKit
+import Sparkle
 import SwiftUI
 
 @main
@@ -11,6 +12,8 @@ struct RivuletMacApp: App {
     @State private var multiview: MacMultiview
     @State private var plex: MacPlexSession
     @State private var vod: MacPlaybackController
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     init() {
         // Host values for shared code, set before anything touches the
@@ -58,6 +61,7 @@ struct RivuletMacApp: App {
         }
         .defaultSize(width: 1360, height: 820)
         .commands {
+            MacUpdateCommands(updater: updater.updater)
             MacPlaybackCommands(playback: playback, player: playback.player, vod: vod)
         }
 

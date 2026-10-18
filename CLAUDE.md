@@ -20,6 +20,7 @@ AVPlayerLayer the app builds.
 - **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.39.0, which itself requires macOS 15, below our 27 target). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target. Its LibTrueHD and LibDTSX object-audio packages are not even fetched: they sit behind package traits, and Rivulet enables none.
 - **App icon**: `RivuletMac/Assets.xcassets/AppIcon.appiconset`, rendered from `Branding/logo_square_1024.png` on the macOS icon grid (824 pt squircle on a 1024 canvas).
 - **Signing**: "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`, no team). Sandboxed with outgoing and incoming network access, nothing else; hardened runtime off (only notarisation needs it).
+- **Updates**: Sparkle (pinned `exactVersion`), checking the latest GitHub release's `appcast.xml` and installing quietly on quit. Sandboxed, so the installer goes through Sparkle's launcher XPC service (`SUEnableInstallerLauncherService` plus the `-spks` / `-spki` mach-lookup entitlements). Sparkle compares `CURRENT_PROJECT_VERSION`: raise it every release. Publish with `scripts/release.sh <version>`; the EdDSA private key lives in the login keychain, and losing it strands installed copies.
 - **Repo is public**: keep commit messages short and plain.
 
 ## Project Structure

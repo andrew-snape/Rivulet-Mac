@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		B40000190000000000000019 /* AetherEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B2000010AAAA000000000001 /* AetherEngine */; };
+		B400001A000000000000001A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = B2000011AAAA000000000002 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				B40000190000000000000019 /* AetherEngine in Frameworks */,
+				B400001A000000000000001A /* Sparkle in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -87,6 +89,7 @@
 			name = "Rivulet Mac";
 			packageProductDependencies = (
 				B2000010AAAA000000000001 /* AetherEngine */,
+				B2000011AAAA000000000002 /* Sparkle */,
 			);
 			productName = "Rivulet Mac";
 			productReference = B40000010000000000000001 /* Rivulet.app */;
@@ -118,6 +121,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */,
+				B2000021AAAA000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 110;
 			productRefGroup = A72E03DB2EDA297D003A73DA /* Products */;
@@ -272,7 +276,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -291,7 +295,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet.mac;
 				PRODUCT_NAME = Rivulet;
 				SDKROOT = macosx;
@@ -312,7 +316,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -331,7 +335,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gstudios.rivulet.mac;
 				PRODUCT_NAME = Rivulet;
 				SDKROOT = macosx;
@@ -374,6 +378,14 @@
 				version = 7.39.0;
 			};
 		};
+		B2000021AAAA000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.10.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -381,6 +393,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B2000020AAAA000000000001 /* XCRemoteSwiftPackageReference "AetherEngine" */;
 			productName = AetherEngine;
+		};
+		B2000011AAAA000000000002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B2000021AAAA000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

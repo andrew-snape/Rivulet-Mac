@@ -13,5 +13,12 @@
 	     nothing the engine remuxes plays: Plex direct play, raw MPEG-TS. -->
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- Sparkle's installer and its progress/status channel, reached through the
+	     launcher service because a sandboxed app cannot replace itself. -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+	</array>
 </dict>
 </plist>

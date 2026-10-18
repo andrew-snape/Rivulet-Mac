@@ -10,5 +10,19 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<!-- Sparkle: updates come from the latest GitHub release's appcast.xml,
+	     signed with the EdDSA key whose public half is below. The sandbox
+	     cannot replace the app itself, so the installer runs through
+	     Sparkle's launcher XPC service (see the mach-lookup entitlements). -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/andrew-snape/Rivulet-Mac/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Ao6D6AMnUmxI1TCdjZgUGyFOepeFTQize2zsQRo5NaE=</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
 </dict>
 </plist>
