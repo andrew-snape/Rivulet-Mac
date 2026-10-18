@@ -93,7 +93,10 @@ from the app, the app injects it at launch, before touching the stores:
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
 - **One stream at a time**: starting a Plex title stops Live TV, and leaving
-  the Live TV page stops its channel.
+  the Live TV page stops its channel, unless the picture is popped out into
+  its floating window (`MacLivePlayback.isPoppedOut`). The engine's surface can
+  be on screen in one place only, so the page shows a stand-in meanwhile;
+  closing the window off the Live TV page stops the channel.
 
 ### Watch state
 

@@ -194,7 +194,7 @@ struct MacPlexPosterCard: View {
                 .aspectRatio(2 / 3, contentMode: .fit)
                 .frame(width: width)
                 .plexWatchState(item)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: MacTheme.cardCorner, style: .continuous))
                 .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
 
             Text(item.type == "episode" ? item.showTitle : item.displayTitle)
@@ -209,6 +209,7 @@ struct MacPlexPosterCard: View {
         }
         .frame(width: width, alignment: .leading)
         .contentShape(Rectangle())
+        .macCardHover()
     }
 }
 
@@ -267,9 +268,10 @@ struct MacPlexContinueCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: MacTheme.cardCorner, style: .continuous))
         .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
         .contentShape(Rectangle())
+        .macCardHover()
     }
 }
 

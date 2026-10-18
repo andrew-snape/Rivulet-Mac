@@ -13,6 +13,8 @@ struct MacPlayerView: View {
     @ObservedObject var player: AetherPlayer
     /// A small picture (the guide's corner player): fewer controls, shorter messages.
     var compact = false
+    /// The floating window: the full screen button gives way to one that brings the picture back.
+    var isPopOut = false
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
 
@@ -29,7 +31,7 @@ struct MacPlayerView: View {
                 if playback.channel != nil {
                     VStack {
                         Spacer()
-                        MacPlayerControls(playback: playback, player: player, compact: compact)
+                        MacPlayerControls(playback: playback, player: player, compact: compact, isPopOut: isPopOut)
                             .padding(compact ? 8 : 16)
                     }
                     .opacity(controlsVisible ? 1 : 0)
@@ -111,13 +113,38 @@ struct MacPlayerView: View {
     }
 }
 
+// MARK: - Pop-out window
+
+/// The channel's picture alone in a small window that floats above other apps.
+struct MacLivePopOutView: View {
+    @EnvironmentObject private var playback: MacLivePlayback
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    var body: some View {
+        MacPlayerView(playback: playback, player: playback.player, compact: true, isPopOut: true)
+            .background(MacWindowReader { window in
+                window.level = .floating
+                window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+                window.contentAspectRatio = NSSize(width: 16, height: 9)
+            })
+            .onDisappear { playback.isPoppedOut = false }
+            // Stopping the channel, or starting a Plex title, leaves nothing to float.
+            .onChange(of: playback.channel == nil) { _, stopped in
+                if stopped { dismissWindow(id: MacLivePlayback.popOutWindowID) }
+            }
+    }
+}
+
 // MARK: - Controls
 
 private struct MacPlayerControls: View {
     @ObservedObject var playback: MacLivePlayback
     @ObservedObject var player: AetherPlayer
     let compact: Bool
+    let isPopOut: Bool
     @ObservedObject private var store = LiveTVDataStore.shared
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         HStack(spacing: 14) {
@@ -190,10 +217,25 @@ private struct MacPlayerControls: View {
                 .help(player.fillsWindow ? "Fit to Window" : "Fill Window")
             }
 
-            Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
+            if isPopOut {
+                Button { dismissWindow(id: MacLivePlayback.popOutWindowID) } label: {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                }
+                .help("Back to the Main Window")
+            } else {
+                Button {
+                    playback.isPoppedOut = true
+                    openWindow(id: MacLivePlayback.popOutWindowID)
+                } label: {
+                    Image(systemName: "pip.exit")
+                }
+                .help("Pop Out")
+
+                Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                }
+                .help("Full Screen")
             }
-            .help("Full Screen")
         }
         .buttonStyle(.borderless)
         .font(.title3)

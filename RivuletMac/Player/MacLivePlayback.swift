@@ -12,6 +12,11 @@ final class MacLivePlayback: ObservableObject {
     @Published private(set) var channel: UnifiedChannel?
     /// Shown instead of the engine's failure: a refused tune or a busy tuner.
     @Published private(set) var notice: String?
+    /// The picture is in its own floating window. The window sets this as it
+    /// opens and closes; the engine's surface can be on screen in one place only.
+    @Published var isPoppedOut = false
+
+    static let popOutWindowID = "live-tv-pop-out"
 
     /// The channels the window lists right now, in order: what Channel Up and
     /// Channel Down step through. Set by the window.

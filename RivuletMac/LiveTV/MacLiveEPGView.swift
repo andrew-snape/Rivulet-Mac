@@ -45,7 +45,7 @@ struct MacLiveEPGView: View {
             issueBanner
             content
         }
-        .background(MacEPGTheme.background)
+        .background(MacTheme.background)
         .environment(\.colorScheme, .dark)
         .onReceive(store.$epg.debounce(for: .milliseconds(150), scheduler: RunLoop.main)) { schedules in
             epg = schedules
@@ -243,11 +243,11 @@ private struct MacEPGRuler: View {
                     Text(windowStart.addingTimeInterval(Double(index) * 30 * 60)
                         .formatted(.dateTime.hour().minute()))
                         .font(.callout.weight(.semibold))
-                        .foregroundStyle(MacEPGTheme.textSecondary)
+                        .foregroundStyle(MacTheme.textSecondary)
                         .padding(.leading, 14)
-                        .frame(width: columnWidth - MacEPGTheme.gap, height: MacEPGTheme.boxHeight,
+                        .frame(width: columnWidth - MacTheme.gap, height: MacTheme.boxHeight,
                                alignment: .leading)
-                        .background(MacEPGTheme.columnFill, in: MacEPGTheme.shape)
+                        .background(MacTheme.columnFill, in: MacTheme.shape)
                         .frame(width: columnWidth, height: MacEPGMetrics.headerHeight, alignment: .leading)
                 }
             }
@@ -266,7 +266,7 @@ private struct MacEPGRuler: View {
         }
         .frame(width: MacEPGMetrics.channelWidth + timelineWidth, height: MacEPGMetrics.headerHeight,
                alignment: .topLeading)
-        .background(MacEPGTheme.background)
+        .background(MacTheme.background)
     }
 }
 
@@ -281,11 +281,11 @@ private struct MacEPGCorner: View {
             ? "Today"
             : leftEdge.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
             .font(.callout.weight(.semibold))
-            .foregroundStyle(MacEPGTheme.textSecondary)
-            .frame(width: MacEPGMetrics.channelWidth - MacEPGTheme.gap, height: MacEPGTheme.boxHeight)
-            .background(MacEPGTheme.columnFill, in: MacEPGTheme.shape)
+            .foregroundStyle(MacTheme.textSecondary)
+            .frame(width: MacEPGMetrics.channelWidth - MacTheme.gap, height: MacTheme.boxHeight)
+            .background(MacTheme.columnFill, in: MacTheme.shape)
             .frame(width: MacEPGMetrics.channelWidth, height: MacEPGMetrics.headerHeight, alignment: .leading)
-            .background(MacEPGTheme.background)
+            .background(MacTheme.background)
             .offset(x: scroll.x)
     }
 }
@@ -336,12 +336,12 @@ private struct MacEPGChannelRow: View {
             ForEach(spans) { span in
                 MacEPGProgramCell(
                     program: span.program, channel: channel, now: now,
-                    minX: span.minX + MacEPGTheme.gap / 2, width: span.width - MacEPGTheme.gap,
+                    minX: span.minX + MacTheme.gap / 2, width: span.width - MacTheme.gap,
                     scroll: scroll, focus: focus, play: { playback.play(channel) }
                 )
-                .frame(width: max(span.width - MacEPGTheme.gap, 2),
-                       height: MacEPGMetrics.rowHeight - MacEPGTheme.gap)
-                .offset(x: span.minX + MacEPGTheme.gap / 2, y: MacEPGTheme.gap / 2)
+                .frame(width: max(span.width - MacTheme.gap, 2),
+                       height: MacEPGMetrics.rowHeight - MacTheme.gap)
+                .offset(x: span.minX + MacTheme.gap / 2, y: MacTheme.gap / 2)
             }
 
             // Drawn per row, under the channel column, so it never crosses it.
@@ -386,7 +386,7 @@ private struct MacEPGChannelCell: View {
                         if let number = channel.channelNumber {
                             Text(String(number))
                                 .font(.caption2.weight(.medium))
-                                .foregroundStyle(MacEPGTheme.textSecondary)
+                                .foregroundStyle(MacTheme.textSecondary)
                         }
                         if isFavorite {
                             Image(systemName: "star.fill")
@@ -402,16 +402,16 @@ private struct MacEPGChannelCell: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
-            .frame(width: MacEPGMetrics.channelWidth - MacEPGTheme.gap,
-                   height: MacEPGMetrics.rowHeight - MacEPGTheme.gap, alignment: .leading)
-            .background(MacEPGTheme.columnFill, in: MacEPGTheme.shape)
+            .frame(width: MacEPGMetrics.channelWidth - MacTheme.gap,
+                   height: MacEPGMetrics.rowHeight - MacTheme.gap, alignment: .leading)
+            .background(MacTheme.columnFill, in: MacTheme.shape)
             .overlay {
                 if isPlaying {
-                    MacEPGTheme.shape.strokeBorder(Color.accentColor, lineWidth: 2)
+                    MacTheme.shape.strokeBorder(Color.accentColor, lineWidth: 2)
                 }
             }
             .frame(width: MacEPGMetrics.channelWidth, height: MacEPGMetrics.rowHeight)
-            .background(MacEPGTheme.background)
+            .background(MacTheme.background)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -471,7 +471,7 @@ private struct MacEPGProgramCell: View {
                     if let detail {
                         Text(detail)
                             .font(.caption)
-                            .foregroundStyle(MacEPGTheme.textSecondary)
+                            .foregroundStyle(MacTheme.textSecondary)
                             .lineLimit(1)
                     }
                 }
@@ -487,9 +487,9 @@ private struct MacEPGProgramCell: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(isCurrent ? MacEPGTheme.surface : MacEPGTheme.columnFill, in: MacEPGTheme.shape)
+            .background(isCurrent ? MacTheme.surface : MacTheme.columnFill, in: MacTheme.shape)
             .opacity(isPast ? 0.6 : 1)
-            .contentShape(MacEPGTheme.shape)
+            .contentShape(MacTheme.shape)
         }
         .buttonStyle(.plain)
         .onHover { if $0 { focus.set(channel, program) } }
@@ -604,16 +604,4 @@ private enum MacEPGMetrics {
     static func nowX(_ date: Date, from start: Date) -> CGFloat {
         channelWidth + CGFloat(date.timeIntervalSince(start) / 60) * pointsPerMinute
     }
-}
-
-/// The tvOS guide's palette and shapes: dark boxes, one continuous 14 pt corner, 4 pt gaps.
-enum MacEPGTheme {
-    static let background = Color(red: 0.10, green: 0.10, blue: 0.115)
-    static let surface = Color(red: 0.21, green: 0.21, blue: 0.23)
-    static let columnFill = Color(red: 0.17, green: 0.17, blue: 0.19)
-    static let textSecondary = Color.white.opacity(0.55)
-    static let corner: CGFloat = 14
-    static let gap: CGFloat = 4
-    static let boxHeight: CGFloat = 34
-    static let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
 }

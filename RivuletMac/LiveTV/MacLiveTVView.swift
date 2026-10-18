@@ -63,6 +63,7 @@ struct MacLiveTVView: View {
                 }
             }
         }
+        .macScreen()
         .navigationTitle("Live TV")
         .toolbar { if !store.sources.isEmpty && !isFullScreen { toolbarControls } }
         .task {
@@ -87,17 +88,16 @@ struct MacLiveTVView: View {
             HStack(alignment: .top, spacing: 24) {
                 MacGuideInfoBar(focus: guideFocus)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                MacPlayerView(playback: playback, player: playback.player, compact: true)
+                MacLivePlayerPane(compact: true)
                     .frame(width: Self.bandHeight * 16 / 9, height: Self.bandHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(MacTheme.shape)
             }
             .padding(.horizontal, MacTile.margin)
             .padding(.bottom, 14)
             MacLiveEPGView(channels: lineup, query: query, lineupRevision: lineupRevision,
                            jumpToken: jumpToken, focus: guideFocus)
         }
-        .background(MacEPGTheme.background)
-        .environment(\.colorScheme, .dark)
+        .macScreen()
     }
 
     private var filterBar: some View {
@@ -219,6 +219,7 @@ private struct MacChannelList: View {
                         .contextMenu { menu(for: channel) }
                 }
             }
+            .scrollContentBackground(.hidden)
             .overlay {
                 if shown.isEmpty {
                     if query.isEmpty {
@@ -297,15 +298,39 @@ private struct MacNowPlayingPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MacPlayerView(playback: playback, player: playback.player)
+            MacLivePlayerPane(compact: false)
             if showsDetails, let channel = playback.channel {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
                     MacProgrammeDetails(channel: channel, programme: store.program(for: channel, at: context.date))
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.background)
+                        .background(MacTheme.columnFill)
                 }
             }
+        }
+    }
+}
+
+/// The player, or a stand-in while the picture floats in its own window.
+private struct MacLivePlayerPane: View {
+    let compact: Bool
+    @EnvironmentObject private var playback: MacLivePlayback
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    var body: some View {
+        if playback.isPoppedOut {
+            ZStack {
+                Color.black
+                VStack(spacing: compact ? 6 : 12) {
+                    Image(systemName: "pip").font(compact ? .title : .largeTitle)
+                    Text("Playing in a separate window").font(compact ? .callout : .body)
+                    Button("Bring Back") { dismissWindow(id: MacLivePlayback.popOutWindowID) }
+                        .controlSize(compact ? .small : .regular)
+                }
+                .foregroundStyle(.white.opacity(0.8))
+            }
+        } else {
+            MacPlayerView(playback: playback, player: playback.player, compact: compact)
         }
     }
 }

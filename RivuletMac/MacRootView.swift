@@ -59,8 +59,13 @@ struct MacRootView: View {
         .task { await plex.verifyConnection() }
         .onChange(of: section) { old, new in
             path = NavigationPath()
-            // Live TV plays inside its page; leaving the page stops it.
-            if old == .liveTV, new != .liveTV { live.stop() }
+            // Live TV plays inside its page; leaving the page stops it, unless
+            // the picture has its own window.
+            if old == .liveTV, new != .liveTV, !live.isPoppedOut { live.stop() }
+        }
+        // Closing the floating window off the Live TV page ends the stream.
+        .onChange(of: live.isPoppedOut) { was, isNow in
+            if was, !isNow, section != .liveTV { live.stop() }
         }
         .onChange(of: plex.sessionGeneration) { path = NavigationPath() }
         // Signing out, from the sidebar or from Settings, ends the Plex title playing.
@@ -168,6 +173,7 @@ struct MacRootView: View {
                     .navigationDestination(for: PlexLibrary.self) { MacPlexLibraryView(library: $0) }
                     .navigationDestination(for: MacPlexHubRoute.self) { MacPlexHubGridView(route: $0) }
             }
+            .macScreen()
             .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
         }
     }

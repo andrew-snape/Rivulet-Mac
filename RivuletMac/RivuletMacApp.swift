@@ -46,15 +46,28 @@ struct RivuletMacApp: App {
                 .environmentObject(vod)
                 .onAppear { vod.configureRemoteCommands() }
                 .frame(minWidth: 900, minHeight: 520)
+                .preferredColorScheme(.dark)
         }
         .defaultSize(width: 1360, height: 820)
         .commands {
             MacPlaybackCommands(playback: playback, player: playback.player, vod: vod)
         }
 
+        // Live TV's picture on its own, floating above other windows. Opened from
+        // the player's controls, never at launch.
+        Window("Live TV", id: MacLivePlayback.popOutWindowID) {
+            MacLivePopOutView()
+                .environmentObject(playback)
+                .frame(minWidth: 320, minHeight: 180)
+        }
+        .defaultSize(width: 480, height: 270)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
         Settings {
             MacSettingsView()
                 .environmentObject(plex)
+                .preferredColorScheme(.dark)
         }
     }
 }
