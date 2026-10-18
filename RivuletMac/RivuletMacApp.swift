@@ -91,6 +91,12 @@ private struct MacPlaybackCommands: Commands {
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(active == nil)
 
+            Toggle("Always on Top", isOn: Binding(
+                get: { vod.isAlwaysOnTop },
+                set: { vod.setAlwaysOnTop($0) }
+            ))
+            .disabled(vod.session == nil)
+
             Divider()
 
             Button("Next Channel") { playback.step(by: 1) }
