@@ -61,6 +61,12 @@ class LiveTVDataStore {
         didSet { userDefaults.set(Array(unfavoritedIds), forKey: unfavoritedKey) }
     }
 
+    /// Channels the viewer hid from the lists and the guide. Kept by id, so a
+    /// hidden channel stays hidden across refreshes.
+    private(set) var hiddenIds: Set<String> = [] {
+        didSet { userDefaults.set(Array(hiddenIds), forKey: hiddenKey) }
+    }
+
     /// Loading states
     var isLoadingChannels = false
     var isLoadingEPG = false
@@ -118,6 +124,7 @@ class LiveTVDataStore {
     private let userDefaults = UserDefaults.standard
     private let favoritesKey = "liveTVFavoriteChannelIds"
     private let unfavoritedKey = "liveTVUnfavoritedChannelIds"
+    private let hiddenKey = "liveTVHiddenChannelIds"
     private let recentsKey = "liveTVRecentChannelIds"
     private let viewingsKey = "liveTVViewings"
     private let sourcesKey = "liveTVSourceConfigurations"
@@ -1301,6 +1308,23 @@ class LiveTVDataStore {
             favoriteIds = saved
         }
         unfavoritedIds = Set(userDefaults.stringArray(forKey: unfavoritedKey) ?? [])
+        hiddenIds = Set(userDefaults.stringArray(forKey: hiddenKey) ?? [])
+    }
+
+    func isHidden(_ channel: UnifiedChannel) -> Bool {
+        hiddenIds.contains(channel.id)
+    }
+
+    func hide(_ channel: UnifiedChannel) {
+        hiddenIds.insert(channel.id)
+    }
+
+    func unhide(_ channelId: String) {
+        hiddenIds.remove(channelId)
+    }
+
+    func unhideAll() {
+        hiddenIds = []
     }
 
     private func saveFavorites() {

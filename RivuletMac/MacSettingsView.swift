@@ -78,6 +78,24 @@ private struct MacSourcesSettings: View {
                 .padding(.top, 8)
             }
 
+            let hidden = store.channels.filter { store.isHidden($0) }
+            if !hidden.isEmpty {
+                Section {
+                    ForEach(hidden) { channel in
+                        HStack {
+                            Text(channel.numberAndName)
+                            Spacer()
+                            Button("Unhide") { store.unhide(channel.id) }
+                        }
+                    }
+                } header: {
+                    Text("Hidden Channels")
+                } footer: {
+                    Button("Unhide All") { store.unhideAll() }
+                        .padding(.top, 8)
+                }
+            }
+
             if let error = store.channelsError {
                 Section("Problems") {
                     Text(error).font(.caption).foregroundStyle(.secondary)

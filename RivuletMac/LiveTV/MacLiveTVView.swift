@@ -22,6 +22,7 @@ struct MacLiveTVView: View {
     @Environment(MacMultiview.self) private var multiview
     private let store = LiveTVDataStore.shared
     @AppStorage("macChannelFilter") private var filterRaw = "all"
+    @AppStorage("macChannelSort") private var sortRaw = "provider"
     @State private var query = ""
     @State private var groups: [String] = []
     @AppStorage("macLiveTVLayout") private var layoutRaw = MacLiveTVLayout.channels.rawValue
@@ -172,6 +173,12 @@ struct MacLiveTVView: View {
             }
         }
         ToolbarItem {
+            Picker("Sort", selection: $sortRaw) {
+                Text("Channel Number").tag("provider")
+                Text("Name").tag("name")
+            }
+        }
+        ToolbarItem {
             Picker("Show", selection: $filterRaw) {
                 Text("Favourites").tag("favorites")
                 Text("Recently Watched").tag("recent")
@@ -193,19 +200,24 @@ struct MacLiveTVView: View {
         }
     }
 
-    /// The channels the current filter lists, in guide order.
+    /// The channels the current filter lists, less the hidden ones, in the chosen order.
     private var lineup: [UnifiedChannel] {
+        let listed: [UnifiedChannel]
         switch filter {
         case .favorites:
-            return store.favorites(in: store.channels)
+            listed = store.favorites(in: store.channels)
         case .recent:
             let byId = Dictionary(store.channels.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            return store.recentChannelIds.compactMap { byId[$0] }
+            listed = store.recentChannelIds.compactMap { byId[$0] }
         case .all:
-            return store.channels
+            listed = store.channels
         case .group(let group):
-            return store.channels.filter { $0.groupTitle == group }
+            listed = store.channels.filter { $0.groupTitle == group }
         }
+        let visible = listed.filter { !store.isHidden($0) }
+        // Favourites and Recently Watched keep their own order.
+        guard sortRaw == "name", filter != .favorites, filter != .recent else { return visible }
+        return visible.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     private var emptyText: String {
@@ -280,6 +292,8 @@ private struct MacChannelList: View {
         Button(isFavorite ? "Remove from Favourites" : "Add to Favourites") {
             store.toggleFavorite(channel)
         }
+        Divider()
+        Button("Hide Channel") { store.hide(channel) }
     }
 }
 
