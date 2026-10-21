@@ -2,6 +2,8 @@
 // Copyright (C) 2025-2026 Bain Gurley
 
 @preconcurrency import AVFoundation
+import CoreAudioTypes
+@preconcurrency import CoreMedia
 import Foundation
 import Observation
 import os
@@ -28,6 +30,19 @@ final class MacRadioPlayback {
     /// What the station says is on, from its stream's metadata (ICY on
     /// Shoutcast and Icecast, ID3 in HLS). Nil when it sends none.
     private(set) var streamTitle: String?
+    /// The codec and bitrate the station plays at: the bitrate a Shoutcast or
+    /// Icecast server announces, else what the player reports, and the codec
+    /// from the decoded track. Nil until either is known.
+    var quality: RadioQuality? {
+        let track = trackQuality ?? RadioQuality()
+        let header = headerQuality ?? RadioQuality()
+        let combined = RadioQuality(codec: track.codec ?? header.codec,
+                                    kbps: header.kbps ?? track.kbps,
+                                    sampleRate: track.sampleRate ?? header.sampleRate)
+        return combined == RadioQuality() ? nil : combined
+    }
+    private var headerQuality: RadioQuality?
+    private var trackQuality: RadioQuality?
 
     @ObservationIgnored private let player = AVPlayer()
 
@@ -36,6 +51,7 @@ final class MacRadioPlayback {
     @ObservationIgnored private var statusTask: Task<Void, Never>?
     @ObservationIgnored private var itemTask: Task<Void, Never>?
     @ObservationIgnored private var metadataReader: RadioMetadataReader?
+    @ObservationIgnored private var qualityTask: Task<Void, Never>?
 
     init() {
         statusTask = Task { [weak self, player] in
@@ -61,6 +77,15 @@ final class MacRadioPlayback {
         item.add(reader.output)
         metadataReader = reader
         player.replaceCurrentItem(with: item)
+        headerQuality = nil
+        trackQuality = nil
+        qualityTask?.cancel()
+        qualityTask = Task { [weak self] in
+            let found = await RadioHeaderProbe.quality(of: newStation.streamURL)
+            guard let self, !Task.isCancelled, self.player.currentItem === item else { return }
+            self.headerQuality = found
+            self.rememberQuality()
+        }
         itemTask?.cancel()
         itemTask = Task { [weak self] in
             for await status in Self.changes(of: item, \.status) {
@@ -68,6 +93,7 @@ final class MacRadioPlayback {
                 // Domain and code only: an error's description can carry the URL.
                 let error = (item.error as NSError?).map { "\($0.domain) \($0.code)" } ?? "none"
                 radioLog.notice("Item \(name, privacy: .public), error: \(error, privacy: .public)")
+                if status == .readyToPlay { await self?.readTrackQuality(of: item) }
                 guard status == .failed else { continue }
                 self?.state = .failed("This station couldn't be played.")
                 return
@@ -92,10 +118,13 @@ final class MacRadioPlayback {
 
     func stop() {
         itemTask?.cancel()
+        qualityTask?.cancel()
         player.replaceCurrentItem(with: nil)
         metadataReader = nil
         station = nil
         streamTitle = nil
+        headerQuality = nil
+        trackQuality = nil
         state = .idle
     }
 
@@ -141,6 +170,10 @@ final class MacRadioPlayback {
         switch status {
         case .playing:
             state = .playing
+            // An HLS station has no tracks yet when it is first ready.
+            if trackQuality == nil, let item = player.currentItem {
+                Task { await readTrackQuality(of: item) }
+            }
         case .waitingToPlayAtSpecifiedRate:
             state = .loading
         case .paused:
@@ -148,6 +181,108 @@ final class MacRadioPlayback {
         @unknown default:
             break
         }
+    }
+
+    /// The codec and sample rate of the decoded sound, and the bitrate the
+    /// track or HLS variant reports.
+    private func readTrackQuality(of item: AVPlayerItem) async {
+        var found = RadioQuality()
+        for track in item.tracks {
+            guard let assetTrack = track.assetTrack,
+                  let format = try? await assetTrack.load(.formatDescriptions).first,
+                  let basic = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee else { continue }
+            found.codec = Self.codecName(basic.mFormatID)
+            found.sampleRate = basic.mSampleRate > 0 ? basic.mSampleRate : nil
+            if let rate = try? await assetTrack.load(.estimatedDataRate), rate > 0 {
+                found.kbps = Int((rate / 1000).rounded())
+            }
+            break
+        }
+        if found.kbps == nil, let bitrate = item.accessLog()?.events.last?.indicatedBitrate, bitrate > 0 {
+            found.kbps = Int((bitrate / 1000).rounded())
+        }
+        guard player.currentItem === item, found != RadioQuality() else { return }
+        trackQuality = found
+        rememberQuality()
+    }
+
+    /// Saved by station, so the lists can show it before the station plays again.
+    private func rememberQuality() {
+        guard let station, let summary = quality?.summary else { return }
+        RadioStore.shared.setQuality(summary, of: station.streamURL)
+    }
+
+    private static func codecName(_ format: AudioFormatID) -> String? {
+        switch format {
+        case kAudioFormatMPEGLayer3: "MP3"
+        case kAudioFormatMPEGLayer2: "MP2"
+        case kAudioFormatMPEG4AAC: "AAC"
+        case kAudioFormatMPEG4AAC_HE, kAudioFormatMPEG4AAC_HE_V2: "HE-AAC"
+        case kAudioFormatOpus: "Opus"
+        case kAudioFormatFLAC: "FLAC"
+        case kAudioFormatAppleLossless: "ALAC"
+        case kAudioFormatAC3: "AC-3"
+        case kAudioFormatEnhancedAC3: "E-AC-3"
+        case kAudioFormatLinearPCM: "PCM"
+        default: nil
+        }
+    }
+}
+
+/// How a station sounds: codec, bitrate and sample rate, each when known.
+nonisolated struct RadioQuality: Equatable, Sendable {
+    var codec: String?
+    var kbps: Int?
+    var sampleRate: Double?
+
+    /// "AAC · 128 kbps". Nil when neither is known.
+    var summary: String? {
+        let parts = [codec, kbps.map { "\($0) kbps" }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "44.1 kHz", for the bar's tooltip.
+    var sampleRateText: String? {
+        sampleRate.map { ($0 / 1000).formatted(.number.precision(.fractionLength(0...1))) + " kHz" }
+    }
+}
+
+/// What a Shoutcast or Icecast server announces in its response headers:
+/// `icy-br` or `ice-audio-info` for the bitrate and sample rate, the content
+/// type for the codec. Only the headers are read; the request is cancelled
+/// before the sound arrives. Nil when the server announces nothing.
+nonisolated enum RadioHeaderProbe {
+    @concurrent
+    static func quality(of url: URL) async -> RadioQuality? {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        guard let result = try? await URLSession.shared.bytes(for: request) else { return nil }
+        result.0.task.cancel()
+        guard let http = result.1 as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
+
+        var info: [String: String] = [:]
+        for pair in (http.value(forHTTPHeaderField: "ice-audio-info") ?? "").split(separator: ";") {
+            let parts = pair.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count == 2 else { continue }
+            let key = parts[0].lowercased()
+            info[key.hasPrefix("ice-") ? String(key.dropFirst(4)) : key] = parts[1]
+        }
+        // "128" or "128, 128": the first number.
+        let bitrate = (http.value(forHTTPHeaderField: "icy-br") ?? info["bitrate"])?
+            .split(separator: ",").first.flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+
+        var found = RadioQuality()
+        found.kbps = bitrate.flatMap { $0 > 0 ? $0 : nil }
+        found.sampleRate = info["samplerate"].flatMap(Double.init)
+        switch http.mimeType?.lowercased() {
+        case "audio/mpeg", "audio/mp3": found.codec = "MP3"
+        case "audio/aac", "audio/aacp", "audio/x-aac": found.codec = "AAC"
+        case "audio/flac": found.codec = "FLAC"
+        case "audio/ogg", "application/ogg": found.codec = "Ogg"
+        case "audio/opus": found.codec = "Opus"
+        default: break
+        }
+        return found == RadioQuality() ? nil : found
     }
 }
 
