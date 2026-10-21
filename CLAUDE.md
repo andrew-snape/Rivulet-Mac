@@ -97,6 +97,10 @@ from the app, the app injects it at launch, before touching the stores:
   demux. A Plex `/livetv/sessions/` grant loads with `forceEngineDemux`, since
   AVPlayer cannot decode broadcast mp2 or teletext. `MacLivePlayback` waits
   250 ms before tuning, so arrowing through the list tunes only where it stops.
+- **The window's search field** searches Plex everywhere but Live TV and
+  Radio, where it filters that page: channels by name, number and anything in
+  the guide from now on; stations by name and group. Radio shows the song a
+  station sends (ICY StreamTitle, or ID3 in HLS) in its bar and Now Playing.
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
 - **One stream at a time**, Multiview aside: starting a Plex title stops Live TV

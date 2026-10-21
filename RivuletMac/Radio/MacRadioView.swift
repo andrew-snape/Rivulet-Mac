@@ -7,6 +7,8 @@ import SwiftUI
 /// Internet radio: one list of stations per saved playlist. Picking a station
 /// plays it, and it keeps playing when another page opens.
 struct MacRadioView: View {
+    /// The window's search field, which filters the stations by name.
+    let query: String
     @Environment(MacRadioPlayback.self) private var radio
     @Environment(MacLivePlayback.self) private var live
     @Environment(MacMultiview.self) private var multiview
@@ -31,6 +33,11 @@ struct MacRadioView: View {
                         playlistSection(playlist)
                     }
                 }
+                .overlay {
+                    if !trimmedQuery.isEmpty, noMatches {
+                        ContentUnavailableView.search(text: trimmedQuery)
+                    }
+                }
             }
         }
         .macScreen()
@@ -53,10 +60,34 @@ struct MacRadioView: View {
         }
     }
 
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
+
+    private func matches(_ stations: [M3UParser.ParsedChannel]?) -> [M3UParser.ParsedChannel]? {
+        let text = trimmedQuery
+        guard !text.isEmpty, let stations else { return stations }
+        return stations.filter {
+            $0.name.localizedCaseInsensitiveContains(text)
+                || $0.groupTitle?.localizedCaseInsensitiveContains(text) == true
+        }
+    }
+
+    private var noMatches: Bool {
+        store.playlists.allSatisfy { matches(store.stations[$0.id])?.isEmpty ?? true }
+    }
+
+    @ViewBuilder
     private func playlistSection(_ playlist: RadioStore.Playlist) -> some View {
-        let stations = store.stations[playlist.id]
+        let stations = matches(store.stations[playlist.id])
         let failure = store.failures[playlist.id]
-        return Section {
+        // While searching, a playlist with no match steps out of the list.
+        if trimmedQuery.isEmpty || stations?.isEmpty == false {
+            playlistSection(playlist, stations: stations, failure: failure)
+        }
+    }
+
+    private func playlistSection(_ playlist: RadioStore.Playlist,
+                                 stations: [M3UParser.ParsedChannel]?, failure: String?) -> some View {
+        Section {
             if let stations {
                 ForEach(stations, id: \.streamURL) { station in
                     stationRow(station)
@@ -185,7 +216,7 @@ struct MacRadioBar: View {
         switch radio.state {
         case .idle: ""
         case .loading: "Connecting…"
-        case .playing: "Playing"
+        case .playing: radio.streamTitle ?? "Playing"
         case .paused: "Paused"
         case .failed(let message): message
         }

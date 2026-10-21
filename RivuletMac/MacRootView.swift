@@ -51,7 +51,7 @@ struct MacRootView: View {
                     }
                     // On the split view, so the field sits in the window toolbar for every page,
                     // not only inside the detail column's stack.
-                    .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
+                    .searchable(text: $searchQuery, placement: .toolbar, prompt: searchPrompt)
                     if radio.station != nil { MacRadioBar() } else { MacMusicBar() }
                 }
                 if music.isNowPlayingShown {
@@ -135,8 +135,13 @@ struct MacRootView: View {
                 music.stop()
             }
         }
+        // Live TV and Radio search their own lists; elsewhere the field searches Plex.
         .onChange(of: searchQuery) { _, query in
-            if !query.isEmpty, section != .search { section = .search }
+            if !query.isEmpty, !searchesOwnList(section), section != .search { section = .search }
+        }
+        // A filter typed on Live TV or Radio does not follow to another page.
+        .onChange(of: section) { old, new in
+            if searchesOwnList(old) || searchesOwnList(new) { searchQuery = "" }
         }
         // Content is withheld until a profile is entered: ask who is watching,
         // and nothing of the locked profile's keeps playing.
@@ -252,12 +257,24 @@ struct MacRootView: View {
 
     // MARK: - Detail
 
+    private func searchesOwnList(_ section: MacSection?) -> Bool {
+        section == .liveTV || section == .radio
+    }
+
+    private var searchPrompt: String {
+        switch section {
+        case .liveTV: "Channels and Programmes"
+        case .radio: "Stations"
+        default: "Movies, Shows and Episodes"
+        }
+    }
+
     @ViewBuilder
     private var detail: some View {
         if section == .liveTV {
-            MacLiveTVView(isFullScreen: isFullScreen)
+            MacLiveTVView(isFullScreen: isFullScreen, query: searchQuery)
         } else if section == .radio {
-            MacRadioView()
+            MacRadioView(query: searchQuery)
         } else {
             NavigationStack(path: $path) {
                 plexRoot
