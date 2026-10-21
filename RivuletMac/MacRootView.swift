@@ -42,11 +42,12 @@ struct MacRootView: View {
                 NavigationSplitView(columnVisibility: $columns) {
                     sidebar
                 } detail: {
-                    detail.safeAreaInset(edge: .bottom) { MacRadioBar() }
+                    detail
                 }
+                // One bar along the bottom: the station while one is loaded (music
+                // stays paused under it), else music.
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    // Music stays paused under a station; its bar would show a track that isn't playing.
-                    if radio.station == nil { MacMusicBar() }
+                    if radio.station != nil { MacRadioBar() } else { MacMusicBar() }
                 }
                 // On the split view, so the field sits in the window toolbar for every page,
                 // not only inside the detail column's stack.
