@@ -42,6 +42,9 @@ struct MacRootView: View {
             // Around the split view, not the detail stack: the split view hosts the
             // stack's pushed pages, which miss environment set inside its detail column.
             .macPlexActionHost(open: { path.append($0) })
+            // On the split view, so the field sits in the window toolbar for every page,
+            // not only inside the detail column's stack.
+            .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
             if let session = playback.session {
                 MacVODPlayerView(session: session, player: session.player, close: { playback.close() })
                     .transition(.opacity)
@@ -209,7 +212,6 @@ struct MacRootView: View {
                     .navigationDestination(for: MacPlexHubRoute.self) { MacPlexHubGridView(route: $0) }
             }
             .macScreen()
-            .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
         }
     }
 
