@@ -4,7 +4,7 @@
 
 # Rivulet for Mac
 
-**Plex and Live TV on your Mac.**
+**Plex, music and Live TV on your Mac.**
 
 ![macOS 27+](https://img.shields.io/badge/macOS-27+-000000?logo=apple)
 ![Apple silicon](https://img.shields.io/badge/Apple_silicon-only-000000?logo=apple)
@@ -12,9 +12,16 @@
 
 </div>
 
-A Mac port of [Rivulet](https://github.com/l984-451/Rivulet), the tvOS app by
-Bain Gurley. Same Plex and Live TV engine, rebuilt for the Mac with a sidebar,
-menus and keyboard shortcuts.
+## About
+
+Rivulet for Mac is a native media client for Plex and Live TV, built for Apple
+silicon Macs running macOS 27 or later. It brings together Plex video and music,
+Live TV from Plex or IPTV sources, and a Mac-native interface with a sidebar, menus,
+keyboard shortcuts, and full-screen playback.
+
+This app is a Mac port of [Rivulet](https://github.com/l984-451/Rivulet), the
+tvOS app by Bain Gurley. Plex features require access to a Plex account and
+server; IPTV sources can be configured separately.
 
 ## Features
 
@@ -22,6 +29,8 @@ menus and keyboard shortcuts.
   and TV libraries and search. Play with resume, progress sync, Skip Intro and
   Credits, Up Next, and Home or Away streaming quality. Info, Chapters and
   Details panes open above the player controls.
+- **Music**: browse Plex music libraries, play albums and artists, manage the
+  queue, and listen to radio.
 - **Live TV**: M3U playlists with XMLTV guides, Dispatcharr servers, and your
   Plex server's tuners. A guide with what's on now, favourites and recently
   watched. Pop the picture out into a floating window, or watch up to four
