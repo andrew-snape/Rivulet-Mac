@@ -375,7 +375,7 @@
 			repositoryURL = "https://github.com/superuser404notfound/AetherEngine";
 			requirement = {
 				kind = exactVersion;
-				version = 7.39.0;
+				version = 7.44.0;
 			};
 		};
 		B2000021AAAA000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
