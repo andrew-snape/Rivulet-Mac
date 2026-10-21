@@ -28,7 +28,7 @@ final class MacRadioPlayback {
 
     init() {
         statusTask = Task { [weak self, player] in
-            for await status in player.publisher(for: \.timeControlStatus).values {
+            for await status in Self.changes(of: player, \.timeControlStatus) {
                 self?.timeControlChanged(status)
             }
         }
@@ -43,7 +43,7 @@ final class MacRadioPlayback {
         player.replaceCurrentItem(with: item)
         itemTask?.cancel()
         itemTask = Task { [weak self] in
-            for await status in item.publisher(for: \.status).values where status == .failed {
+            for await status in Self.changes(of: item, \.status) where status == .failed {
                 self?.state = .failed("This station couldn't be played.")
                 return
             }
@@ -70,6 +70,18 @@ final class MacRadioPlayback {
         player.replaceCurrentItem(with: nil)
         station = nil
         state = .idle
+    }
+
+    /// A key-value-observed property as an async sequence, starting with its current value.
+    private nonisolated static func changes<Root: NSObject, Value: Sendable>(
+        of object: Root, _ keyPath: KeyPath<Root, Value>
+    ) -> AsyncStream<Value> {
+        AsyncStream { continuation in
+            let observation = object.observe(keyPath, options: [.initial, .new]) { _, change in
+                if let value = change.newValue { continuation.yield(value) }
+            }
+            continuation.onTermination = { _ in observation.invalidate() }
+        }
     }
 
     private func timeControlChanged(_ status: AVPlayer.TimeControlStatus) {
