@@ -169,6 +169,7 @@ private struct MacInfoPane: View {
                             }
                         }
                     }
+                    .personLinks(name: person.name)
                 }
             }
             .frame(width: 190, alignment: .leading)

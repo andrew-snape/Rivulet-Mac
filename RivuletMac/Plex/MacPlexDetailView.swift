@@ -417,6 +417,7 @@ private struct MacPlexCastRow: View {
                     }
                 }
                 .frame(width: width + 20)
+                .personLinks(name: person.name)
             }
         }
     }

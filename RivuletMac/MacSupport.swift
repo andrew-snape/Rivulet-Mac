@@ -205,3 +205,36 @@ extension NSWindow {
         setFrame(frame, display: true, animate: true)
     }
 }
+
+/// A cast or crew name opens its Wikipedia page; the context menu offers IMDb.
+/// Plex carries no outside ids for people, so both go through the sites' own search.
+private struct PersonLinks: ViewModifier {
+    let name: String
+
+    private func url(_ base: String, _ items: [URLQueryItem]) -> URL? {
+        var parts = URLComponents(string: base)
+        parts?.queryItems = items
+        return parts?.url
+    }
+
+    func body(content: Content) -> some View {
+        let wikipedia = url("https://en.wikipedia.org/wiki/Special:Search",
+                            [.init(name: "search", value: name), .init(name: "go", value: "Go")])
+        let imdb = url("https://www.imdb.com/find/",
+                       [.init(name: "q", value: name), .init(name: "s", value: "nm")])
+        content
+            .contentShape(Rectangle())
+            .onTapGesture { if let wikipedia { NSWorkspace.shared.open(wikipedia) } }
+            .contextMenu {
+                if let wikipedia { Link("Wikipedia", destination: wikipedia) }
+                if let imdb { Link("IMDb", destination: imdb) }
+            }
+            .help("Open \(name) on Wikipedia")
+    }
+}
+
+extension View {
+    func personLinks(name: String) -> some View {
+        modifier(PersonLinks(name: name))
+    }
+}
