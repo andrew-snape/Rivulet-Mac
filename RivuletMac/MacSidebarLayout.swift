@@ -24,20 +24,21 @@ enum MacSidebarLayout {
         stored.split(separator: ",").map(String.init)
     }
 
-    /// Home, Search and the movie and TV libraries (movies first), in the saved
-    /// order. Rows the saved order doesn't know yet follow in default order.
+    /// Home, Search and the movie, TV and music libraries (in that order), in
+    /// the saved order. Rows the saved order doesn't know yet follow in default order.
     static func plexItems(libraries: [PlexLibrary], order: String) -> [MacSidebarItem] {
-        let videoLibraries = libraries
-            .filter { $0.type == "movie" || $0.type == "show" }
+        let typeOrder = ["movie", "show", "artist"]
+        let shownLibraries = libraries
+            .filter { typeOrder.contains($0.type) }
             .sorted { lhs, rhs in
                 lhs.type != rhs.type
-                    ? lhs.type == "movie"
+                    ? (typeOrder.firstIndex(of: lhs.type) ?? 0) < (typeOrder.firstIndex(of: rhs.type) ?? 0)
                     : lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
             }
         let defaults = [
             MacSidebarItem(id: "home", title: "Home", icon: "house", section: .home),
             MacSidebarItem(id: "search", title: "Search", icon: "magnifyingglass", section: .search),
-        ] + videoLibraries.map {
+        ] + shownLibraries.map {
             MacSidebarItem(id: "library.\($0.key)", title: $0.title, icon: $0.icon, section: .library($0.key))
         }
         let position = Dictionary(ids(order).enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })

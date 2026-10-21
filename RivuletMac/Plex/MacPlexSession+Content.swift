@@ -19,15 +19,16 @@ extension MacPlexSession {
     /// cache-busted `/hubs/continueWatching` row first, then each library
     /// pinned to Home (`hidden == 0`) contributes its `promoted` hubs, in
     /// library order. The aggregate `/hubs` is wrong here: it merges movie
-    /// libraries into one row and carries playlists.
+    /// libraries into one row and carries playlists. Music libraries are
+    /// listed for the sidebar but add no Home rows.
     func fetchHome() async throws -> MacPlexHome {
         let (serverURL, token) = try configuration()
         let network = network
         let libraries = try await network.getLibraries(serverURL: serverURL, authToken: token)
-            .filter(\.isVideoLibrary)
+            .filter { $0.isVideoLibrary || $0.isMusicLibrary }
         async let continueWatching = network.getContinueWatching(serverURL: serverURL, authToken: token)
 
-        let pinned = libraries.filter(\.isPinnedToHome)
+        let pinned = libraries.filter { $0.isPinnedToHome && $0.isVideoLibrary }
         let hubsByLibrary = await withTaskGroup(of: (String, [PlexHub]?).self) { group in
             for library in pinned {
                 group.addTask {

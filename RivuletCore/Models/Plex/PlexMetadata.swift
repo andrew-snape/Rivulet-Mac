@@ -374,6 +374,15 @@ nonisolated struct PlexMetadata: Codable, Identifiable, Hashable, Sendable {
     var hasPremiumPrimaryExtra: String?
     var primaryExtraKey: String?
 
+    // MARK: - Music
+    // Defaulted so the custom initializer below need not set them.
+    /// A track's album year.
+    var parentYear: Int? = nil
+    /// "audio" or "video" on a playlist.
+    var playlistType: String? = nil
+    /// A playlist's tiled artwork.
+    var composite: String? = nil
+
     // MARK: - Hashable
     func hash(into hasher: inout Hasher) {
         hasher.combine(ratingKey)

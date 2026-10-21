@@ -35,6 +35,8 @@ final class MacRadioPlayback {
     }
 
     func play(_ newStation: M3UParser.ParsedChannel) {
+        // One stream at a time: a station pauses music.
+        MacAppDelegate.music?.pause()
         station = newStation
         state = .loading
         let item = AVPlayerItem(url: newStation.streamURL)

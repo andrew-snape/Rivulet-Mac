@@ -161,7 +161,7 @@ final class MacPlexSession {
             }
             libraries = home.libraries
             if let cw = home.continueWatching { continueWatching = cw }
-            let pinned = home.libraries.filter(\.isPinnedToHome)
+            let pinned = home.libraries.filter { $0.isPinnedToHome && $0.isVideoLibrary }
             libraryHubs = Dictionary(uniqueKeysWithValues: pinned.compactMap { library in
                 (home.hubsByLibrary[library.key] ?? libraryHubs[library.key]).map { (library.key, $0) }
             })
@@ -511,7 +511,7 @@ final class MacPlexSession {
         )
     }
 
-    private static func directPlayURL(serverURL: String, token: String, partKey: String) -> URL? {
+    static func directPlayURL(serverURL: String, token: String, partKey: String) -> URL? {
         guard let base = URL(string: serverURL),
               var components = URLComponents(url: base.appending(path: partKey), resolvingAgainstBaseURL: false) else {
             return nil
