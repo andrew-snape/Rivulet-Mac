@@ -189,6 +189,6 @@ private final class RadioMetadataReader: NSObject, AVPlayerItemMetadataOutputPus
         }
         let joined = title.map { title in artist.map { "\($0) - \(title)" } ?? title }
         guard let text = streamTitle ?? joined else { return }
-        onTitle(text)
+        await onTitle(text)
     }
 }
