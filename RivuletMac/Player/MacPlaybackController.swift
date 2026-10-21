@@ -27,6 +27,7 @@ final class MacPlaybackController {
     @ObservationIgnored private let sleepGuard = MacSleepGuard()
     @ObservationIgnored private var nowPlayingArtwork: MPMediaItemArtwork?
     @ObservationIgnored private var liveObservation: Task<Void, Never>?
+    @ObservationIgnored private var videoShapeObservation: Task<Void, Never>?
     @ObservationIgnored private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
     @ObservationIgnored private var volume: Float = 1
@@ -48,9 +49,29 @@ final class MacPlaybackController {
                 self?.sleepGuard.setAwake(playing)
             }
         }
+        videoShapeObservation = Task { [weak self] in
+            for await size in Observations({ player.videoSize }) {
+                self?.fitWindow(toVideo: size)
+            }
+        }
         observeNowPlaying(for: newSession)
         updateRemoteCommandAvailability(for: newSession)
         Task { await newSession.begin() }
+    }
+
+    /// Once the picture's shape is known the window takes it, so a scope film
+    /// has no black bars to shrink past. Width stays; the height follows.
+    private func fitWindow(toVideo size: CGSize) {
+        guard size.width > 0, size.height > 0,
+              let window = MacAppDelegate.mainWindow,
+              !window.styleMask.contains(.fullScreen) else { return }
+        window.contentAspectRatio = size
+        var frame = window.frame
+        let content = window.contentRect(forFrameRect: frame)
+        let height = (content.width * size.height / size.width).rounded()
+        frame.origin.y += content.height - height
+        frame.size.height += height - content.height
+        window.setFrame(frame, display: true, animate: true)
     }
 
     /// Ends playback and leaves the player. The task ends once Plex has the final report.
@@ -94,6 +115,8 @@ final class MacPlaybackController {
         if locked {
             window.contentAspectRatio = NSSize(width: 16, height: 9)
         } else {
+            videoShapeObservation?.cancel()
+            videoShapeObservation = nil
             window.contentResizeIncrements = NSSize(width: 1, height: 1)
         }
     }
