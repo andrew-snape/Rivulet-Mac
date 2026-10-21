@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
+import AppKit
 import SwiftUI
 
 // MARK: - Bar
@@ -39,13 +40,16 @@ struct MacMusicBar: View {
 
                 HStack(spacing: 12) {
                     MacMusicVolume().frame(width: 110)
+                    MacAirPlayButton(player: music.player.routingPlayer, tint: .secondaryLabelColor)
+                        .frame(width: 22, height: 22)
+                        .help("AirPlay")
                     Button { music.isNowPlayingShown = true } label: {
                         Image(systemName: "list.bullet")
                     }
                     .buttonStyle(.borderless)
                     .help("Queue")
                 }
-                .frame(width: 160, alignment: .trailing)
+                .frame(width: 196, alignment: .trailing)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

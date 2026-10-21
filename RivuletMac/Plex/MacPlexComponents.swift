@@ -382,6 +382,8 @@ struct MacPlexPosterGrid: View {
                     }
             }
         }
+        // Lets a scroll view report and set its top tile (the library's letter bar).
+        .scrollTargetLayout()
         .padding(.horizontal, MacTile.margin)
         .padding(.vertical, 16)
     }

@@ -9,6 +9,9 @@ import SwiftUI
 @MainActor
 @Observable
 final class MacPlexPlayback {
+    /// Off: Up Next waits at the end of an episode instead of counting down.
+    static let autoPlayNextKey = "autoPlayNextEpisode"
+
     let player = AetherPlayer()
     private(set) var request: MacPlexPlaybackRequest
     private(set) var nextEpisode: PlexMetadata?
@@ -424,7 +427,8 @@ final class MacPlexPlayback {
     }
 
     private func startUpNextCountdown() {
-        guard nextEpisode != nil, !upNextDismissed else { return }
+        guard nextEpisode != nil, !upNextDismissed,
+              UserDefaults.standard.object(forKey: Self.autoPlayNextKey) as? Bool ?? true else { return }
         countdownTask?.cancel()
         upNextCountdown = 5
         countdownTask = Task { [weak self] in

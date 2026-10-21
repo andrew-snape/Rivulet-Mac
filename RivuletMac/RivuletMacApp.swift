@@ -73,7 +73,7 @@ struct RivuletMacApp: App {
         .defaultSize(width: 1360, height: 820)
         .commands {
             MacUpdateCommands(updater: updater.updater)
-            MacPlaybackCommands(playback: playback, player: playback.player, vod: vod, music: music)
+            MacPlaybackCommands(playback: playback, player: playback.player, vod: vod, music: music, radio: radio)
         }
 
         // Live TV's picture on its own, floating above other windows. Opened from
@@ -88,7 +88,7 @@ struct RivuletMacApp: App {
         .restorationBehavior(.disabled)
 
         Settings {
-            MacSettingsView()
+            MacSettingsView(updater: updater.updater)
                 .environment(plex)
                 .preferredColorScheme(.dark)
         }
@@ -103,7 +103,11 @@ private struct MacPlaybackCommands: Commands {
     var player: AetherPlayer
     var vod: MacPlaybackController
     var music: MacMusicPlayback
+    var radio: MacRadioPlayback
     private let store = LiveTVDataStore.shared
+
+    /// A station loaded with no Plex title up; it answers Play/Pause and Stop.
+    private var radioInFront: Bool { vod.session == nil && radio.station != nil }
 
     /// The video player in front: the Plex title, else the channel, unless music is in front.
     private var active: AetherPlayer? {
@@ -115,16 +119,22 @@ private struct MacPlaybackCommands: Commands {
     var body: some Commands {
         CommandMenu("Playback") {
             Button("Play/Pause") {
-                if musicInFront { music.togglePlayPause() } else { active?.togglePlayPause() }
+                if radioInFront {
+                    radio.togglePlayPause()
+                } else if musicInFront {
+                    music.togglePlayPause()
+                } else {
+                    active?.togglePlayPause()
+                }
             }
-                .disabled(active == nil && !musicInFront)
+                .disabled(active == nil && !musicInFront && !radioInFront)
 
             Divider()
 
-            Button("Back 10 Seconds") { Task { await active?.skip(by: -10) } }
+            Button("Skip Back") { Task { await active?.skip(by: vod.session == nil ? -10 : -MacSkipInterval.back) } }
                 .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
                 .disabled(active == nil)
-            Button("Forward") { Task { await active?.skip(by: vod.session == nil ? 10 : 30) } }
+            Button("Skip Forward") { Task { await active?.skip(by: vod.session == nil ? 10 : MacSkipInterval.forward) } }
                 .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
                 .disabled(active == nil)
             Button("Mute/Unmute") {
@@ -187,6 +197,8 @@ private struct MacPlaybackCommands: Commands {
             Button("Stop") {
                 if vod.session != nil {
                     vod.close()
+                } else if radioInFront {
+                    radio.stop()
                 } else if musicInFront {
                     music.stop()
                 } else {
@@ -194,7 +206,7 @@ private struct MacPlaybackCommands: Commands {
                 }
             }
             .keyboardShortcut(".", modifiers: .command)
-            .disabled(active == nil && !musicInFront)
+            .disabled(active == nil && !musicInFront && !radioInFront)
         }
 
         CommandGroup(after: .sidebar) {
@@ -245,8 +257,8 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
                     let player = session.player
                     switch keyCode {
                     case 49: player.togglePlayPause()
-                    case 123: Task { await player.skip(by: -10) }
-                    case 124: Task { await player.skip(by: 30) }
+                    case 123: Task { await player.skip(by: -MacSkipInterval.back) }
+                    case 124: Task { await player.skip(by: MacSkipInterval.forward) }
                     case 53: if session.pane != nil { session.pane = nil } else { Self.vod?.close() }
                     default: return false
                     }

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
+import Sparkle
 import SwiftUI
 
 /// Settings (⌘,). Live TV sources are added through the shared
 /// verify-then-add connector.
 struct MacSettingsView: View {
+    let updater: SPUUpdater
+
     var body: some View {
         TabView {
             MacPlexSettings()
@@ -16,6 +19,8 @@ struct MacSettingsView: View {
                 .tabItem { Label("Sidebar", systemImage: "sidebar.left") }
             MacPlaybackSettings()
                 .tabItem { Label("Playback", systemImage: "play.rectangle") }
+            MacUpdateSettings(updater: updater)
+                .tabItem { Label("Updates", systemImage: "arrow.down.circle") }
         }
         .frame(width: 560)
     }
@@ -384,9 +389,23 @@ private struct MacPlaybackSettings: View {
     /// Same key and meaning as tvOS and iOS: 0 lets the engine find the page.
     @AppStorage("liveTeletextPage") private var teletextPage = Locale.current.region?.identifier == "AU" ? 801 : 0
     @AppStorage(MacMusicPlayback.loudnessKey) private var loudnessLevelling = true
+    @AppStorage(MacPlexPlayback.autoPlayNextKey) private var autoPlayNext = true
+    @AppStorage(MacSkipInterval.backKey) private var skipBack = MacSkipInterval.backDefault
+    @AppStorage(MacSkipInterval.forwardKey) private var skipForward = MacSkipInterval.forwardDefault
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Play Next Episode Automatically", isOn: $autoPlayNext)
+                Picker("Skip Back", selection: $skipBack) { skipChoices }
+                Picker("Skip Forward", selection: $skipForward) { skipChoices }
+            } header: {
+                Text("Plex Video")
+            } footer: {
+                Text("With Play Next off, Up Next waits for you at the end of an episode. The skip lengths apply to the player's buttons, the arrow keys and your keyboard's media keys.")
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Toggle("Loudness Levelling", isOn: $loudnessLevelling)
             } header: {
@@ -406,5 +425,75 @@ private struct MacPlaybackSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var skipChoices: some View {
+        ForEach(MacSkipInterval.choices, id: \.self) { Text("\($0) Seconds").tag($0) }
+    }
+}
+
+/// Skip lengths for a Plex title: the player's buttons, the arrow keys, the
+/// Playback menu and the media keys. Live TV keeps 10 seconds each way.
+enum MacSkipInterval {
+    static let backKey = "skipBackSeconds"
+    static let forwardKey = "skipForwardSeconds"
+    static let backDefault = 10
+    static let forwardDefault = 30
+    /// Lengths SF Symbols draws as gobackward.N and goforward.N.
+    static let choices = [5, 10, 15, 30, 45, 60]
+
+    static var back: Double { Double(stored(backKey, fallback: backDefault)) }
+    static var forward: Double { Double(stored(forwardKey, fallback: forwardDefault)) }
+
+    /// `value` if it is one of the choices, else `fallback`.
+    static func checked(_ value: Int, fallback: Int) -> Int {
+        choices.contains(value) ? value : fallback
+    }
+
+    private static func stored(_ key: String, fallback: Int) -> Int {
+        checked(UserDefaults.standard.object(forKey: key) as? Int ?? fallback, fallback: fallback)
+    }
+}
+
+// MARK: - Updates
+
+/// Sparkle's own preferences, so they can be changed without waiting for its prompt.
+private struct MacUpdateSettings: View {
+    let updater: SPUUpdater
+    @State private var checksAutomatically = true
+    @State private var installsAutomatically = true
+
+    private var version: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(short) (\(build))"
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Check for Updates Automatically", isOn: $checksAutomatically)
+                Toggle("Install Updates When Rivulet Quits", isOn: $installsAutomatically)
+                    .disabled(!checksAutomatically)
+            } header: {
+                Text("Updates")
+            } footer: {
+                HStack {
+                    Text("Rivulet \(version)").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Check Now") { updater.checkForUpdates() }
+                }
+                .padding(.top, 8)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            checksAutomatically = updater.automaticallyChecksForUpdates
+            installsAutomatically = updater.automaticallyDownloadsUpdates
+        }
+        .onChange(of: checksAutomatically) { _, on in updater.automaticallyChecksForUpdates = on }
+        .onChange(of: installsAutomatically) { _, on in updater.automaticallyDownloadsUpdates = on }
     }
 }

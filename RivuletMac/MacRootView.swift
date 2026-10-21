@@ -149,14 +149,17 @@ struct MacRootView: View {
             if phase == .active { Task { await plex.refreshIfStale() } }
         }
         // Full screen is for watching: the sidebar steps aside, and comes back on exit.
+        // This window only: the popped-out Live TV window goes full screen on its own.
         .task {
-            for await _ in NotificationCenter.default.notifications(named: NSWindow.didEnterFullScreenNotification) {
+            for await note in NotificationCenter.default.notifications(named: NSWindow.didEnterFullScreenNotification) {
+                guard (note.object as? NSWindow) === MacAppDelegate.mainWindow else { continue }
                 isFullScreen = true
                 withAnimation { columns = .detailOnly }
             }
         }
         .task {
-            for await _ in NotificationCenter.default.notifications(named: NSWindow.didExitFullScreenNotification) {
+            for await note in NotificationCenter.default.notifications(named: NSWindow.didExitFullScreenNotification) {
+                guard (note.object as? NSWindow) === MacAppDelegate.mainWindow else { continue }
                 isFullScreen = false
                 withAnimation { columns = .all }
             }

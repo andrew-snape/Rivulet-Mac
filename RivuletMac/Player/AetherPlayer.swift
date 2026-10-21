@@ -145,6 +145,16 @@ final class AetherPlayer {
     }
 
     private(set) var isLive = false
+    /// The AVPlayer an AirPlay button may hand to a receiver, picture and all.
+    /// Only a stream AVPlayer reads straight from its server: the engine moves
+    /// its own local relay onto the network for a receiver on iOS only, so on
+    /// the Mac an Apple TV handed that relay's address has nothing to play.
+    /// Nil otherwise, and the button then moves the sound alone.
+    private(set) var airPlayPlayer: AVPlayer?
+    @ObservationIgnored private weak var hostPlayer: AVPlayer?
+    @ObservationIgnored private var sourceReachesReceiver = false {
+        didSet { updateAirPlayPlayer() }
+    }
     /// Whether the viewer wants playback running, so a reload keeps a pause.
     @ObservationIgnored private var userIntendsToPlay = false
     @ObservationIgnored private var lastLoad: LoadRequest?
@@ -326,6 +336,8 @@ final class AetherPlayer {
             .sink { [weak self] avPlayer in
                 guard let self else { return }
                 self.nativeItemObservation = nil
+                self.hostPlayer = avPlayer
+                self.updateAirPlayPlayer()
                 self.observeTimeControlStatus(of: avPlayer)
                 guard let avPlayer else {
                     self.observeVideoSize(of: nil)
@@ -349,6 +361,11 @@ final class AetherPlayer {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.videoSize = $0 }
             .store(in: &cancellables)
+    }
+
+    private func updateAirPlayPlayer() {
+        let player = sourceReachesReceiver ? hostPlayer : nil
+        if airPlayPlayer !== player { airPlayPlayer = player }
     }
 
     private func clockTicked(_ time: Double) {
@@ -383,6 +400,7 @@ final class AetherPlayer {
         let isNativeHLS = Self.isHLSURL(url) && !forceEngineDemux
         // Forced onto the engine demuxer AND a playlist: the Plex direct-play grant.
         let usesHLSIngest = !isNativeHLS && Self.isHLSURL(url)
+        sourceReachesReceiver = isNativeHLS
 
         func makeOptions(nativeRemoteHLS: Bool) -> LoadOptions {
             LoadOptions(
@@ -416,6 +434,7 @@ final class AetherPlayer {
                 } catch {
                     // Encrypted or fMP4 playlist: retry natively on the same grant.
                     guard reader.terminalError != nil, !Self.isCancellation(error) else { throw error }
+                    sourceReachesReceiver = true
                     try await engine.load(url: url, startPosition: nil, options: makeOptions(nativeRemoteHLS: true))
                 }
             } else {
@@ -457,6 +476,8 @@ final class AetherPlayer {
         beginLoad(keepingTransport: keepingTransport)
         pendingSeekTarget = startTime
         isStarting = true
+        // A Plex transcode is HLS from the server; a direct-play file goes through the relay.
+        sourceReachesReceiver = Self.isHLSURL(url)
         var options = LoadOptions(
             suppressDisplayCriteria: false,
             httpHeaders: headers,

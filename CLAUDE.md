@@ -142,7 +142,17 @@ grep its key: a single hit means it is dead. Keys read today:
 `homeStreamingQuality`, `awayStreamingQuality`, `autoSkipIntro`,
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
 `liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
-`musicLoudnessLevelling`.
+`musicLoudnessLevelling`, `autoPlayNextEpisode`, `skipBackSeconds`,
+`skipForwardSeconds`. Sparkle keeps its own (the Updates tab).
+
+### AirPlay
+
+`MacAirPlayButton` wraps `AVRoutePickerView`. Video hands it
+`AetherPlayer.airPlayPlayer`, which is set only while AVPlayer reads the
+stream straight from its server (a Plex transcode, a native HLS channel): the
+engine puts its local relay on the LAN for a receiver on iOS only, so on the
+Mac a direct-play file or an engine-demuxed channel would hand an Apple TV a
+127.0.0.1 address. With no player the button picks the Mac's sound output.
 
 ## Plex Metadata Hierarchy
 

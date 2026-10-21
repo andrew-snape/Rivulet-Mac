@@ -51,6 +51,9 @@ final class MacMusicPlayer {
     }
 
     @ObservationIgnored private let player = AVQueuePlayer()
+
+    /// For the AirPlay button, which sends this player to a speaker or Apple TV.
+    var routingPlayer: AVPlayer { player }
     @ObservationIgnored private var loaded: [ObjectIdentifier: Loaded] = [:]
     @ObservationIgnored private var currentItem: ObjectIdentifier?
     @ObservationIgnored private var playerObservations: [AnyCancellable] = []

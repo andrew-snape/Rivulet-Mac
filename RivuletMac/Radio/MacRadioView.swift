@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
+import AppKit
 import SwiftUI
 
 /// Internet radio: one list of stations per saved playlist. Picking a station
@@ -154,12 +155,17 @@ struct MacRadioBar: View {
                 .help(isPlaying ? "Pause" : "Play")
                 .frame(maxWidth: .infinity)
 
-                Button { radio.stop() } label: {
-                    Image(systemName: "stop.fill")
+                HStack(spacing: 12) {
+                    MacAirPlayButton(player: radio.routingPlayer, tint: .secondaryLabelColor)
+                        .frame(width: 22, height: 22)
+                        .help("AirPlay")
+                    Button { radio.stop() } label: {
+                        Image(systemName: "stop.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Stop")
                 }
-                .buttonStyle(.borderless)
-                .help("Stop")
-                .frame(width: 160, alignment: .trailing)
+                .frame(width: 196, alignment: .trailing)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

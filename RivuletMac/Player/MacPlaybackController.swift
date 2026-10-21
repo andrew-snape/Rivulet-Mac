@@ -13,8 +13,6 @@ import SwiftUI
 @Observable
 final class MacPlaybackController {
     private static let nowPlayingUpdateInterval: TimeInterval = 5
-    private static let remoteSkipBackwardInterval: TimeInterval = 10
-    private static let remoteSkipForwardInterval: TimeInterval = 30
 
     private(set) var session: MacPlexPlayback?
     private(set) var isAlwaysOnTop = false
@@ -142,7 +140,6 @@ final class MacPlaybackController {
             Self.dispatchRemoteCommand { self?.remoteStop() ?? .commandFailed }
         }
 
-        commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipBackwardInterval)]
         commands.skipBackwardCommand.addTarget { [weak self] event in
             guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
                 return .commandFailed
@@ -152,7 +149,6 @@ final class MacPlaybackController {
                 self?.remoteSkip(by: -interval) ?? .commandFailed
             }
         }
-        commands.skipForwardCommand.preferredIntervals = [NSNumber(value: Self.remoteSkipForwardInterval)]
         commands.skipForwardCommand.addTarget { [weak self] event in
             guard let event = event as? MPSkipIntervalCommandEvent, event.interval.isFinite else {
                 return .commandFailed
@@ -190,6 +186,7 @@ final class MacPlaybackController {
         updateRemoteCommandAvailability(for: nil)
         observeLive()
         observeMusic()
+        observeRadio()
     }
 
     /// Music, when it is in front of any channel and no Plex title is up.
@@ -200,6 +197,13 @@ final class MacPlaybackController {
     /// The channel on screen: Now Playing and the media keys follow it while no Plex title is up.
     private var live: MacLivePlayback? {
         MacAppDelegate.playback.flatMap { $0.channel == nil ? nil : $0 }
+    }
+
+    /// The station loaded, with no Plex title up. Radio stops a channel and
+    /// pauses music as it starts, so nothing else is in front of it.
+    private var radio: MacRadioPlayback? {
+        guard session == nil, let radio = MacAppDelegate.radio, radio.station != nil else { return nil }
+        return radio
     }
 
     /// The player in front: the Plex title, else the channel.
@@ -246,12 +250,40 @@ final class MacPlaybackController {
         })
     }
 
-    /// Now Playing with no Plex title up: music in front, else the channel.
+    private func observeRadio() {
+        guard let radio = MacAppDelegate.radio else { return }
+        musicObservations.append(Task { [weak self] in
+            for await _ in Observations({ _ = (radio.station?.name, radio.state) }) {
+                guard let self, self.session == nil else { continue }
+                self.updateBackgroundNowPlaying()
+                self.updateRemoteCommandAvailability(for: nil)
+            }
+        })
+    }
+
+    /// Now Playing with no Plex title up: a station, else music in front, else the channel.
     private func updateBackgroundNowPlaying() {
-        if let music {
+        if let radio {
+            updateRadioNowPlaying(radio)
+        } else if let music {
             updateMusicNowPlaying(music)
         } else {
             updateLiveNowPlaying()
+        }
+    }
+
+    private func updateRadioNowPlaying(_ radio: MacRadioPlayback) {
+        let nowPlaying = MPNowPlayingInfoCenter.default()
+        nowPlaying.nowPlayingInfo = [
+            MPMediaItemPropertyTitle: radio.station?.name ?? "",
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
+            MPNowPlayingInfoPropertyPlaybackRate: radio.state == .playing ? 1.0 : 0.0
+        ]
+        switch radio.state {
+        case .playing: nowPlaying.playbackState = .playing
+        case .loading, .paused: nowPlaying.playbackState = .paused
+        case .idle, .failed: nowPlaying.playbackState = .stopped
         }
     }
 
@@ -413,19 +445,26 @@ final class MacPlaybackController {
         // Music seeks and changes track, but skips by track rather than by seconds.
         let available = session != nil
         let musicUp = session == nil ? music : nil
-        let playing = available || musicUp != nil || live != nil
+        let playing = available || musicUp != nil || live != nil || radio != nil
         commands.playCommand.isEnabled = playing
         commands.pauseCommand.isEnabled = playing
         commands.togglePlayPauseCommand.isEnabled = playing
         commands.stopCommand.isEnabled = playing
         commands.skipBackwardCommand.isEnabled = available
         commands.skipForwardCommand.isEnabled = available
+        // Read again each time, so a change in Settings reaches the next title.
+        commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: MacSkipInterval.back)]
+        commands.skipForwardCommand.preferredIntervals = [NSNumber(value: MacSkipInterval.forward)]
         commands.changePlaybackPositionCommand.isEnabled = available || musicUp != nil
         commands.nextTrackCommand.isEnabled = session?.nextEpisode != nil || musicUp?.queue.hasNext == true
         commands.previousTrackCommand.isEnabled = musicUp != nil
     }
 
     private func remotePlay() -> MPRemoteCommandHandlerStatus {
+        if let radio {
+            if radio.state != .playing, radio.state != .loading { radio.togglePlayPause() }
+            return .success
+        }
         if session == nil, let music {
             music.resume()
             return .success
@@ -443,6 +482,10 @@ final class MacPlaybackController {
     }
 
     private func remotePause() -> MPRemoteCommandHandlerStatus {
+        if let radio {
+            if radio.state == .playing || radio.state == .loading { radio.togglePlayPause() }
+            return .success
+        }
         if session == nil, let music {
             music.pause()
             return .success
@@ -453,6 +496,10 @@ final class MacPlaybackController {
     }
 
     private func remoteToggle() -> MPRemoteCommandHandlerStatus {
+        if let radio {
+            radio.togglePlayPause()
+            return .success
+        }
         if session == nil, let music {
             music.togglePlayPause()
             return .success
@@ -465,6 +512,8 @@ final class MacPlaybackController {
     private func remoteStop() -> MPRemoteCommandHandlerStatus {
         if session != nil {
             close()
+        } else if let radio {
+            radio.stop()
         } else if let music {
             music.stop()
         } else if let live {
@@ -509,6 +558,11 @@ struct MacVODPlayerView: View {
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
     @State private var scrubbing: Double?
+    @AppStorage(MacSkipInterval.backKey) private var skipBackSetting = MacSkipInterval.backDefault
+    @AppStorage(MacSkipInterval.forwardKey) private var skipForwardSetting = MacSkipInterval.forwardDefault
+
+    private var skipBack: Int { MacSkipInterval.checked(skipBackSetting, fallback: MacSkipInterval.backDefault) }
+    private var skipForward: Int { MacSkipInterval.checked(skipForwardSetting, fallback: MacSkipInterval.forwardDefault) }
 
     var body: some View {
         ZStack {
@@ -695,16 +749,20 @@ struct MacVODPlayerView: View {
 
     private func buttonRow(spacing: CGFloat, volumeSlider: Bool, foldPanes: Bool) -> some View {
         HStack(spacing: spacing) {
-                Button { Task { await player.skip(by: -10) } } label: { Image(systemName: "gobackward.10") }
-                    .help("Back 10 Seconds (←)")
+                Button { Task { await player.skip(by: -Double(skipBack)) } } label: {
+                    Image(systemName: "gobackward.\(skipBack)")
+                }
+                .help("Back \(skipBack) Seconds (←)")
                 Button(action: player.togglePlayPause) {
                     Image(systemName: player.state == .playing ? "pause.fill" : "play.fill")
                         .font(.title2)
                         .frame(width: 26)
                 }
                 .help(player.state == .playing ? "Pause (Space)" : "Play (Space)")
-                Button { Task { await player.skip(by: 30) } } label: { Image(systemName: "goforward.30") }
-                    .help("Forward 30 Seconds (→)")
+                Button { Task { await player.skip(by: Double(skipForward)) } } label: {
+                    Image(systemName: "goforward.\(skipForward)")
+                }
+                .help("Forward \(skipForward) Seconds (→)")
                 if session.nextEpisode != nil {
                     Button { session.playNext() } label: { Image(systemName: "forward.end.fill") }
                         .help("Next Episode")
@@ -750,6 +808,12 @@ struct MacVODPlayerView: View {
                         .frame(width: 90)
                         .controlSize(.small)
                 }
+
+                MacAirPlayButton(player: player.airPlayPlayer)
+                    .frame(width: 24, height: 24)
+                    .help(player.airPlayPlayer == nil
+                          ? "AirPlay: sound only at Original quality. Pick another quality to send the picture too."
+                          : "AirPlay")
 
                 Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
