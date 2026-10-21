@@ -15,61 +15,111 @@ enum KeychainHelper {
 
     private static let service = "com.rivulet.plex"
 
+    /// Every value lives in one keychain item (a JSON dictionary), so macOS asks
+    /// for access once rather than once per value.
+    private static let vaultAccount = "vault"
+    private static var vault: [String: String]?
+
     // MARK: - Public API
 
     /// Retrieve a string value from the Keychain
     static func get(_ key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let string = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-
-        return string
+        loadVault()[key]
     }
 
     /// Store a string value in the Keychain
     @discardableResult
     static func set(_ value: String, forKey key: String) -> Bool {
-        guard let data = value.data(using: .utf8) else { return false }
-
-        // Delete any existing item first
-        delete(key)
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-
-        let status = SecItemAdd(query as CFDictionary, nil)
-        return status == errSecSuccess
+        var values = loadVault()
+        values[key] = value
+        return saveVault(values)
     }
 
     /// Delete a value from the Keychain
     @discardableResult
     static func delete(_ key: String) -> Bool {
+        var values = loadVault()
+        guard values[key] != nil else { return true }
+        values[key] = nil
+        return saveVault(values)
+    }
+
+    // MARK: - Vault
+
+    private static func loadVault() -> [String: String] {
+        if let vault { return vault }
+        var values = readVault() ?? [:]
+        migrateLegacyItems(into: &values)
+        vault = values
+        return values
+    }
+
+    @discardableResult
+    private static func saveVault(_ values: [String: String]) -> Bool {
+        guard let data = try? JSONEncoder().encode(values) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: key
+            kSecAttrAccount as String: vaultAccount
         ]
+        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var add = query
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            status = SecItemAdd(add as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { return false }
+        vault = values
+        return true
+    }
 
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+    private static func readVault() -> [String: String]? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: vaultAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return try? JSONDecoder().decode([String: String].self, from: data)
+    }
+
+    /// Folds the one-item-per-value layout of earlier versions into the vault and
+    /// removes those items.
+    private static func migrateLegacyItems(into values: inout [String: String]) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnData as String: true,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let items = result as? [[String: Any]] else { return }
+
+        var moved: [String] = []
+        for item in items {
+            guard let account = item[kSecAttrAccount as String] as? String, account != vaultAccount,
+                  let data = item[kSecValueData as String] as? Data,
+                  let string = String(data: data, encoding: .utf8) else { continue }
+            if values[account] == nil { values[account] = string }
+            moved.append(account)
+        }
+        guard !moved.isEmpty else { return }
+        // Only drop the old items once the vault holds their values.
+        guard saveVault(values) else { return }
+        for account in moved {
+            SecItemDelete([
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account
+            ] as CFDictionary)
+        }
     }
 
     // MARK: - PIN Storage for Plex Home Users
