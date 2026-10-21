@@ -59,19 +59,8 @@ final class MacPlaybackController {
         Task { await newSession.begin() }
     }
 
-    /// Once the picture's shape is known the window takes it, so a scope film
-    /// has no black bars to shrink past. Width stays; the height follows.
     private func fitWindow(toVideo size: CGSize) {
-        guard size.width > 0, size.height > 0,
-              let window = MacAppDelegate.mainWindow,
-              !window.styleMask.contains(.fullScreen) else { return }
-        window.contentAspectRatio = size
-        var frame = window.frame
-        let content = window.contentRect(forFrameRect: frame)
-        let height = (content.width * size.height / size.width).rounded()
-        frame.origin.y += content.height - height
-        frame.size.height += height - content.height
-        window.setFrame(frame, display: true, animate: true)
+        MacAppDelegate.mainWindow?.fit(toVideo: size)
     }
 
     /// Ends playback and leaves the player. The task ends once Plex has the final report.

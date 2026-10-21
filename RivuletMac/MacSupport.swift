@@ -190,3 +190,18 @@ extension CaptionStyle {
         return .systemFont(ofSize: size, weight: .medium)
     }
 }
+
+extension NSWindow {
+    /// Once the picture's shape is known the window takes it, so a scope film
+    /// has no black bars to shrink past. Width stays; the height follows.
+    func fit(toVideo size: CGSize) {
+        guard size.width > 0, size.height > 0, !styleMask.contains(.fullScreen) else { return }
+        contentAspectRatio = size
+        var frame = frame
+        let content = contentRect(forFrameRect: frame)
+        let height = (content.width * size.height / size.width).rounded()
+        frame.origin.y += content.height - height
+        frame.size.height += height - content.height
+        setFrame(frame, display: true, animate: true)
+    }
+}

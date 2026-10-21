@@ -19,8 +19,10 @@ cd "$root"
 [[ $(git rev-parse HEAD) == $(git rev-parse origin/main) ]] || { echo "HEAD is not pushed to origin/main" >&2; exit 1; }
 
 rm -rf "$build" && mkdir -p "$stage"
+echo "Building $version (a few minutes; log at $build.log)"
 xcodebuild -scheme "Rivulet Mac" -configuration Release \
-  -destination 'platform=macOS,arch=arm64' -derivedDataPath "$build" build >/dev/null
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath "$build" build >"$build.log" 2>&1 \
+  || { tail -40 "$build.log" >&2; echo "Build failed, see $build.log" >&2; exit 1; }
 
 app=$build/Build/Products/Release/Rivulet.app
 built=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
