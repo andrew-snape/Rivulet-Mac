@@ -44,7 +44,10 @@ struct MacRootView: View {
                 } detail: {
                     detail.safeAreaInset(edge: .bottom) { MacRadioBar() }
                 }
-                .safeAreaInset(edge: .bottom, spacing: 0) { MacMusicBar() }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    // Music stays paused under a station; its bar would show a track that isn't playing.
+                    if radio.station == nil { MacMusicBar() }
+                }
                 // On the split view, so the field sits in the window toolbar for every page,
                 // not only inside the detail column's stack.
                 .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")

@@ -44,11 +44,13 @@ struct RivuletMacApp: App {
         MacAppDelegate.vod = vod
         MacAppDelegate.multiview = multiview
         MacAppDelegate.music = music
+        let radio = MacRadioPlayback()
+        MacAppDelegate.radio = radio
         _playback = State(initialValue: playback)
         _multiview = State(initialValue: multiview)
         _vod = State(initialValue: vod)
         _music = State(initialValue: music)
-        _radio = State(initialValue: MacRadioPlayback())
+        _radio = State(initialValue: radio)
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
     }
@@ -213,10 +215,11 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     static weak var vod: MacPlaybackController?
     static weak var multiview: MacMultiview?
     static weak var music: MacMusicPlayback?
+    static weak var radio: MacRadioPlayback?
     /// Music, not a channel, answers the transport with no Plex title up:
-    /// it is playing, or no channel is on.
+    /// it is playing, or no channel is on. A station in front takes it instead.
     static var musicInFront: Bool {
-        guard vod?.session == nil, let music, music.isActive else { return false }
+        guard vod?.session == nil, radio?.station == nil, let music, music.isActive else { return false }
         return music.isPlaying || playback?.channel == nil
     }
 
@@ -250,6 +253,10 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
                     return true
                 }
                 guard keyCode == 49 else { return false }
+                if let radio = Self.radio, radio.station != nil {
+                    radio.togglePlayPause()
+                    return true
+                }
                 if Self.musicInFront, let music = Self.music {
                     music.togglePlayPause()
                     return true
