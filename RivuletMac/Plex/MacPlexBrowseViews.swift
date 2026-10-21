@@ -69,6 +69,7 @@ struct MacPlexHomeView: View {
 // MARK: - Library
 
 /// One library as a paged poster grid with Sort and Filter in the toolbar.
+/// Sorted by title, a letter bar down the side jumps through it.
 struct MacPlexLibraryView: View {
     let library: PlexLibrary
     @Environment(MacPlexSession.self) private var plex
@@ -79,6 +80,13 @@ struct MacPlexLibraryView: View {
     @State private var isLoading = false
     @State private var error: String?
     @State private var loadedKey: String?
+    /// The page being appended, so a letter jump waits for it rather than racing it.
+    @State private var pageTask: Task<Void, Never>?
+    @State private var alphabet: LibraryAlphabetIndex?
+    @State private var alphabetKey: String?
+    /// The item in the top row, kept by the scroll view; setting it scrolls there.
+    @State private var topID: String?
+    @State private var jumpTask: Task<Void, Never>?
 
     private static let pageSize = 120
     private static let sorts: [(LibrarySortOption, String)] = [
@@ -96,6 +104,12 @@ struct MacPlexLibraryView: View {
     private var sort: LibrarySortOption { LibrarySortOption(rawValue: sortRaw) ?? .titleAsc }
     private var queryKey: String { "\(library.key)|\(sortRaw)|\(unwatchedOnly)|\(plex.watchStateRevision)" }
 
+    /// The letter the top row sits under.
+    private var currentLetter: Int? {
+        guard let alphabet, let topID, let index = items.firstIndex(where: { $0.id == topID }) else { return nil }
+        return alphabet.entryIndex(containing: index)
+    }
+
     var body: some View {
         Group {
             if items.isEmpty, let error {
@@ -103,9 +117,15 @@ struct MacPlexLibraryView: View {
             } else if items.isEmpty, !isLoading, loadedKey != nil {
                 ContentUnavailableView(unwatchedOnly ? "Nothing Unwatched" : "No Items", systemImage: library.icon)
             } else {
-                ScrollView {
-                    MacPlexPosterGrid(items: items, loadMore: loadMore)
-                    if isLoading { ProgressView().padding() }
+                HStack(spacing: 0) {
+                    ScrollView {
+                        MacPlexPosterGrid(items: items, loadMore: loadMore)
+                        if isLoading || pageTask != nil { ProgressView().padding() }
+                    }
+                    .scrollPosition(id: $topID, anchor: .top)
+                    if let alphabet, alphabet.entries.count > 1, !items.isEmpty {
+                        MacAlphabetBar(index: alphabet, current: currentLetter, jump: jump(to:))
+                    }
                 }
             }
         }
@@ -128,6 +148,14 @@ struct MacPlexLibraryView: View {
         .task(id: queryKey) {
             guard loadedKey != queryKey else { return }
             await reload()
+        }
+        .task(id: queryKey) {
+            guard alphabetKey != queryKey else { return }
+            let key = queryKey
+            let index = try? await plex.libraryAlphabet(library, sort: sort, unwatchedOnly: unwatchedOnly)
+            guard !Task.isCancelled, key == queryKey else { return }
+            alphabet = index
+            alphabetKey = key
         }
     }
 
@@ -158,17 +186,89 @@ struct MacPlexLibraryView: View {
     }
 
     private func loadMore() {
+        guard pageTask == nil else { return }
+        Task { await fetchMore() }
+    }
+
+    /// Appends the next page, or with `index`, everything up to it and a page
+    /// past it in one request. Waits out a page already on its way.
+    private func fetchMore(through index: Int? = nil) async {
+        if let pending = pageTask { await pending.value }
         guard !isLoading, let total, items.count < total else { return }
+        if let index, index < items.count { return }
         let key = queryKey
-        isLoading = true
-        Task {
-            defer { isLoading = false }
+        let start = items.count
+        let size = max(Self.pageSize, (index ?? 0) - start + Self.pageSize)
+        let task = Task {
             guard let page = try? await plex.libraryPage(
-                library, sort: sort, unwatchedOnly: unwatchedOnly, start: items.count, size: Self.pageSize
-            ), key == queryKey else { return }
+                library, sort: sort, unwatchedOnly: unwatchedOnly, start: start, size: size
+            ), key == queryKey, start == items.count else { return }
             items = (items + page.items).uniqued()
             // An empty page means the server's count overstated; stop paging.
             self.total = page.items.isEmpty ? items.count : page.totalSize
+        }
+        pageTask = task
+        await task.value
+        if pageTask == task { pageTask = nil }
+    }
+
+    /// Scrolls to the first title under a letter, loading the pages before it first.
+    private func jump(to entry: LibraryAlphabetIndex.Entry) {
+        jumpTask?.cancel()
+        let key = queryKey
+        jumpTask = Task {
+            if entry.offset >= items.count { await fetchMore(through: entry.offset) }
+            guard !Task.isCancelled, key == queryKey, let item = items[safe: entry.offset] else { return }
+            topID = item.id
+        }
+    }
+}
+
+/// The letters down the side of a title-sorted library. Click a letter, or
+/// drag along the bar, to jump there.
+private struct MacAlphabetBar: View {
+    let index: LibraryAlphabetIndex
+    let current: Int?
+    let jump: (LibraryAlphabetIndex.Entry) -> Void
+    @State private var dragged: Int?
+
+    var body: some View {
+        let entries = index.entries
+        GeometryReader { proxy in
+            let rowHeight = proxy.size.height / CGFloat(max(entries.count, 1))
+            VStack(spacing: 0) {
+                ForEach(entries.indices, id: \.self) { i in
+                    Text(entries[i].title)
+                        .font(.system(size: min(11, rowHeight * 0.8), weight: .semibold))
+                        .foregroundStyle(i == (dragged ?? current) ? Color.accentColor : Color.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let i = min(max(Int(value.location.y / rowHeight), 0), entries.count - 1)
+                        guard i != dragged else { return }
+                        dragged = i
+                        jump(entries[i])
+                    }
+                    .onEnded { _ in dragged = nil }
+            )
+        }
+        // Letters keep a steady spacing in a tall window rather than spreading out.
+        .frame(width: 22)
+        .frame(maxHeight: CGFloat(entries.count) * 18)
+        .padding(.vertical, 12)
+        .padding(.trailing, 4)
+        .help("Jump to a Letter")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Letters")
+        .accessibilityValue(current.map { entries[$0].title } ?? "")
+        .accessibilityAdjustableAction { direction in
+            let from = current ?? 0
+            let to = direction == .increment ? min(from + 1, entries.count - 1) : max(from - 1, 0)
+            jump(entries[to])
         }
     }
 }

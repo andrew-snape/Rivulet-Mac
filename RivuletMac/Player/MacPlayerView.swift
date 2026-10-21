@@ -244,6 +244,12 @@ private struct MacPlayerControls: View {
                     .help("Volume")
             }
 
+            if !minimal {
+                MacAirPlayButton(player: player.airPlayPlayer)
+                    .frame(width: 24, height: 24)
+                    .help(player.airPlayPlayer == nil ? "AirPlay: this channel sends its sound only" : "AirPlay")
+            }
+
             if !compact && !minimal {
                 Button { player.fillsWindow.toggle() } label: {
                     Image(systemName: player.fillsWindow

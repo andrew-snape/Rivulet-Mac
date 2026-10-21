@@ -82,6 +82,21 @@ extension MacPlexSession {
         )
     }
 
+    /// Where each letter starts in a title-sorted grid, for the letter bar.
+    /// Nil for any other sort, which has no letters to jump between.
+    func libraryAlphabet(
+        _ library: PlexLibrary,
+        sort: LibrarySortOption,
+        unwatchedOnly: Bool
+    ) async throws -> LibraryAlphabetIndex? {
+        guard sort == .titleAsc || sort == .titleDesc else { return nil }
+        let (serverURL, token) = try configuration()
+        let characters = try await network.getLibraryFirstCharacters(
+            serverURL: serverURL, authToken: token, sectionId: library.key, unwatchedOnly: unwatchedOnly
+        )
+        return LibraryAlphabetIndex(characters: characters, descending: sort == .titleDesc)
+    }
+
     // MARK: - Detail
 
     /// Full metadata: markers, chapters, extras, external guids, On Deck.

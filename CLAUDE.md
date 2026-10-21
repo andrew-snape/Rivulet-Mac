@@ -22,6 +22,7 @@ AVPlayerLayer the app builds. Music does not use it: `MacMusicPlayer` wraps an
 - **App icon**: `RivuletMac/Assets.xcassets/AppIcon.appiconset`, rendered from `Branding/logo_square_1024.png` on the macOS icon grid (824 pt squircle on a 1024 canvas).
 - **Signing**: "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`, no team). Sandboxed with outgoing and incoming network access, nothing else; hardened runtime off (only notarisation needs it).
 - **Updates**: Sparkle (pinned `exactVersion`), checking the latest GitHub release's `appcast.xml` and installing quietly on quit. Sandboxed, so the installer goes through Sparkle's launcher XPC service (`SUEnableInstallerLauncherService` plus the `-spks` / `-spki` mach-lookup entitlements). Sparkle compares `CURRENT_PROJECT_VERSION`: raise it every release. Publish with `scripts/release.sh <version>`; the EdDSA private key lives in the login keychain, and losing it strands installed copies.
+- **About panel**: `MacAbout` adds the engine, FFmpeg, dav1d and Sparkle versions, all read at run time (`AetherEngine.version`, `dlsym` of `av_version_info` / `dav1d_version`, Sparkle's bundle). libdovi reports none, so it is left out rather than hard-coded.
 - **Repo is public**: keep commit messages short and plain.
 
 ## Project Structure
@@ -142,7 +143,17 @@ grep its key: a single hit means it is dead. Keys read today:
 `homeStreamingQuality`, `awayStreamingQuality`, `autoSkipIntro`,
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
 `liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
-`musicLoudnessLevelling`.
+`musicLoudnessLevelling`, `autoPlayNextEpisode`, `skipBackSeconds`,
+`skipForwardSeconds`. Sparkle keeps its own (the Updates tab).
+
+### AirPlay
+
+`MacAirPlayButton` wraps `AVRoutePickerView`. Video hands it
+`AetherPlayer.airPlayPlayer`, which is set only while AVPlayer reads the
+stream straight from its server (a Plex transcode, a native HLS channel): the
+engine puts its local relay on the LAN for a receiver on iOS only, so on the
+Mac a direct-play file or an engine-demuxed channel would hand an Apple TV a
+127.0.0.1 address. With no player the button picks the Mac's sound output.
 
 ## Plex Metadata Hierarchy
 

@@ -366,13 +366,16 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
     /// Per-first-character item counts for a library section, in title-sort
     /// order ("#" first, then the letters the library actually contains).
-    /// Backs the library grid's alphabet bar.
+    /// Backs the library grid's alphabet bar. `unwatchedOnly` counts what
+    /// the grid's Unwatched filter shows, so the offsets line up with it.
     func getLibraryFirstCharacters(
         serverURL: String,
         authToken: String,
-        sectionId: String
+        sectionId: String,
+        unwatchedOnly: Bool = false
     ) async throws -> [PlexFirstCharacter] {
-        guard let url = URL(string: "\(serverURL)/library/sections/\(sectionId)/firstCharacter") else {
+        let query = unwatchedOnly ? "?unwatched=1" : ""
+        guard let url = URL(string: "\(serverURL)/library/sections/\(sectionId)/firstCharacter\(query)") else {
             throw PlexAPIError.invalidURL
         }
         let container: PlexFirstCharacterContainer = try await request(
