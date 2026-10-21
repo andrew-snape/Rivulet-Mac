@@ -554,7 +554,27 @@ struct MacVODPlayerView: View {
             }
             .font(.caption)
 
-            HStack(spacing: 16) {
+            // A shrunken window drops the volume slider first, then folds the panes into one menu.
+            ViewThatFits(in: .horizontal) {
+                buttonRow(spacing: 16, volumeSlider: true, foldPanes: false)
+                buttonRow(spacing: 12, volumeSlider: false, foldPanes: false)
+                buttonRow(spacing: 10, volumeSlider: false, foldPanes: true)
+            }
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: 980)
+    }
+
+    private var visiblePanes: [MacPlayerPane] {
+        MacPlayerPane.allCases.filter { $0 != .chapters || !session.chapters.isEmpty }
+    }
+
+    private func buttonRow(spacing: CGFloat, volumeSlider: Bool, foldPanes: Bool) -> some View {
+        HStack(spacing: spacing) {
                 Button { Task { await player.skip(by: -10) } } label: { Image(systemName: "gobackward.10") }
                     .help("Back 10 Seconds (←)")
                 Button(action: player.togglePlayPause) {
@@ -576,12 +596,26 @@ struct MacVODPlayerView: View {
                 qualityMenu
                 speedMenu
 
-                ForEach(MacPlayerPane.allCases.filter { $0 != .chapters || !session.chapters.isEmpty }) { pane in
-                    Button { session.pane = session.pane == pane ? nil : pane } label: {
-                        Image(systemName: pane.icon)
-                            .foregroundStyle(session.pane == pane ? Color.accentColor : .primary)
+                if foldPanes {
+                    Menu {
+                        ForEach(visiblePanes) { pane in
+                            Toggle(pane.rawValue, isOn: Binding(get: { session.pane == pane },
+                                                                set: { session.pane = $0 ? pane : nil }))
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .help(pane.rawValue)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Info")
+                } else {
+                    ForEach(visiblePanes) { pane in
+                        Button { session.pane = session.pane == pane ? nil : pane } label: {
+                            Image(systemName: pane.icon)
+                                .foregroundStyle(session.pane == pane ? Color.accentColor : .primary)
+                        }
+                        .help(pane.rawValue)
+                    }
                 }
 
                 Button { player.setMuted(!player.isMuted) } label: {
@@ -589,25 +623,20 @@ struct MacVODPlayerView: View {
                         .frame(width: 20)
                 }
                 .help(player.isMuted ? "Unmute" : "Mute")
-                Slider(value: Binding(get: { Double(player.isMuted ? 0 : player.volume) },
-                                      set: { player.setVolume(Float($0)) }),
-                       in: 0...1)
-                    .frame(width: 90)
-                    .controlSize(.small)
+                if volumeSlider {
+                    Slider(value: Binding(get: { Double(player.isMuted ? 0 : player.volume) },
+                                          set: { player.setVolume(Float($0)) }),
+                           in: 0...1)
+                        .frame(width: 90)
+                        .controlSize(.small)
+                }
 
                 Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
                 .help("Full Screen")
-            }
-            .font(.title3)
         }
-        .buttonStyle(.borderless)
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .frame(maxWidth: 980)
+        .font(.title3)
     }
 
     @ViewBuilder
