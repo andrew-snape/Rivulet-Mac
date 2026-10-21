@@ -198,8 +198,15 @@ final class MacRadioPlayback {
             }
             break
         }
-        if found.kbps == nil, let bitrate = item.accessLog()?.events.last?.indicatedBitrate, bitrate > 0 {
-            found.kbps = Int((bitrate / 1000).rounded())
+        if found.kbps == nil {
+            let bitrate = await withCheckedContinuation { continuation in
+                item.fetchAccessLog { log in
+                    continuation.resume(returning: log?.events.last?.indicatedBitrate)
+                }
+            }
+            if let bitrate, bitrate > 0 {
+                found.kbps = Int((bitrate / 1000).rounded())
+            }
         }
         guard player.currentItem === item, found != RadioQuality() else { return }
         trackQuality = found
