@@ -27,9 +27,6 @@ final class MacRadioPlayback {
     @ObservationIgnored private var itemTask: Task<Void, Never>?
 
     init() {
-        // A live stream that waits to fill a buffer sits in "connecting" while the
-        // sound already plays. Radio starts at once and stalls instead.
-        player.automaticallyWaitsToMinimizeStalling = false
         statusTask = Task { [weak self, player] in
             for await status in Self.changes(of: player, \.timeControlStatus) {
                 self?.timeControlChanged(status)
