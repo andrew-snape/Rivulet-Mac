@@ -91,10 +91,11 @@ enum KeychainHelper {
     /// Folds the one-item-per-value layout of earlier versions into the vault and
     /// removes those items.
     private static func migrateLegacyItems(into values: inout [String: String]) {
+        // The file-based keychain refuses to return data for several matches at
+        // once, so list the accounts first and read each value on its own.
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecReturnData as String: true,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll
         ]
@@ -104,9 +105,18 @@ enum KeychainHelper {
 
         var moved: [String] = []
         for item in items {
-            guard let account = item[kSecAttrAccount as String] as? String, account != vaultAccount,
-                  let data = item[kSecValueData as String] as? Data,
-                  let string = String(data: data, encoding: .utf8) else { continue }
+            guard let account = item[kSecAttrAccount as String] as? String, account != vaultAccount else { continue }
+            let read: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+            var data: AnyObject?
+            guard SecItemCopyMatching(read as CFDictionary, &data) == errSecSuccess,
+                  let bytes = data as? Data,
+                  let string = String(data: bytes, encoding: .utf8) else { continue }
             if values[account] == nil { values[account] = string }
             moved.append(account)
         }
