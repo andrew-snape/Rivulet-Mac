@@ -47,6 +47,9 @@ RivuletMac/
 ├── Music/              # MacMusicPlayer (AVQueuePlayer), MacMusicPlayback (queue, radio,
 │                       #   Plex reporting), library / artist / album pages, the bottom
 │                       #   bar and Now Playing
+├── Radio/              # RadioStore (playlists, single stations, hidden stations, last
+│                       #   quality heard), MacRadioPlayback (AVPlayer, song title, quality),
+│                       #   MacRadioView (list or grid) and the radio bar
 ├── LiveTV/             # MacLiveTVView: channel list + inline player; MacMultiview (up to
 │                       #   four channels, sound follows the clicked tile)
 └── Player/             # AetherPlayer (the only file naming engine types),
@@ -100,7 +103,11 @@ from the app, the app injects it at launch, before touching the stores:
 - **The window's search field** searches Plex everywhere but Live TV and
   Radio, where it filters that page: channels by name, number and anything in
   the guide from now on; stations by name and group. Radio shows the song a
-  station sends (ICY StreamTitle, or ID3 in HLS) in its bar and Now Playing.
+  station sends (ICY StreamTitle, or ID3 in HLS) in its bar and Now Playing,
+  and its quality: the bitrate from the server's `icy-br` / `ice-audio-info`
+  headers (a header-only request, cancelled before the sound), else the player's,
+  and the codec from the decoded track. Each station's last quality is saved, so
+  the lists show it before it plays again.
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
 - **One stream at a time**, Multiview aside: starting a Plex title stops Live TV
@@ -148,7 +155,7 @@ grep its key: a single hit means it is dead. Keys read today:
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
 `liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
 `musicLoudnessLevelling`, `autoPlayNextEpisode`, `skipBackSeconds`,
-`skipForwardSeconds`. Sparkle keeps its own (the Updates tab).
+`skipForwardSeconds`, `radioLayout`, `radioSort`. Sparkle keeps its own (the Updates tab).
 
 ### AirPlay
 
