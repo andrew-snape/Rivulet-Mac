@@ -249,16 +249,22 @@ nonisolated struct RadioQuality: Equatable, Sendable {
 
 /// What a Shoutcast or Icecast server announces in its response headers:
 /// `icy-br` or `ice-audio-info` for the bitrate and sample rate, the content
-/// type for the codec. Only the headers are read; the request is cancelled
-/// before the sound arrives. Nil when the server announces nothing.
+/// type for the codec, `icy-name` for the station. Only the headers are read;
+/// the request is cancelled before the sound arrives. Nil when the server
+/// announces nothing, as an HLS stream never does.
 nonisolated enum RadioHeaderProbe {
     @concurrent
+    static func name(of url: URL) async -> String? {
+        guard let http = await response(for: url),
+              let name = http.value(forHTTPHeaderField: "icy-name")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              // Icecast's default when the source sets none.
+              !name.isEmpty, name.lowercased() != "unspecified name" else { return nil }
+        return name
+    }
+
+    @concurrent
     static func quality(of url: URL) async -> RadioQuality? {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10
-        guard let result = try? await URLSession.shared.bytes(for: request) else { return nil }
-        result.0.task.cancel()
-        guard let http = result.1 as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
+        guard let http = await response(for: url) else { return nil }
 
         var info: [String: String] = [:]
         for pair in (http.value(forHTTPHeaderField: "ice-audio-info") ?? "").split(separator: ";") {
@@ -283,6 +289,15 @@ nonisolated enum RadioHeaderProbe {
         default: break
         }
         return found == RadioQuality() ? nil : found
+    }
+
+    private static func response(for url: URL) async -> HTTPURLResponse? {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        guard let result = try? await URLSession.shared.bytes(for: request) else { return nil }
+        result.0.task.cancel()
+        guard let http = result.1 as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
+        return http
     }
 }
 

@@ -486,6 +486,9 @@ private struct MacRadioAddForm: View {
     @State private var name = ""
     @State private var address = ""
     @State private var isWorking = false
+    @State private var isLookingUp = false
+    /// The name last filled in from the stream, so a new address can replace it.
+    @State private var filledName: String?
     @State private var failure: String?
 
     var body: some View {
@@ -513,9 +516,9 @@ private struct MacRadioAddForm: View {
             .disableAutocorrection(true)
 
             HStack {
-                if isWorking {
+                if isWorking || isLookingUp {
                     ProgressView().controlSize(.small)
-                    Text("Checking…").foregroundStyle(.secondary)
+                    Text(isWorking ? "Checking…" : "Looking up the name…").foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -527,6 +530,22 @@ private struct MacRadioAddForm: View {
             .padding(16)
         }
         .frame(width: 480)
+        .task(id: address) { await lookUpName() }
+    }
+
+    /// Fills in the name a station's server announces, once the address has
+    /// stopped changing. Only into an empty field, or over a name filled in before.
+    private func lookUpName() async {
+        guard kind == .station, !address.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        try? await Task.sleep(for: .milliseconds(600))
+        guard !Task.isCancelled else { return }
+        isLookingUp = true
+        defer { isLookingUp = false }
+        guard let found = await RadioStore.announcedName(of: address), !Task.isCancelled else { return }
+        let typed = name.trimmingCharacters(in: .whitespaces)
+        guard typed.isEmpty || typed == filledName else { return }
+        name = found
+        filledName = found
     }
 
     private func add() {

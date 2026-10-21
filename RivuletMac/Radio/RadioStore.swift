@@ -107,6 +107,13 @@ final class RadioStore {
         saveStations()
     }
 
+    /// The name the station's server announces, for the add form to fill in.
+    /// Nil for an HLS stream, which announces none.
+    static func announcedName(of address: String) async -> String? {
+        guard let url = try? await streamAddress(webAddress(address)) else { return nil }
+        return await RadioHeaderProbe.name(of: url)
+    }
+
     func removeStation(_ station: M3UParser.ParsedChannel) {
         ownStations.removeAll { $0.url == station.streamURL }
         saveStations()
