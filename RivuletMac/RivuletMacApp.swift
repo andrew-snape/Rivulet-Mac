@@ -12,6 +12,7 @@ struct RivuletMacApp: App {
     @State private var multiview: MacMultiview
     @State private var plex: MacPlexSession
     @State private var vod: MacPlaybackController
+    @State private var music: MacMusicPlayback
     private let updater = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -35,13 +36,17 @@ struct RivuletMacApp: App {
         let multiview = MacMultiview()
         let vod = MacPlaybackController()
         vod.plex = plex
+        let music = MacMusicPlayback()
+        music.plex = plex
         MacAppDelegate.refreshPlex = { [weak plex] in await plex?.refresh() }
         MacAppDelegate.playback = playback
         MacAppDelegate.vod = vod
         MacAppDelegate.multiview = multiview
+        MacAppDelegate.music = music
         _playback = State(initialValue: playback)
         _multiview = State(initialValue: multiview)
         _vod = State(initialValue: vod)
+        _music = State(initialValue: music)
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
     }
@@ -53,6 +58,7 @@ struct RivuletMacApp: App {
                 .environment(multiview)
                 .environment(plex)
                 .environment(vod)
+                .environment(music)
                 .onAppear { vod.configureRemoteCommands() }
                 // The browsing layout needs room; a Plex title playing needs none.
                 .frame(minWidth: vod.session == nil ? 900 : 320,
@@ -62,7 +68,7 @@ struct RivuletMacApp: App {
         .defaultSize(width: 1360, height: 820)
         .commands {
             MacUpdateCommands(updater: updater.updater)
-            MacPlaybackCommands(playback: playback, player: playback.player, vod: vod)
+            MacPlaybackCommands(playback: playback, player: playback.player, vod: vod, music: music)
         }
 
         // Live TV's picture on its own, floating above other windows. Opened from
@@ -85,23 +91,28 @@ struct RivuletMacApp: App {
 }
 
 /// The Playback menu. It acts on the Plex player while one is up, else on
-/// Live TV. Space and the arrow keys are handled in `MacAppDelegate` instead,
-/// so they still type in a text field.
+/// music or Live TV, whichever is in front. Space and the arrow keys are
+/// handled in `MacAppDelegate` instead, so they still type in a text field.
 private struct MacPlaybackCommands: Commands {
     var playback: MacLivePlayback
     var player: AetherPlayer
     var vod: MacPlaybackController
+    var music: MacMusicPlayback
     private let store = LiveTVDataStore.shared
 
-    /// The player in front: the Plex title, else the channel.
+    /// The video player in front: the Plex title, else the channel, unless music is in front.
     private var active: AetherPlayer? {
-        vod.session?.player ?? (playback.channel == nil ? nil : player)
+        vod.session?.player ?? (playback.channel == nil || musicInFront ? nil : player)
     }
+
+    private var musicInFront: Bool { MacAppDelegate.musicInFront }
 
     var body: some Commands {
         CommandMenu("Playback") {
-            Button("Play/Pause") { active?.togglePlayPause() }
-                .disabled(active == nil)
+            Button("Play/Pause") {
+                if musicInFront { music.togglePlayPause() } else { active?.togglePlayPause() }
+            }
+                .disabled(active == nil && !musicInFront)
 
             Divider()
 
@@ -112,16 +123,41 @@ private struct MacPlaybackCommands: Commands {
                 .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
                 .disabled(active == nil)
             Button("Mute/Unmute") {
-                if let player = active { player.setMuted(!player.isMuted) }
+                if musicInFront {
+                    music.player.setMuted(!music.player.isMuted)
+                } else if let player = active {
+                    player.setMuted(!player.isMuted)
+                }
             }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
-                .disabled(active == nil)
+                .disabled(active == nil && !musicInFront)
 
             Toggle("Always on Top", isOn: Binding(
                 get: { vod.isAlwaysOnTop },
                 set: { vod.setAlwaysOnTop($0) }
             ))
             .disabled(vod.session == nil && playback.channel == nil)
+
+            Divider()
+
+            Button("Next Track") { music.skipToNext() }
+                .disabled(!musicInFront || !music.queue.hasNext)
+            Button("Previous Track") { music.skipToPrevious() }
+                .disabled(!musicInFront)
+            Toggle("Shuffle", isOn: Binding(
+                get: { music.queue.isShuffled },
+                set: { music.setShuffled($0) }
+            ))
+            .disabled(!music.isActive)
+            Picker("Repeat", selection: Binding(
+                get: { music.queue.repeatMode },
+                set: { mode in while music.queue.repeatMode != mode { music.cycleRepeat() } }
+            )) {
+                Text("Off").tag(MusicQueue.RepeatMode.off)
+                Text("All").tag(MusicQueue.RepeatMode.all)
+                Text("One").tag(MusicQueue.RepeatMode.one)
+            }
+            .disabled(!music.isActive)
 
             Divider()
 
@@ -144,10 +180,16 @@ private struct MacPlaybackCommands: Commands {
             Divider()
 
             Button("Stop") {
-                if vod.session != nil { vod.close() } else { playback.stop() }
+                if vod.session != nil {
+                    vod.close()
+                } else if musicInFront {
+                    music.stop()
+                } else {
+                    playback.stop()
+                }
             }
             .keyboardShortcut(".", modifiers: .command)
-            .disabled(active == nil)
+            .disabled(active == nil && !musicInFront)
         }
 
         CommandGroup(after: .sidebar) {
@@ -167,6 +209,14 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     static weak var playback: MacLivePlayback?
     static weak var vod: MacPlaybackController?
     static weak var multiview: MacMultiview?
+    static weak var music: MacMusicPlayback?
+    /// Music, not a channel, answers the transport with no Plex title up:
+    /// it is playing, or no channel is on.
+    static var musicInFront: Bool {
+        guard vod?.session == nil, let music, music.isActive else { return false }
+        return music.isPlaying || playback?.channel == nil
+    }
+
     /// The window `MacRootView` sits in; set by the view.
     static weak var mainWindow: NSWindow?
     /// Set by the app: refetches Plex Home and libraries.
@@ -196,7 +246,12 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
                     }
                     return true
                 }
-                guard keyCode == 49, let playback = Self.playback, playback.channel != nil else { return false }
+                guard keyCode == 49 else { return false }
+                if Self.musicInFront, let music = Self.music {
+                    music.togglePlayPause()
+                    return true
+                }
+                guard let playback = Self.playback, playback.channel != nil else { return false }
                 playback.player.togglePlayPause()
                 return true
             }
@@ -210,10 +265,10 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Plex hears that playback stopped before the app goes: a title's resume
-    /// point and watched mark, a Live TV channel's tuner. A slow server gets
+    /// point and watched mark, a track's play, a Live TV channel's tuner. A slow server gets
     /// three seconds, not a hang.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        let reports = [Self.vod?.close(), Self.playback?.stop()].compactMap { $0 }
+        let reports = [Self.vod?.close(), Self.playback?.stop(), Self.music?.stop()].compactMap { $0 }
             + (Self.multiview?.stopAll() ?? [])
         guard !reports.isEmpty else { return .terminateNow }
         Task {

@@ -44,6 +44,7 @@ final class MacLivePlayback {
 
     func play(_ newChannel: UnifiedChannel) {
         guard newChannel.id != channel?.id || player.state == .idle else { return }
+        MacAppDelegate.music?.pause()
         channel = newChannel
         tune(after: .milliseconds(250))
     }

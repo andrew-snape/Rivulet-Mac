@@ -7,7 +7,8 @@ import Observation
 import SwiftUI
 
 /// App-level owner of the Plex item playing, shown over the whole window.
-/// Starting one stops Live TV (`onStart`), so only one stream plays at a time.
+/// Starting one stops Live TV and pauses music (`onStart`), so only one stream plays at a time.
+/// It also owns Now Playing and the media keys for music and Live TV.
 @MainActor
 @Observable
 final class MacPlaybackController {
@@ -27,6 +28,8 @@ final class MacPlaybackController {
     @ObservationIgnored private let sleepGuard = MacSleepGuard()
     @ObservationIgnored private var nowPlayingArtwork: MPMediaItemArtwork?
     @ObservationIgnored private var liveObservation: Task<Void, Never>?
+    @ObservationIgnored private var musicObservations: [Task<Void, Never>] = []
+    @ObservationIgnored private var musicArtwork: (key: String, artwork: MPMediaItemArtwork)?
     @ObservationIgnored private var videoShapeObservation: Task<Void, Never>?
     @ObservationIgnored private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
@@ -84,10 +87,12 @@ final class MacPlaybackController {
         nowPlaying.playbackState = .stopped
         setAlwaysOnTop(false)
         lockAspectRatio(false)
-        updateRemoteCommandAvailability(for: nil)
         sleepGuard.setAwake(false)
         nowPlayingArtwork = nil
         self.session = nil
+        updateRemoteCommandAvailability(for: nil)
+        // Music or a channel left underneath takes Now Playing back.
+        updateBackgroundNowPlaying()
         return reported
     }
 
@@ -163,8 +168,12 @@ final class MacPlaybackController {
                   position.positionTime.isFinite else { return .commandFailed }
             let positionTime = position.positionTime
             return Self.dispatchRemoteCommand {
-                guard let self,
-                      let player = self.session?.player else { return .commandFailed }
+                guard let self else { return .commandFailed }
+                if self.session == nil, let music = self.music {
+                    music.seek(to: max(positionTime, 0))
+                    return .success
+                }
+                guard let player = self.session?.player else { return .commandFailed }
                 let target = player.duration > 0
                     ? min(max(positionTime, 0), player.duration)
                     : max(positionTime, 0)
@@ -175,8 +184,17 @@ final class MacPlaybackController {
         commands.nextTrackCommand.addTarget { [weak self] _ in
             Self.dispatchRemoteCommand { self?.remoteNext() ?? .commandFailed }
         }
+        commands.previousTrackCommand.addTarget { [weak self] _ in
+            Self.dispatchRemoteCommand { self?.remotePrevious() ?? .commandFailed }
+        }
         updateRemoteCommandAvailability(for: nil)
         observeLive()
+        observeMusic()
+    }
+
+    /// Music, when it is in front of any channel and no Plex title is up.
+    private var music: MacMusicPlayback? {
+        MacAppDelegate.musicInFront ? MacAppDelegate.music : nil
     }
 
     /// The channel on screen: Now Playing and the media keys follow it while no Plex title is up.
@@ -196,9 +214,72 @@ final class MacPlaybackController {
                 _ = (playback.channel?.id, playback.player.state, playback.programme?.title)
             }) {
                 guard let self, self.session == nil else { continue }
-                self.updateLiveNowPlaying()
+                self.updateBackgroundNowPlaying()
                 self.updateRemoteCommandAvailability(for: nil)
             }
+        }
+    }
+
+    private func observeMusic() {
+        guard let music = MacAppDelegate.music else { return }
+        let player = music.player
+        // Anything but the clock: the track, transport, length, seeks and the queue's ends.
+        musicObservations.append(Task { [weak self] in
+            for await _ in Observations({
+                _ = (music.track?.ratingKey, player.state, player.duration, player.seekCount,
+                     music.queue.hasNext, music.queue.hasPrevious, MacAppDelegate.musicInFront)
+            }) {
+                guard let self, self.session == nil else { continue }
+                self.updateBackgroundNowPlaying()
+                self.updateRemoteCommandAvailability(for: nil)
+            }
+        })
+        musicObservations.append(Task { [weak self] in
+            for await track in Observations({ music.track }) {
+                guard let self, let track, let key = track.ratingKey, self.musicArtwork?.key != key,
+                      let url = self.plex?.imageURL(path: track.squareArtPath, width: 600, height: 600),
+                      let image = await MacArtworkCache.shared.image(for: url),
+                      music.track?.ratingKey == key else { continue }
+                self.musicArtwork = (key, Self.artwork(from: image))
+                if self.session == nil { self.updateBackgroundNowPlaying() }
+            }
+        })
+    }
+
+    /// Now Playing with no Plex title up: music in front, else the channel.
+    private func updateBackgroundNowPlaying() {
+        if let music {
+            updateMusicNowPlaying(music)
+        } else {
+            updateLiveNowPlaying()
+        }
+    }
+
+    private func updateMusicNowPlaying(_ music: MacMusicPlayback) {
+        let nowPlaying = MPNowPlayingInfoCenter.default()
+        guard let track = music.track else { return }
+        let player = music.player
+        var information: [String: Any] = [
+            MPMediaItemPropertyTitle: track.displayTitle,
+            MPMediaItemPropertyArtist: track.trackArtist ?? "",
+            MPMediaItemPropertyAlbumTitle: track.parentTitle ?? "",
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: player.currentTime.isFinite ? max(0, player.currentTime) : 0,
+            MPNowPlayingInfoPropertyPlaybackRate: player.state == .playing ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
+        ]
+        let duration = player.duration > 0 ? player.duration : track.durationSeconds
+        if duration.isFinite, duration > 0 {
+            information[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+        if let musicArtwork, musicArtwork.key == track.ratingKey {
+            information[MPMediaItemPropertyArtwork] = musicArtwork.artwork
+        }
+        nowPlaying.nowPlayingInfo = information
+        switch player.state {
+        case .playing: nowPlaying.playbackState = .playing
+        case .loading, .paused: nowPlaying.playbackState = .paused
+        case .ended, .failed, .idle: nowPlaying.playbackState = .stopped
         }
     }
 
@@ -329,19 +410,26 @@ final class MacPlaybackController {
     private func updateRemoteCommandAvailability(for session: MacPlexPlayback?) {
         let commands = MPRemoteCommandCenter.shared()
         // A channel can pause and stop but has no length to skip or seek in.
+        // Music seeks and changes track, but skips by track rather than by seconds.
         let available = session != nil
-        let playing = available || live != nil
+        let musicUp = session == nil ? music : nil
+        let playing = available || musicUp != nil || live != nil
         commands.playCommand.isEnabled = playing
         commands.pauseCommand.isEnabled = playing
         commands.togglePlayPauseCommand.isEnabled = playing
         commands.stopCommand.isEnabled = playing
         commands.skipBackwardCommand.isEnabled = available
         commands.skipForwardCommand.isEnabled = available
-        commands.changePlaybackPositionCommand.isEnabled = available
-        commands.nextTrackCommand.isEnabled = session?.nextEpisode != nil
+        commands.changePlaybackPositionCommand.isEnabled = available || musicUp != nil
+        commands.nextTrackCommand.isEnabled = session?.nextEpisode != nil || musicUp?.queue.hasNext == true
+        commands.previousTrackCommand.isEnabled = musicUp != nil
     }
 
     private func remotePlay() -> MPRemoteCommandHandlerStatus {
+        if session == nil, let music {
+            music.resume()
+            return .success
+        }
         guard let player = activePlayer else { return .commandFailed }
         switch player.state {
         case .playing:
@@ -355,12 +443,20 @@ final class MacPlaybackController {
     }
 
     private func remotePause() -> MPRemoteCommandHandlerStatus {
+        if session == nil, let music {
+            music.pause()
+            return .success
+        }
         guard let player = activePlayer else { return .commandFailed }
         if player.state == .playing { player.togglePlayPause() }
         return .success
     }
 
     private func remoteToggle() -> MPRemoteCommandHandlerStatus {
+        if session == nil, let music {
+            music.togglePlayPause()
+            return .success
+        }
         guard let player = activePlayer else { return .commandFailed }
         player.togglePlayPause()
         return .success
@@ -369,6 +465,8 @@ final class MacPlaybackController {
     private func remoteStop() -> MPRemoteCommandHandlerStatus {
         if session != nil {
             close()
+        } else if let music {
+            music.stop()
         } else if let live {
             live.stop()
         } else {
@@ -384,8 +482,18 @@ final class MacPlaybackController {
     }
 
     private func remoteNext() -> MPRemoteCommandHandlerStatus {
+        if session == nil, let music, music.queue.hasNext {
+            music.skipToNext()
+            return .success
+        }
         guard let session, session.nextEpisode != nil else { return .commandFailed }
         session.playNext()
+        return .success
+    }
+
+    private func remotePrevious() -> MPRemoteCommandHandlerStatus {
+        guard session == nil, let music else { return .commandFailed }
+        music.skipToPrevious()
         return .success
     }
 }

@@ -13,12 +13,13 @@ enum MacSection: Hashable {
 }
 
 /// The main window: Plex and Live TV in the sidebar, the chosen page beside
-/// it, and a Plex title playing over the whole window.
+/// it, the music bar along the bottom, and a Plex title playing over the whole window.
 struct MacRootView: View {
     @Environment(MacPlexSession.self) private var plex
     @Environment(MacPlaybackController.self) private var playback
     @Environment(MacLivePlayback.self) private var live
     @Environment(MacMultiview.self) private var multiview
+    @Environment(MacMusicPlayback.self) private var music
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(MacSidebarLayout.orderKey) private var sidebarOrder = ""
@@ -34,14 +35,22 @@ struct MacRootView: View {
 
     var body: some View {
         ZStack {
-            NavigationSplitView(columnVisibility: $columns) {
-                sidebar
-            } detail: {
-                detail
+            ZStack {
+                NavigationSplitView(columnVisibility: $columns) {
+                    sidebar
+                } detail: {
+                    detail
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) { MacMusicBar() }
+                if music.isNowPlayingShown {
+                    MacMusicNowPlayingView()
+                        .transition(.move(edge: .bottom))
+                }
             }
             // Around the split view, not the detail stack: the split view hosts the
             // stack's pushed pages, which miss environment set inside its detail column.
             .macPlexActionHost(open: { path.append($0) })
+            .animation(.easeInOut(duration: 0.25), value: music.isNowPlayingShown)
             if let session = playback.session {
                 MacVODPlayerView(session: session, player: session.player, close: { playback.close() })
                     .transition(.opacity)
@@ -49,7 +58,7 @@ struct MacRootView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: playback.session != nil)
         // A Plex title has the window to itself: the sidebar and back buttons step aside.
-        .toolbarVisibility(playback.session == nil ? .automatic : .hidden, for: .windowToolbar)
+        .toolbarVisibility(playback.session == nil && !music.isNowPlayingShown ? .automatic : .hidden, for: .windowToolbar)
         // The playback keys act only in this window, not in a sheet or Settings.
         .background(MacWindowReader {
             MacAppDelegate.mainWindow = $0
@@ -57,7 +66,13 @@ struct MacRootView: View {
         })
         .onAppear {
             playback.plex = plex
-            playback.onStart = { [live, multiview] in
+            playback.onStart = { [live, multiview, music] in
+                live.stop()
+                multiview.stopAll()
+                music.pause()
+            }
+            // Music under a popped-out channel would play over it.
+            music.onStart = { [live, multiview] in
                 live.stop()
                 multiview.stopAll()
             }
@@ -89,7 +104,10 @@ struct MacRootView: View {
         .onChange(of: plex.sessionGeneration) { path = NavigationPath() }
         // Signing out, from the sidebar or from Settings, ends the Plex title playing.
         .onChange(of: plex.isSignedIn) { _, signedIn in
-            if !signedIn { playback.close() }
+            if !signedIn {
+                playback.close()
+                music.stop()
+            }
         }
         .onChange(of: searchQuery) { _, query in
             if !query.isEmpty, section != .search { section = .search }
@@ -97,7 +115,10 @@ struct MacRootView: View {
         // Content is withheld until a profile is entered: ask who is watching,
         // and nothing of the locked profile's keeps playing.
         .onChange(of: profiles.needsProfileSelection, initial: true) { _, needed in
-            if needed { playback.close() }
+            if needed {
+                playback.close()
+                music.stop()
+            }
             choosingProfile = needed && profiles.hasLoadedProfiles
         }
         .onChange(of: scenePhase) { _, phase in
@@ -204,7 +225,7 @@ struct MacRootView: View {
         } else {
             NavigationStack(path: $path) {
                 plexRoot
-                    .navigationDestination(for: PlexMetadata.self) { MacPlexDetailView(item: $0) }
+                    .navigationDestination(for: PlexMetadata.self) { destination(for: $0) }
                     .navigationDestination(for: PlexLibrary.self) { MacPlexLibraryView(library: $0) }
                     .navigationDestination(for: MacPlexHubRoute.self) { MacPlexHubGridView(route: $0) }
             }
@@ -225,11 +246,25 @@ struct MacRootView: View {
                 MacPlexSearchView(query: $searchQuery)
             case .library(let key):
                 if let library = plex.libraries.first(where: { $0.key == key }) {
-                    MacPlexLibraryView(library: library).id(key)
+                    if library.isMusicLibrary {
+                        MacMusicLibraryView(library: library).id(key)
+                    } else {
+                        MacPlexLibraryView(library: library).id(key)
+                    }
                 } else {
                     ContentUnavailableView("Library Not Found", systemImage: "rectangle.stack")
                 }
             }
+        }
+    }
+
+    /// Music items open their own pages; everything else the title detail.
+    @ViewBuilder
+    private func destination(for item: PlexMetadata) -> some View {
+        switch item.type {
+        case "artist": MacMusicArtistView(artist: item)
+        case "album", "playlist": MacMusicAlbumView(item: item)
+        default: MacPlexDetailView(item: item)
         }
     }
 }

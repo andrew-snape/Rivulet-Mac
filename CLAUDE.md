@@ -1,6 +1,6 @@
 # Rivulet for Mac - Claude Context
 
-Rivulet for Mac is a macOS media client for Plex and IPTV, for Apple silicon
+Rivulet for Mac is a macOS media client for Plex (video and music) and IPTV, for Apple silicon
 Macs (arm64 only, macOS 27+). It is a port of Rivulet, a tvOS app; the tvOS and
 iOS apps were removed from this repo, and their shared Plex and Live TV code
 lives on in `RivuletCore/`. Views are SwiftUI with small AppKit bridges.
@@ -10,7 +10,8 @@ demux + HLS-fMP4 remux + AVPlayer, with HDR10+ / HLG / EAC3+JOC Atmos, plus a
 software backend for AV1 / VP9 / MPEG-2 / VC-1 / MPEG-4p2). It plays Plex video
 on demand and Live TV. Video renders through the engine's own surface
 (`AetherPlayer.surface`, the engine's `AetherPlayerSurface`), never an
-AVPlayerLayer the app builds.
+AVPlayerLayer the app builds. Music does not use it: `MacMusicPlayer` wraps an
+`AVQueuePlayer` (see Music below).
 
 ## Quick Reference
 
@@ -31,7 +32,8 @@ RivuletCore/            # Plex and Live TV logic, no views. The ONE Plex client
 │                       #   Models/Plex, WatchProgressPolicy, Streaming/ (quality ladder,
 │                       #   version ranking, stall tracker), LiveTV/ (LiveTVDataStore,
 │                       #   Plex + IPTV providers, LiveTVSourceConnector), IPTV/ (M3U,
-│                       #   XMLTV, Dispatcharr), Security/ (Keychain), CaptionAppearance.
+│                       #   XMLTV, Dispatcharr), Security/ (Keychain), CaptionAppearance,
+│                       #   Music/ (MusicQueue, LoudnessLevelling).
 RivuletMac/
 ├── RivuletMacApp.swift # App, Playback menu, MacAppDelegate (Space / arrows / Esc monitor,
 │                       #   quit waits up to 3 s for Plex's stopped reports)
@@ -41,6 +43,9 @@ RivuletMac/
 ├── Plex/               # MacPlexSession (+Content, +Account, +Playback): the content
 │                       #   store, ported from the iOS app's IOSPlexSession; the views
 │                       #   (Home, Library, See All, Search, Detail, sign-in, profiles)
+├── Music/              # MacMusicPlayer (AVQueuePlayer), MacMusicPlayback (queue, radio,
+│                       #   Plex reporting), library / artist / album pages, the bottom
+│                       #   bar and Now Playing
 ├── LiveTV/             # MacLiveTVView: channel list + inline player; MacMultiview (up to
 │                       #   four channels, sound follows the clicked tile)
 └── Player/             # AetherPlayer (the only file naming engine types),
@@ -94,10 +99,32 @@ from the app, the app injects it at launch, before touching the stores:
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
 - **One stream at a time**, Multiview aside: starting a Plex title stops Live TV
-  and every Multiview tile, and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
+  and every Multiview tile, and pauses music (so does tuning a channel; starting
+  music stops Live TV), and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
   its floating window (`MacLivePlayback.isPoppedOut`). The engine's surface can
   be on screen in one place only, so the page shows a stand-in meanwhile;
   closing the window off the Live TV page stops the channel.
+
+### Music
+
+- Music libraries (`type == "artist"`) are in `plex.libraries` for the sidebar
+  but add no Home rows: anything reading `libraries` for video filters
+  `isVideoLibrary`.
+- `MacMusicPlayer` plays through `AVQueuePlayer`, with the next track already
+  queued for gapless albums. It trusts Plex certificates through an
+  `AVAssetResourceLoaderDelegate` (`MacMusicTrust`) answering with
+  `PlexCertificateDelegate.trustsUnverifiedCertificate`. Files AVFoundation
+  cannot open (Opus, Vorbis, WMA, DSD) and relay connections get an AAC 320
+  transcode (`buildMusicTranscodeURL`); a direct file that fails retries once as one.
+- Plex hears about tracks through the same timeline and scrobble calls as video.
+- Loudness levelling uses Plex's `gain` / `albumGain` / `peak` on the audio
+  stream (only in full metadata, so each track's source fetches it). Album gain
+  for an album in order, track gain otherwise; the player can only turn down.
+- Radio refills Up Next below 5 tracks: sonically similar (`/nearest`) when the
+  server has analysed the library, else random tracks from it.
+- Now Playing and the media keys: Plex title first, then music when it is
+  playing or no channel is on (`MacAppDelegate.musicInFront`), then Live TV.
+  `MacPlaybackController` owns all of it.
 
 ### Watch state
 
@@ -114,7 +141,8 @@ A settings control is wired to nothing by existing. When you add or touch one,
 grep its key: a single hit means it is dead. Keys read today:
 `homeStreamingQuality`, `awayStreamingQuality`, `autoSkipIntro`,
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
-`liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`.
+`liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
+`musicLoudnessLevelling`.
 
 ## Plex Metadata Hierarchy
 

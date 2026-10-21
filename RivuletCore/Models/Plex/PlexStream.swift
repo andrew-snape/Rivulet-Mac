@@ -62,6 +62,11 @@ nonisolated struct PlexStream: Codable, Identifiable, Sendable {
     let channels: Int?
     let bitrate: Int?
     let samplingRate: Int?
+    /// Plex's loudness analysis of a music track: gains in dB, peaks linear.
+    let gain: PlexNumber?
+    let albumGain: PlexNumber?
+    let peak: PlexNumber?
+    let albumPeak: PlexNumber?
 
     // Subtitle-specific
     let format: String?
@@ -96,6 +101,7 @@ nonisolated struct PlexStream: Codable, Identifiable, Sendable {
         case DOVIRPUPresent, DOVIVersion
         case frameRate, height, width, level, profile, refFrames, scanType
         case audioChannelLayout, channels, bitrate, samplingRate
+        case gain, albumGain, peak, albumPeak
         case format, key, extendedDisplayTitle, hearingImpaired
     }
 
@@ -147,5 +153,29 @@ nonisolated struct PlexStreamListWrapper: Codable, Sendable {
     let MediaContainer: Inner
     nonisolated struct Inner: Codable, Sendable {
         let Stream: [PlexStream]?
+    }
+}
+
+/// A number Plex may send as a JSON number or as a string ("-7.25"). Anything
+/// else decodes as nil rather than failing the whole stream.
+nonisolated struct PlexNumber: Codable, Hashable, Sendable {
+    let value: Double?
+
+    init(_ value: Double?) { self.value = value }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let number = try? container.decode(Double.self) {
+            value = number
+        } else if let text = try? container.decode(String.self) {
+            value = Double(text)
+        } else {
+            value = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
     }
 }

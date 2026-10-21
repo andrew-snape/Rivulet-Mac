@@ -383,11 +383,23 @@ private struct MacPlexSettings: View {
 private struct MacPlaybackSettings: View {
     /// Same key and meaning as tvOS and iOS: 0 lets the engine find the page.
     @AppStorage("liveTeletextPage") private var teletextPage = Locale.current.region?.identifier == "AU" ? 801 : 0
+    @AppStorage(MacMusicPlayback.loudnessKey) private var loudnessLevelling = true
 
     var body: some View {
         Form {
             Section {
+                Toggle("Loudness Levelling", isOn: $loudnessLevelling)
+            } header: {
+                Text("Music")
+            } footer: {
+                Text("Evens out volume between tracks, using the loudness analysis on your Plex server. An album played in order keeps its own quiet and loud songs. It applies from the next track.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 TextField("Teletext Caption Page", value: $teletextPage, format: .number.grouping(.never))
+            } header: {
+                Text("Live TV")
             } footer: {
                 Text("Broadcasts that carry captions as teletext use this page. Use 0 to find it automatically. It applies from the next channel you tune. Caption size, colour and font follow System Settings > Accessibility > Captions.")
                     .foregroundStyle(.secondary)
