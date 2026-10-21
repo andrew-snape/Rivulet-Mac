@@ -7,8 +7,8 @@ import Observation
 import SwiftUI
 
 /// App-level owner of the Plex item playing, shown over the whole window.
-/// Starting one stops Live TV and pauses music (`onStart`), so only one stream plays at a time.
-/// It also owns Now Playing and the media keys for music and Live TV.
+/// Starting one stops Live TV and radio, and pauses music (`onStart`), so only one stream plays at a time.
+/// It also owns Now Playing and the media keys for radio, music and Live TV.
 @MainActor
 @Observable
 final class MacPlaybackController {
@@ -441,17 +441,20 @@ final class MacPlaybackController {
 
     private func updateRemoteCommandAvailability(for session: MacPlexPlayback?) {
         let commands = MPRemoteCommandCenter.shared()
-        // A channel can pause and stop but has no length to skip or seek in.
         // Music seeks and changes track, but skips by track rather than by seconds.
+        // Live TV can skip inside its DVR window only.
         let available = session != nil
         let musicUp = session == nil ? music : nil
+        let liveUp = session == nil ? live : nil
+        let liveCanSkip = liveUp?.player.liveWindow.seekableRange != nil
+        let liveCanSkipForward = liveCanSkip == true && liveUp?.player.liveWindow.isAtLiveEdge == false
         let playing = available || musicUp != nil || live != nil || radio != nil
         commands.playCommand.isEnabled = playing
         commands.pauseCommand.isEnabled = playing
         commands.togglePlayPauseCommand.isEnabled = playing
         commands.stopCommand.isEnabled = playing
-        commands.skipBackwardCommand.isEnabled = available
-        commands.skipForwardCommand.isEnabled = available
+        commands.skipBackwardCommand.isEnabled = available || liveCanSkip
+        commands.skipForwardCommand.isEnabled = available || liveCanSkipForward
         // Read again each time, so a change in Settings reaches the next title.
         commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: MacSkipInterval.back)]
         commands.skipForwardCommand.preferredIntervals = [NSNumber(value: MacSkipInterval.forward)]
@@ -525,7 +528,12 @@ final class MacPlaybackController {
     }
 
     private func remoteSkip(by seconds: Double) -> MPRemoteCommandHandlerStatus {
-        guard let player = session?.player else { return .commandFailed }
+        if let player = session?.player {
+            Task { await player.skip(by: seconds) }
+            return .success
+        }
+        guard let player = live?.player, player.liveWindow.seekableRange != nil,
+              !(seconds > 0 && player.liveWindow.isAtLiveEdge) else { return .commandFailed }
         Task { await player.skip(by: seconds) }
         return .success
     }

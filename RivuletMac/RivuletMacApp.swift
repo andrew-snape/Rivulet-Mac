@@ -97,7 +97,7 @@ struct RivuletMacApp: App {
 }
 
 /// The Playback menu. It acts on the Plex player while one is up, else on
-/// music or Live TV, whichever is in front. Space and the arrow keys are
+/// radio, music or Live TV, whichever is in front. Space and the arrow keys are
 /// handled in `MacAppDelegate` instead, so they still type in a text field.
 private struct MacPlaybackCommands: Commands {
     var playback: MacLivePlayback
@@ -110,7 +110,8 @@ private struct MacPlaybackCommands: Commands {
     /// A station loaded with no Plex title up; it answers Play/Pause and Stop.
     private var radioInFront: Bool { vod.session == nil && radio.station != nil }
 
-    /// The video player in front: the Plex title, else the channel, unless music is in front.
+    /// The video player candidate: the Plex title, else the channel unless music is in front.
+    /// Radio is handled first by `radioInFront`.
     private var active: AetherPlayer? {
         vod.session?.player ?? (playback.channel == nil || musicInFront ? nil : player)
     }
