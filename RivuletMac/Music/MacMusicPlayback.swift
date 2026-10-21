@@ -61,7 +61,6 @@ final class MacMusicPlayback {
     /// Plays `tracks` from `index`. An album in order keeps its album gain.
     func play(_ tracks: [PlexMetadata], from index: Int = 0, shuffled: Bool = false, isAlbum: Bool = false) {
         guard !tracks.isEmpty else { return }
-        MacAppDelegate.radio?.stop()
         radio = nil
         queue.replace(with: tracks, startIndex: shuffled ? Int.random(in: tracks.indices) : index,
                       shuffled: shuffled, isAlbum: isAlbum)
@@ -70,7 +69,6 @@ final class MacMusicPlayback {
 
     /// Plays the track, then keeps going with tracks that sound like it.
     func startRadio(from seed: PlexMetadata) {
-        MacAppDelegate.radio?.stop()
         queue.replace(with: [seed], isRadio: true)
         radio = .similar
         loadCurrent()
