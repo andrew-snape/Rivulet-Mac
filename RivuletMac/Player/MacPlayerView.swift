@@ -28,10 +28,12 @@ struct MacPlayerView: View {
                 }
                 status
                 if playback.channel != nil {
-                    VStack {
+                    VStack(spacing: 0) {
+                        if !compact { topBar }
                         Spacer()
                         MacPlayerControls(playback: playback, player: player, compact: compact, isPopOut: isPopOut)
-                            .padding(compact ? 8 : 16)
+                            .padding(.horizontal, compact ? 8 : 24)
+                            .padding(.bottom, compact ? 8 : 20)
                     }
                     .opacity(controlsVisible ? 1 : 0)
                     .animation(.easeOut(duration: 0.25), value: controlsVisible)
@@ -51,6 +53,26 @@ struct MacPlayerView: View {
         // A slow tune or a resume from the keyboard leaves the pointer still, so fade from here too.
         .onChange(of: player.state) { _, state in
             if state == .playing { scheduleHide(after: .seconds(3)) }
+        }
+    }
+
+    /// The channel and programme at the top, as the Plex player shows its title.
+    @ViewBuilder
+    private var topBar: some View {
+        if let channel = playback.channel {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(playback.programme?.displayTitle ?? channel.name)
+                    .font(.title3.weight(.semibold))
+                if playback.programme != nil {
+                    Text(channel.numberAndName)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .shadow(color: .black.opacity(0.6), radius: 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .foregroundStyle(.white)
         }
     }
 
@@ -118,6 +140,7 @@ struct MacPlayerView: View {
 struct MacLivePopOutView: View {
     @Environment(MacLivePlayback.self) private var playback
     @Environment(\.dismissWindow) private var dismissWindow
+    @State private var popOutWindow: NSWindow?
 
     var body: some View {
         MacPlayerView(playback: playback, player: playback.player, compact: true, isPopOut: true)
@@ -125,7 +148,11 @@ struct MacLivePopOutView: View {
                 window.level = .floating
                 window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
                 window.contentAspectRatio = NSSize(width: 16, height: 9)
+                popOutWindow = window
             })
+            .onChange(of: playback.player.videoSize, initial: true) { _, size in
+                popOutWindow?.fit(toVideo: size)
+            }
             .onDisappear { playback.isPoppedOut = false }
             // Stopping the channel, or starting a Plex title, leaves nothing to float.
             .onChange(of: playback.channel == nil) { _, stopped in
@@ -146,7 +173,24 @@ private struct MacPlayerControls: View {
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
-        HStack(spacing: 14) {
+        // A shrunken window drops the volume slider first, then the fill toggle and Record.
+        ViewThatFits(in: .horizontal) {
+            row(spacing: 16, wide: true, minimal: false)
+            row(spacing: 12, wide: false, minimal: false)
+            row(spacing: 10, wide: false, minimal: true)
+        }
+        .buttonStyle(.borderless)
+        .font(.title3)
+        .foregroundStyle(.primary)
+        .padding(.horizontal, compact ? 12 : 18)
+        .padding(.vertical, compact ? 6 : 12)
+        .background(.regularMaterial, in: compact ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: 16)))
+        .frame(maxWidth: compact ? .infinity : 980)
+        .environment(\.colorScheme, .dark)
+    }
+
+    private func row(spacing: CGFloat, wide: Bool, minimal: Bool) -> some View {
+        HStack(spacing: spacing) {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.state == .playing ? "pause.fill" : "play.fill")
                     .frame(width: 18)
@@ -169,19 +213,6 @@ private struct MacPlayerControls: View {
 
             liveBadge
 
-            if !compact, let channel = playback.channel {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(playback.programme?.displayTitle ?? channel.name)
-                        .font(.callout.weight(.semibold))
-                    if playback.programme != nil {
-                        Text(channel.numberAndName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .lineLimit(1)
-            }
-
             Spacer(minLength: 8)
 
             if let channel = playback.channel {
@@ -191,7 +222,7 @@ private struct MacPlayerControls: View {
                 }
                 .help(isFavorite ? "Remove from Favourites" : "Add to Favourites")
 
-                if !compact, store.canRecord(channel), let program = playback.programme {
+                if !compact, !minimal, store.canRecord(channel), let program = playback.programme {
                     MacRecordButton(channel: channel, program: program)
                 }
             }
@@ -204,14 +235,16 @@ private struct MacPlayerControls: View {
             }
             .help(player.isMuted ? "Unmute" : "Mute")
 
-            if !compact {
+            if !compact && wide {
                 Slider(value: Binding(get: { Double(player.isMuted ? 0 : player.volume) },
                                       set: { player.setVolume(Float($0)) }),
                        in: 0...1)
                     .frame(width: 90)
                     .controlSize(.small)
                     .help("Volume")
+            }
 
+            if !compact && !minimal {
                 Button { player.fillsWindow.toggle() } label: {
                     Image(systemName: player.fillsWindow
                           ? "arrow.down.right.and.arrow.up.left.rectangle"
@@ -240,13 +273,6 @@ private struct MacPlayerControls: View {
                 .help("Full Screen")
             }
         }
-        .buttonStyle(.borderless)
-        .font(.title3)
-        .foregroundStyle(.primary)
-        .padding(.horizontal, compact ? 12 : 16)
-        .padding(.vertical, compact ? 6 : 10)
-        .background(.regularMaterial, in: Capsule())
-        .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder
