@@ -202,6 +202,9 @@ final class AetherPlayer {
         wirePublishers()
     }
 
+    /// The engine release, for the About panel.
+    nonisolated static var engineVersion: String { AetherEngine.version }
+
     /// The video. Hosts never name the engine's view.
     var surface: some View {
         AetherPlayerSurface(engine: engine)

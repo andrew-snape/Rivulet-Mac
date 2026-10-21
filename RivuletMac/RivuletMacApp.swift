@@ -72,6 +72,7 @@ struct RivuletMacApp: App {
         }
         .defaultSize(width: 1360, height: 820)
         .commands {
+            MacAboutCommands()
             MacUpdateCommands(updater: updater.updater)
             MacPlaybackCommands(playback: playback, player: playback.player, vod: vod, music: music, radio: radio)
         }
