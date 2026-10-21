@@ -18,6 +18,7 @@ enum MacSidebarLayout {
     static let orderKey = "sidebarOrder"
     static let hiddenKey = "sidebarHidden"
     static let liveTVID = "liveTV"
+    static let radioID = "radio"
 
     static func ids(_ stored: String) -> [String] {
         stored.split(separator: ",").map(String.init)
@@ -71,6 +72,11 @@ struct MacSidebarSettings: View {
             Section("Live TV") {
                 Toggle(isOn: visibility(of: MacSidebarLayout.liveTVID)) {
                     Label("Channels", systemImage: "play.tv")
+                }
+            }
+            Section("Radio") {
+                Toggle(isOn: visibility(of: MacSidebarLayout.radioID)) {
+                    Label("Stations", systemImage: "radio")
                 }
             }
         }

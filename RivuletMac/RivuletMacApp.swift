@@ -12,6 +12,7 @@ struct RivuletMacApp: App {
     @State private var multiview: MacMultiview
     @State private var plex: MacPlexSession
     @State private var vod: MacPlaybackController
+    @State private var radio: MacRadioPlayback
     private let updater = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -42,6 +43,7 @@ struct RivuletMacApp: App {
         _playback = State(initialValue: playback)
         _multiview = State(initialValue: multiview)
         _vod = State(initialValue: vod)
+        _radio = State(initialValue: MacRadioPlayback())
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
     }
@@ -53,6 +55,7 @@ struct RivuletMacApp: App {
                 .environment(multiview)
                 .environment(plex)
                 .environment(vod)
+                .environment(radio)
                 .onAppear { vod.configureRemoteCommands() }
                 // The browsing layout needs room; a Plex title playing needs none.
                 .frame(minWidth: vod.session == nil ? 900 : 320,
