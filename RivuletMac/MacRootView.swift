@@ -10,16 +10,19 @@ enum MacSection: Hashable {
     case search
     case library(String)
     case liveTV
+    case radio
 }
 
-/// The main window: Plex and Live TV in the sidebar, the chosen page beside
-/// it, the music bar along the bottom, and a Plex title playing over the whole window.
+/// The main window: Plex, Live TV and Radio in the sidebar, the chosen page
+/// beside it, the music bar along the bottom, and a Plex title playing over
+/// the whole window.
 struct MacRootView: View {
     @Environment(MacPlexSession.self) private var plex
     @Environment(MacPlaybackController.self) private var playback
     @Environment(MacLivePlayback.self) private var live
     @Environment(MacMultiview.self) private var multiview
     @Environment(MacMusicPlayback.self) private var music
+    @Environment(MacRadioPlayback.self) private var radio
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(MacSidebarLayout.orderKey) private var sidebarOrder = ""
@@ -39,9 +42,12 @@ struct MacRootView: View {
                 NavigationSplitView(columnVisibility: $columns) {
                     sidebar
                 } detail: {
-                    detail
+                    detail.safeAreaInset(edge: .bottom) { MacRadioBar() }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) { MacMusicBar() }
+                // On the split view, so the field sits in the window toolbar for every page,
+                // not only inside the detail column's stack.
+                .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
                 if music.isNowPlayingShown {
                     MacMusicNowPlayingView()
                         .transition(.move(edge: .bottom))
@@ -66,15 +72,17 @@ struct MacRootView: View {
         })
         .onAppear {
             playback.plex = plex
-            playback.onStart = { [live, multiview, music] in
+            playback.onStart = { [live, multiview, radio, music] in
                 live.stop()
                 multiview.stopAll()
+                radio.stop()
                 music.pause()
             }
-            // Music under a popped-out channel would play over it.
-            music.onStart = { [live, multiview] in
+            // Music under a popped-out channel or a station would play over it.
+            music.onStart = { [live, multiview, radio] in
                 live.stop()
                 multiview.stopAll()
+                radio.stop()
             }
         }
         .task { await plex.verifyConnection() }
@@ -91,6 +99,13 @@ struct MacRootView: View {
         .onChange(of: live.isPoppedOut) { was, isNow in
             if was, !isNow, section != .liveTV { live.stop() }
         }
+        // One stream at a time: a channel or a multiview tile takes the sound from radio.
+        .onChange(of: live.channel?.id) { _, channelID in
+            if channelID != nil { radio.stop() }
+        }
+        .onChange(of: multiview.tiles.count) { _, count in
+            if count > 0 { radio.stop() }
+        }
         // Hiding the row that is open moves to the first one left.
         .onChange(of: sidebarHidden) {
             let hiddenIDs = MacSidebarLayout.ids(sidebarHidden)
@@ -98,8 +113,13 @@ struct MacRootView: View {
                 .filter { !hiddenIDs.contains($0.id) }
                 .map(\.section)
             let liveVisible = !hiddenIDs.contains(MacSidebarLayout.liveTVID)
-            let stillShown = section.map { visible.contains($0) || ($0 == .liveTV && liveVisible) } ?? false
-            if !stillShown { section = visible.first ?? (liveVisible ? .liveTV : .home) }
+            let radioVisible = !hiddenIDs.contains(MacSidebarLayout.radioID)
+            let stillShown = section.map {
+                visible.contains($0) || ($0 == .liveTV && liveVisible) || ($0 == .radio && radioVisible)
+            } ?? false
+            if !stillShown {
+                section = visible.first ?? (liveVisible ? .liveTV : radioVisible ? .radio : .home)
+            }
         }
         .onChange(of: plex.sessionGeneration) { path = NavigationPath() }
         // Signing out, from the sidebar or from Settings, ends the Plex title playing.
@@ -158,6 +178,11 @@ struct MacRootView: View {
             if !hiddenIDs.contains(MacSidebarLayout.liveTVID) {
                 Section("Live TV") {
                     Label("Channels", systemImage: "play.tv").tag(MacSection.liveTV)
+                }
+            }
+            if !hiddenIDs.contains(MacSidebarLayout.radioID) {
+                Section("Radio") {
+                    Label("Stations", systemImage: "radio").tag(MacSection.radio)
                 }
             }
         }
@@ -222,6 +247,8 @@ struct MacRootView: View {
     private var detail: some View {
         if section == .liveTV {
             MacLiveTVView(isFullScreen: isFullScreen)
+        } else if section == .radio {
+            MacRadioView()
         } else {
             NavigationStack(path: $path) {
                 plexRoot
@@ -230,7 +257,6 @@ struct MacRootView: View {
                     .navigationDestination(for: MacPlexHubRoute.self) { MacPlexHubGridView(route: $0) }
             }
             .macScreen()
-            .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
         }
     }
 
@@ -240,7 +266,7 @@ struct MacRootView: View {
             MacPlexConnectView()
         } else {
             switch section ?? .home {
-            case .home, .liveTV:
+            case .home, .liveTV, .radio:
                 MacPlexHomeView()
             case .search:
                 MacPlexSearchView(query: $searchQuery)

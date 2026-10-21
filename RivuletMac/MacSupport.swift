@@ -108,11 +108,13 @@ actor MacArtworkCache {
 /// halo keeps black wordmarks legible, as on iOS.
 struct MacChannelLogo: View {
     let url: URL?
+    let placeholder: String
     @Environment(\.colorScheme) private var colorScheme
     @State private var image: NSImage?
 
-    init(url: URL?) {
+    init(url: URL?, placeholder: String = "tv") {
         self.url = url
+        self.placeholder = placeholder
         _image = State(initialValue: url.flatMap(MacArtworkCache.shared.cachedImage(for:)))
     }
 
@@ -121,7 +123,7 @@ struct MacChannelLogo: View {
             if let image {
                 Image(nsImage: image).resizable().scaledToFit()
             } else {
-                Image(systemName: "tv")
+                Image(systemName: placeholder)
                     .foregroundStyle(.tertiary)
             }
         }

@@ -18,7 +18,7 @@ AVPlayerLayer the app builds. Music does not use it: `MacMusicPlayer` wraps an
 - **Platform**: macOS 27+ (Golden Gate), Apple silicon only (`EXCLUDED_ARCHS = x86_64`; Xcode's "recommended settings" strip an explicit `ARCHS = arm64`, so not that)
 - **Language**: Swift 6 language mode, default actor isolation `MainActor`
 - **UI**: SwiftUI (`NavigationSplitView` shell), AppKit where SwiftUI has no answer (key monitor, full screen, pasteboard)
-- **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.39.0, which itself requires macOS 15, below our 27 target). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target. Its LibTrueHD and LibDTSX object-audio packages are not even fetched: they sit behind package traits, and Rivulet enables none.
+- **AetherEngine**: upstream SwiftPM dependency (`superuser404notfound/AetherEngine`), pinned `exactVersion` (7.44.0, which itself requires macOS 15, below our 27 target). There is no fork: engine fixes need an upstream release or a host-side workaround. FFmpeg and libdovi arrive only through it, as embedded dynamic frameworks whose macOS minimum (14) must stay at or below the deployment target. Its LibTrueHD object-audio package is not even fetched: it sits behind a package trait, and Rivulet enables none. DTS:X decodes through FFmpeg's own `dca` decoder, so it needs no package of its own.
 - **App icon**: `RivuletMac/Assets.xcassets/AppIcon.appiconset`, rendered from `Branding/logo_square_1024.png` on the macOS icon grid (824 pt squircle on a 1024 canvas).
 - **Signing**: "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`, no team). Sandboxed with outgoing and incoming network access, nothing else; hardened runtime off (only notarisation needs it).
 - **Updates**: Sparkle (pinned `exactVersion`), checking the latest GitHub release's `appcast.xml` and installing quietly on quit. Sandboxed, so the installer goes through Sparkle's launcher XPC service (`SUEnableInstallerLauncherService` plus the `-spks` / `-spki` mach-lookup entitlements). Sparkle compares `CURRENT_PROJECT_VERSION`: raise it every release. Publish with `scripts/release.sh <version>`; the EdDSA private key lives in the login keychain, and losing it strands installed copies.
@@ -99,8 +99,8 @@ from the app, the app injects it at launch, before touching the stores:
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
 - **One stream at a time**, Multiview aside: starting a Plex title stops Live TV
-  and every Multiview tile, and pauses music (so does tuning a channel; starting
-  music stops Live TV), and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
+  and every Multiview tile and internet radio, and pauses music (so do tuning a
+  channel and starting a station; starting music stops Live TV and radio), and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
   its floating window (`MacLivePlayback.isPoppedOut`). The engine's surface can
   be on screen in one place only, so the page shows a stand-in meanwhile;
   closing the window off the Live TV page stops the channel.

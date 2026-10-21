@@ -60,7 +60,7 @@ enum OpenSourceLicenses {
         [
             Entry(
                 name: "AetherEngine",
-                summary: "Video playback engine — the default player for on-demand titles. Dynamically linked and used under the GNU Lesser General Public License, version 3, with an Apple Store / DRM Exception. Copyright © 2026 Vincent Herbst. The complete corresponding source for the exact version linked by this app (tag 7.32.3, commit 4f46e68) is available at \(aetherSourceURL).",
+                summary: "Video playback engine, the default player for on-demand titles. Dynamically linked and used under the GNU Lesser General Public License, version 3, with an Apple Store / DRM Exception. Copyright © 2026 Vincent Herbst. The complete corresponding source for the exact version linked by this app (tag 7.44.0, commit e5ea8da) is available at \(aetherSourceURL).",
                 licenseText: aetherLGPLv3
             ),
             Entry(
@@ -70,7 +70,7 @@ enum OpenSourceLicenses {
             ),
             Entry(
                 name: "FFmpeg",
-                summary: "Used for demuxing, decoding, and remuxing. FFmpeg 8.1.2, dynamically linked (via the FFmpegBuild package) and used under the GNU Lesser General Public License, version 2.1 or later, built without GPL or nonfree components. Copyright © the FFmpeg developers. The build scripts, the exact configure flags used, the pinned source revisions, and the patches applied to the FFmpeg source are all at \(ffmpegSourceURL); the corresponding upstream FFmpeg source is at https://github.com/FFmpeg/FFmpeg (tag n8.1.2).",
+                summary: "Used for demuxing, decoding, and remuxing. FFmpeg 8.1.3, dynamically linked (via the FFmpegBuild package) and used under the GNU Lesser General Public License, version 2.1 or later, built without GPL or nonfree components. Copyright © the FFmpeg developers. The build scripts, the exact configure flags used, the pinned source revisions, and the patches applied to the FFmpeg source are all at \(ffmpegSourceURL); the corresponding upstream FFmpeg source is at https://github.com/FFmpeg/FFmpeg (tag n8.1.3).",
                 licenseText: ffmpegLGPL
             ),
             Entry(
