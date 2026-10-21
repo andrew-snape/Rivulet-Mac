@@ -39,19 +39,21 @@ struct MacRootView: View {
     var body: some View {
         ZStack {
             ZStack {
-                NavigationSplitView(columnVisibility: $columns) {
-                    sidebar
-                } detail: {
-                    detail
-                }
                 // One bar along the bottom: the station while one is loaded (music
-                // stays paused under it), else music.
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                // stays paused under it), else music. Below the split view, not a safe
+                // area inset on it: the inset never reached the detail column's scroll
+                // views, so the last row sat under the bar.
+                VStack(spacing: 0) {
+                    NavigationSplitView(columnVisibility: $columns) {
+                        sidebar
+                    } detail: {
+                        detail
+                    }
+                    // On the split view, so the field sits in the window toolbar for every page,
+                    // not only inside the detail column's stack.
+                    .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
                     if radio.station != nil { MacRadioBar() } else { MacMusicBar() }
                 }
-                // On the split view, so the field sits in the window toolbar for every page,
-                // not only inside the detail column's stack.
-                .searchable(text: $searchQuery, placement: .toolbar, prompt: "Movies, Shows and Episodes")
                 if music.isNowPlayingShown {
                     MacMusicNowPlayingView()
                         .transition(.move(edge: .bottom))

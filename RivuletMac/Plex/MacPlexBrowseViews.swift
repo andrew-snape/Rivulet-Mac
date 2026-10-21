@@ -117,12 +117,14 @@ struct MacPlexLibraryView: View {
             } else if items.isEmpty, !isLoading, loadedKey != nil {
                 ContentUnavailableView(unwatchedOnly ? "Nothing Unwatched" : "No Items", systemImage: library.icon)
             } else {
-                HStack(spacing: 0) {
-                    ScrollView {
-                        MacPlexPosterGrid(items: items, loadMore: loadMore)
-                        if isLoading || pageTask != nil { ProgressView().padding() }
-                    }
-                    .scrollPosition(id: $topID, anchor: .top)
+                ScrollView {
+                    MacPlexPosterGrid(items: items, loadMore: loadMore)
+                    if isLoading || pageTask != nil { ProgressView().padding() }
+                }
+                .scrollPosition(id: $topID, anchor: .top)
+                // An inset, not an HStack: in a stack the scroll view shrank to the
+                // grid's widest columns and sat in the middle of the page.
+                .safeAreaInset(edge: .trailing, spacing: 0) {
                     if let alphabet, alphabet.entries.count > 1, !items.isEmpty {
                         MacAlphabetBar(index: alphabet, current: currentLetter, jump: jump(to:))
                     }
