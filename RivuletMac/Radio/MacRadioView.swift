@@ -124,44 +124,55 @@ struct MacRadioView: View {
     }
 }
 
-/// What is playing, shown over the bottom of the window. Only while a station plays.
+/// The station along the bottom of the window, in the music bar's place and
+/// laid out like it. Only while a station is loaded.
 struct MacRadioBar: View {
     @Environment(MacRadioPlayback.self) private var radio
 
     var body: some View {
         if let station = radio.station {
-            HStack(spacing: 12) {
-                MacChannelLogo(url: station.tvgLogo.flatMap(URL.init(string:)), placeholder: "radio")
-                    .frame(width: 36, height: 24)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(station.name)
-                        .font(.callout.weight(.medium))
-                        .lineLimit(1)
-                    Text(statusText)
-                        .font(.caption)
-                        .foregroundStyle(MacTheme.textSecondary)
-                        .lineLimit(1)
+            HStack(spacing: 16) {
+                HStack(spacing: 10) {
+                    MacChannelLogo(url: station.tvgLogo.flatMap(URL.init(string:)), placeholder: "radio")
+                        .frame(width: 42, height: 42)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(station.name).font(.callout.weight(.semibold)).lineLimit(1)
+                        Text(statusText)
+                            .font(.caption)
+                            .foregroundStyle(isFailed ? Color.orange : Color.secondary)
+                            .lineLimit(1)
+                    }
                 }
-                Spacer(minLength: 0)
-                Button {
-                    radio.togglePlayPause()
-                } label: {
-                    Image(systemName: radio.state == .playing || radio.state == .loading ? "pause.fill" : "play.fill")
+                .frame(width: 240, alignment: .leading)
+
+                Button { radio.togglePlayPause() } label: {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title2)
+                        .frame(width: 28)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(radio.state == .playing || radio.state == .loading ? "Pause" : "Play")
-                Button {
-                    radio.stop()
-                } label: {
+                .buttonStyle(.borderless)
+                .help(isPlaying ? "Pause" : "Play")
+                .frame(maxWidth: .infinity)
+
+                Button { radio.stop() } label: {
                     Image(systemName: "stop.fill")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Stop")
+                .buttonStyle(.borderless)
+                .help("Stop")
+                .frame(width: 160, alignment: .trailing)
             }
-            .padding(12)
-            .background(MacTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .padding(10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.bar)
+            .overlay(alignment: .top) { Divider() }
         }
+    }
+
+    private var isPlaying: Bool { radio.state == .playing || radio.state == .loading }
+
+    private var isFailed: Bool {
+        if case .failed = radio.state { return true }
+        return false
     }
 
     private var statusText: String {
