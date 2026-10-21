@@ -117,8 +117,12 @@ final class RadioStore {
     }
 
     func setHidden(_ isHidden: Bool, _ station: M3UParser.ParsedChannel) {
-        let key = station.streamURL.absoluteString
-        if isHidden { hidden.insert(key) } else { hidden.remove(key) }
+        setHidden(isHidden, streams: [station.streamURL])
+    }
+
+    func setHidden(_ isHidden: Bool, streams: Set<URL>) {
+        let keys = Set(streams.map(\.absoluteString))
+        if isHidden { hidden.formUnion(keys) } else { hidden.subtract(keys) }
         defaults.set(hidden.sorted(), forKey: Self.hiddenKey)
     }
 

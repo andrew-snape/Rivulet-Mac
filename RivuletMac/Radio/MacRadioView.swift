@@ -7,7 +7,8 @@ import SwiftUI
 /// Internet radio: the single stations the user added, then one list of
 /// stations per saved playlist, as a list or a grid. Picking a station plays
 /// it, and it keeps playing when another page opens. Hidden stations step out
-/// of the lists until Show Hidden is on.
+/// of the lists until Show Hidden is on. Select picks several stations to hide
+/// or unhide at once; a click then selects rather than plays.
 struct MacRadioView: View {
     /// The window's search field, which filters the stations by name.
     let query: String
@@ -19,6 +20,8 @@ struct MacRadioView: View {
     @AppStorage("radioLayout") private var layoutRaw = "list"
     @AppStorage("radioSort") private var sortRaw = "playlist"
     @State private var showsHidden = false
+    @State private var selecting = false
+    @State private var selection: Set<URL> = []
     @State private var adding: MacRadioAddKind?
     @State private var removing: RadioStore.Playlist?
 
@@ -69,6 +72,32 @@ struct MacRadioView: View {
 
     @ToolbarContentBuilder
     private var toolbarControls: some ToolbarContent {
+        if selecting {
+            ToolbarItem {
+                Button("Select All") {
+                    selection = Set(sections.flatMap { $0.stations ?? [] }.map(\.streamURL))
+                }
+            }
+            ToolbarItem {
+                Button("Hide") { hideSelection(true) }
+                    .disabled(selection.isEmpty)
+                    .help("Hide the selected stations")
+            }
+            if showsHidden {
+                ToolbarItem {
+                    Button("Unhide") { hideSelection(false) }
+                        .disabled(selection.isEmpty)
+                        .help("Unhide the selected stations")
+                }
+            }
+        }
+        ToolbarItem {
+            Button(selecting ? "Done" : "Select") {
+                selecting.toggle()
+                selection = []
+            }
+            .help(selecting ? "Stop selecting stations" : "Select stations to hide or unhide")
+        }
         ToolbarItem {
             Picker("View", selection: $layoutRaw) {
                 Text("List").tag("list")
@@ -101,6 +130,11 @@ struct MacRadioView: View {
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
+
+    private func hideSelection(_ isHidden: Bool) {
+        store.setHidden(isHidden, streams: selection)
+        selection = []
+    }
 
     // MARK: - Sections
 
@@ -198,9 +232,12 @@ struct MacRadioView: View {
 
     private func stationRow(_ station: M3UParser.ParsedChannel) -> some View {
         Button {
-            play(station)
+            tap(station)
         } label: {
             HStack(spacing: 12) {
+                if selecting {
+                    checkmark(station)
+                }
                 MacChannelLogo(url: station.tvgLogo.flatMap(URL.init(string:)), placeholder: "radio")
                     .frame(width: 36, height: 24)
                 Text(station.name)
@@ -249,7 +286,7 @@ struct MacRadioView: View {
     private func stationTile(_ station: M3UParser.ParsedChannel) -> some View {
         let shape = RoundedRectangle(cornerRadius: MacTheme.cardCorner, style: .continuous)
         return Button {
-            play(station)
+            tap(station)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 MacChannelLogo(url: station.tvgLogo.flatMap(URL.init(string:)), placeholder: "radio")
@@ -263,6 +300,9 @@ struct MacRadioView: View {
                     }
                     .overlay(alignment: .topTrailing) {
                         if isCurrent(station) { indicator.padding(8) }
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if selecting { checkmark(station).padding(8) }
                     }
                 Text(station.name)
                     .font(.callout)
@@ -293,6 +333,23 @@ struct MacRadioView: View {
             Divider()
             Button("Remove Station", role: .destructive) { store.removeStation(station) }
         }
+    }
+
+    /// Plays the station, or while selecting, adds it to the selection or takes it out.
+    private func tap(_ station: M3UParser.ParsedChannel) {
+        guard selecting else { play(station); return }
+        if selection.contains(station.streamURL) {
+            selection.remove(station.streamURL)
+        } else {
+            selection.insert(station.streamURL)
+        }
+    }
+
+    private func checkmark(_ station: M3UParser.ParsedChannel) -> some View {
+        let isSelected = selection.contains(station.streamURL)
+        return Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.body)
+            .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
     }
 
     private func isCurrent(_ station: M3UParser.ParsedChannel) -> Bool {
