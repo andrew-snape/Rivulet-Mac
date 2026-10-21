@@ -23,6 +23,8 @@ final class RadioStore {
     struct Station: Codable, Equatable {
         var name: String
         let url: URL
+        /// A picture for the station. A stream carries none, so the user gives it.
+        var logo: URL?
     }
 
     enum RadioError: LocalizedError {
@@ -75,7 +77,7 @@ final class RadioStore {
     /// The single stations, in the form the player and the lists take.
     var ownStationChannels: [M3UParser.ParsedChannel] {
         ownStations.map {
-            M3UParser.ParsedChannel(tvgId: nil, tvgName: nil, tvgLogo: nil, groupTitle: nil,
+            M3UParser.ParsedChannel(tvgId: nil, tvgName: nil, tvgLogo: $0.logo?.absoluteString, groupTitle: nil,
                                     channelNumber: nil, name: $0.name, streamURL: $0.url)
         }
     }
@@ -99,11 +101,27 @@ final class RadioStore {
 
     /// Saves one station by its stream address. A .pls or plain .m3u file, as
     /// many stations link to, is read for the stream address inside it.
-    func addStation(name: String, address: String) async throws {
+    func addStation(name: String, address: String, logo: String) async throws {
+        let logoURL = try Self.logoAddress(logo)
         let url = try await Self.streamAddress(Self.webAddress(address))
         guard !ownStations.contains(where: { $0.url == url }) else { throw RadioError.alreadyAdded }
         let typedName = name.trimmingCharacters(in: .whitespaces)
-        ownStations.append(Station(name: typedName.isEmpty ? (url.host() ?? "Station") : typedName, url: url))
+        ownStations.append(Station(name: typedName.isEmpty ? (url.host() ?? "Station") : typedName,
+                                   url: url, logo: logoURL))
+        saveStations()
+    }
+
+    func ownStation(_ url: URL) -> Station? {
+        ownStations.first { $0.url == url }
+    }
+
+    /// A new name or logo. The stream stays, as hiding and quality follow it.
+    func updateStation(_ url: URL, name: String, logo: String) throws {
+        let logoURL = try Self.logoAddress(logo)
+        guard let index = ownStations.firstIndex(where: { $0.url == url }) else { return }
+        let typedName = name.trimmingCharacters(in: .whitespaces)
+        if !typedName.isEmpty { ownStations[index].name = typedName }
+        ownStations[index].logo = logoURL
         saveStations()
     }
 
@@ -181,6 +199,11 @@ final class RadioStore {
             throw RadioError.invalidAddress
         }
         return url
+    }
+
+    /// Nil for an empty field.
+    private static func logoAddress(_ address: String) throws -> URL? {
+        try address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : webAddress(address)
     }
 
     /// The first stream address in a .pls (`File1=`) or plain .m3u file. Any

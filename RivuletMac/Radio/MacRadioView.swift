@@ -331,6 +331,7 @@ struct MacRadioView: View {
         }
         if store.isOwnStation(station) {
             Divider()
+            Button("Edit Station…") { adding = .edit(station.streamURL) }
             Button("Remove Station", role: .destructive) { store.removeStation(station) }
         }
     }
@@ -396,9 +397,11 @@ private struct MacRadioSection: Identifiable {
     let allHidden: Bool
 }
 
-private enum MacRadioAddKind: Identifiable {
+private enum MacRadioAddKind: Hashable, Identifiable {
     case playlist
     case station
+    /// One of My Stations, by its stream address.
+    case edit(URL)
 
     var id: Self { self }
 }
@@ -485,6 +488,7 @@ private struct MacRadioAddForm: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var address = ""
+    @State private var logo = ""
     @State private var isWorking = false
     @State private var isLookingUp = false
     /// The name last filled in from the stream, so a new address can replace it.
@@ -499,16 +503,16 @@ private struct MacRadioAddForm: View {
                     case .playlist:
                         TextField("Name", text: $name, prompt: Text("Radio Stations"))
                         TextField("Playlist URL", text: $address, prompt: Text("https://example.com/radio.m3u8"))
-                    case .station:
+                    case .station, .edit:
                         TextField("Name", text: $name, prompt: Text("Station Name"))
                         TextField("Stream URL", text: $address, prompt: Text("https://example.com/stream.mp3"))
+                            .disabled(isEditing)
+                        TextField("Logo URL", text: $logo, prompt: Text("Optional"))
                     }
                 } header: {
-                    Text(kind == .playlist ? "Add a Radio Playlist" : "Add a Radio Station")
+                    Text(title)
                 } footer: {
-                    Text(failure ?? (kind == .playlist
-                        ? "An M3U playlist of internet radio stations."
-                        : "One station's stream, such as a Shoutcast or Icecast address, or a .pls or .m3u link to it."))
+                    Text(failure ?? footer)
                         .foregroundStyle(failure == nil ? .secondary : .primary)
                 }
             }
@@ -523,7 +527,7 @@ private struct MacRadioAddForm: View {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Add", action: add)
+                Button(isEditing ? "Save" : "Add", action: add)
                     .keyboardShortcut(.defaultAction)
                     .disabled(address.trimmingCharacters(in: .whitespaces).isEmpty || isWorking)
             }
@@ -531,6 +535,34 @@ private struct MacRadioAddForm: View {
         }
         .frame(width: 480)
         .task(id: address) { await lookUpName() }
+        .onAppear {
+            guard case .edit(let url) = kind, let station = RadioStore.shared.ownStation(url) else { return }
+            name = station.name
+            address = url.absoluteString
+            logo = station.logo?.absoluteString ?? ""
+        }
+    }
+
+    private var isEditing: Bool {
+        if case .edit = kind { return true }
+        return false
+    }
+
+    private var title: String {
+        switch kind {
+        case .playlist: "Add a Radio Playlist"
+        case .station: "Add a Radio Station"
+        case .edit: "Edit Station"
+        }
+    }
+
+    private var footer: String {
+        switch kind {
+        case .playlist: "An M3U playlist of internet radio stations."
+        case .station: "One station's stream, such as a Shoutcast or Icecast address, or a .pls or .m3u link to it. "
+            + "A stream carries no picture, so paste the address of the station's logo if you'd like one."
+        case .edit: "A stream carries no picture, so paste the address of the station's logo if you'd like one."
+        }
     }
 
     /// Fills in the name a station's server announces, once the address has
@@ -555,7 +587,8 @@ private struct MacRadioAddForm: View {
             do {
                 switch kind {
                 case .playlist: try await RadioStore.shared.add(name: name, address: address)
-                case .station: try await RadioStore.shared.addStation(name: name, address: address)
+                case .station: try await RadioStore.shared.addStation(name: name, address: address, logo: logo)
+                case .edit(let url): try RadioStore.shared.updateStation(url, name: name, logo: logo)
                 }
                 dismiss()
             } catch {
