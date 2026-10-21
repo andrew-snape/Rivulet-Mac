@@ -25,6 +25,9 @@ final class MacRadioPlayback {
 
     private(set) var station: M3UParser.ParsedChannel?
     private(set) var state: State = .idle
+    /// What the station says is on, from its stream's metadata (ICY on
+    /// Shoutcast and Icecast, ID3 in HLS). Nil when it sends none.
+    private(set) var streamTitle: String?
 
     @ObservationIgnored private let player = AVPlayer()
 
@@ -32,6 +35,7 @@ final class MacRadioPlayback {
     var routingPlayer: AVPlayer { player }
     @ObservationIgnored private var statusTask: Task<Void, Never>?
     @ObservationIgnored private var itemTask: Task<Void, Never>?
+    @ObservationIgnored private var metadataReader: RadioMetadataReader?
 
     init() {
         statusTask = Task { [weak self, player] in
@@ -48,6 +52,14 @@ final class MacRadioPlayback {
         state = .loading
         radioLog.notice("Play \(newStation.name, privacy: .public)")
         let item = AVPlayerItem(url: newStation.streamURL)
+        streamTitle = nil
+        let reader = RadioMetadataReader { [weak self, weak item] title in
+            // A late title from the station before is dropped.
+            guard let self, let item, self.player.currentItem === item else { return }
+            self.streamTitle = title
+        }
+        item.add(reader.output)
+        metadataReader = reader
         player.replaceCurrentItem(with: item)
         itemTask?.cancel()
         itemTask = Task { [weak self] in
@@ -81,7 +93,9 @@ final class MacRadioPlayback {
     func stop() {
         itemTask?.cancel()
         player.replaceCurrentItem(with: nil)
+        metadataReader = nil
         station = nil
+        streamTitle = nil
         state = .idle
     }
 
@@ -134,5 +148,49 @@ final class MacRadioPlayback {
         @unknown default:
             break
         }
+    }
+}
+
+/// Hands on the song title a station sends with its sound. Shoutcast and
+/// Icecast send "Artist - Title" as one ICY StreamTitle; HLS sends ID3 title
+/// and artist apart, joined here the same way. Blank titles are ignored.
+private final class RadioMetadataReader: NSObject, AVPlayerItemMetadataOutputPushDelegate {
+    let output = AVPlayerItemMetadataOutput(identifiers: nil)
+    private let onTitle: (String) -> Void
+
+    init(onTitle: @escaping (String) -> Void) {
+        self.onTitle = onTitle
+        super.init()
+        output.setDelegate(self, queue: .main)
+    }
+
+    nonisolated func metadataOutput(_ output: AVPlayerItemMetadataOutput,
+                                    didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
+                                    from track: AVPlayerItemTrack?) {
+        let items = groups.flatMap(\.items)
+        // The delegate queue is the main queue.
+        MainActor.assumeIsolated {
+            Task { await self.read(items) }
+        }
+    }
+
+    private func read(_ items: [AVMetadataItem]) async {
+        var streamTitle: String?
+        var title: String?
+        var artist: String?
+        for item in items {
+            guard let value = try? await item.load(.stringValue)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty else { continue }
+            if item.identifier == .icyMetadataStreamTitle {
+                streamTitle = value
+            } else if item.commonKey == .commonKeyTitle {
+                title = value
+            } else if item.commonKey == .commonKeyArtist {
+                artist = value
+            }
+        }
+        let joined = title.map { title in artist.map { "\($0) - \(title)" } ?? title }
+        guard let text = streamTitle ?? joined else { return }
+        onTitle(text)
     }
 }

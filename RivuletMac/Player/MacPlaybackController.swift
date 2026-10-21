@@ -253,7 +253,7 @@ final class MacPlaybackController {
     private func observeRadio() {
         guard let radio = MacAppDelegate.radio else { return }
         musicObservations.append(Task { [weak self] in
-            for await _ in Observations({ _ = (radio.station?.name, radio.state) }) {
+            for await _ in Observations({ _ = (radio.station?.name, radio.state, radio.streamTitle) }) {
                 guard let self, self.session == nil else { continue }
                 self.updateBackgroundNowPlaying()
                 self.updateRemoteCommandAvailability(for: nil)
@@ -274,12 +274,16 @@ final class MacPlaybackController {
 
     private func updateRadioNowPlaying(_ radio: MacRadioPlayback) {
         let nowPlaying = MPNowPlayingInfoCenter.default()
-        nowPlaying.nowPlayingInfo = [
-            MPMediaItemPropertyTitle: radio.station?.name ?? "",
+        let stationName = radio.station?.name ?? ""
+        // The song the station names, if it sends one, with the station under it.
+        var information: [String: Any] = [
+            MPMediaItemPropertyTitle: radio.streamTitle ?? stationName,
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
             MPNowPlayingInfoPropertyPlaybackRate: radio.state == .playing ? 1.0 : 0.0
         ]
+        if radio.streamTitle != nil { information[MPMediaItemPropertyArtist] = stationName }
+        nowPlaying.nowPlayingInfo = information
         switch radio.state {
         case .playing: nowPlaying.playbackState = .playing
         case .loading, .paused: nowPlaying.playbackState = .paused

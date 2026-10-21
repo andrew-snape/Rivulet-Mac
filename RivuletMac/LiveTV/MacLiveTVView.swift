@@ -18,12 +18,13 @@ enum MacChannelFilter: Hashable {
 /// In full screen the list steps aside.
 struct MacLiveTVView: View {
     let isFullScreen: Bool
+    /// The window's search field: channel names and numbers, and the guide.
+    let query: String
     @Environment(MacLivePlayback.self) private var playback
     @Environment(MacMultiview.self) private var multiview
     private let store = LiveTVDataStore.shared
     @AppStorage("macChannelFilter") private var filterRaw = "all"
     @AppStorage("macChannelSort") private var sortRaw = "provider"
-    @State private var query = ""
     @State private var groups: [String] = []
     @AppStorage("macLiveTVLayout") private var layoutRaw = MacLiveTVLayout.channels.rawValue
     @State private var lineupRevision = 0
@@ -130,21 +131,19 @@ struct MacLiveTVView: View {
         .macScreen()
     }
 
+    /// Loading progress above the list; the search is the window's field.
+    @ViewBuilder
     private var filterBar: some View {
-        VStack(spacing: 8) {
-            TextField("Channels and Programmes", text: $query)
-                .textFieldStyle(.roundedBorder)
-            if store.isLoadingChannels || store.isLoadingEPG {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text(store.isLoadingChannels ? "Loading channels" : "Loading guide")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
+        if store.isLoadingChannels || store.isLoadingEPG {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text(store.isLoadingChannels ? "Loading channels" : "Loading guide")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
             }
+            .padding(10)
         }
-        .padding(10)
     }
 
     @ToolbarContentBuilder
@@ -278,10 +277,13 @@ private struct MacChannelList: View {
     private func filtered(at date: Date) -> [UnifiedChannel] {
         let text = query.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return channels }
-        return channels.filter {
-            $0.name.localizedCaseInsensitiveContains(text)
-                || $0.channelNumber.map { String($0).hasPrefix(text) } == true
-                || store.program(for: $0, at: date)?.title.localizedCaseInsensitiveContains(text) == true
+        // Anything in the guide from now on, not only what is on now.
+        return channels.filter { channel in
+            channel.name.localizedCaseInsensitiveContains(text)
+                || channel.channelNumber.map { String($0).hasPrefix(text) } == true
+                || store.epg[channel.id]?.contains {
+                    $0.endTime > date && $0.displayTitle.localizedCaseInsensitiveContains(text)
+                } == true
         }
     }
 
