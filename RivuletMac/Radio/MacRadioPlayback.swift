@@ -156,9 +156,9 @@ final class MacRadioPlayback {
 /// and artist apart, joined here the same way. Blank titles are ignored.
 private final class RadioMetadataReader: NSObject, AVPlayerItemMetadataOutputPushDelegate {
     let output = AVPlayerItemMetadataOutput(identifiers: nil)
-    private let onTitle: (String) -> Void
+    private let onTitle: @MainActor (String) -> Void
 
-    init(onTitle: @escaping (String) -> Void) {
+    init(onTitle: @escaping @MainActor (String) -> Void) {
         self.onTitle = onTitle
         super.init()
         output.setDelegate(self, queue: .main)
@@ -167,11 +167,9 @@ private final class RadioMetadataReader: NSObject, AVPlayerItemMetadataOutputPus
     nonisolated func metadataOutput(_ output: AVPlayerItemMetadataOutput,
                                     didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
                                     from track: AVPlayerItemTrack?) {
-        let items = groups.flatMap(\.items)
-        // The delegate queue is the main queue.
-        MainActor.assumeIsolated {
-            Task { await self.read(items) }
-        }
+        // Delivered on the main queue (see init), so the items never leave it.
+        nonisolated(unsafe) let items = groups.flatMap(\.items)
+        Task { @MainActor in await self.read(items) }
     }
 
     private func read(_ items: [AVMetadataItem]) async {
