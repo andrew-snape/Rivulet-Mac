@@ -8,7 +8,9 @@ import SwiftUI
 
 /// The system AirPlay button. With a player it sends that player to an Apple
 /// TV or AirPlay speaker, picture included for video; without one it picks the
-/// Mac's sound output, so the sound goes and the picture stays here.
+/// Mac's sound output, so the sound goes and the picture stays here. Music and
+/// radio use it without one: bound to an audio player, the picker never leaves
+/// its pulsing "connecting" state even once the speaker is playing.
 struct MacAirPlayButton: NSViewRepresentable {
     var player: AVPlayer?
     var tint: NSColor = .labelColor
