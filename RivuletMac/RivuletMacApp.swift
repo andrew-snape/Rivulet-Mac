@@ -14,6 +14,7 @@ struct RivuletMacApp: App {
     @State private var vod: MacPlaybackController
     @State private var music: MacMusicPlayback
     @State private var radio: MacRadioPlayback
+    @AppStorage(MacMiniPlayer.menuBarKey) private var showsMenuBarPlayer = false
     private let updater = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -88,6 +89,31 @@ struct RivuletMacApp: App {
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
+        // Music and radio in a small floating window. Opened from the bars or the
+        // Playback menu, never at launch.
+        Window("Mini Player", id: MacMiniPlayer.windowID) {
+            MacMiniPlayerWindow()
+                .environment(plex)
+                .environment(music)
+                .environment(radio)
+                .preferredColorScheme(.dark)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        // The same card from the menu bar, when Settings turns it on.
+        MenuBarExtra(isInserted: $showsMenuBarPlayer) {
+            MacMiniPlayerView(inMenuBar: true)
+                .environment(plex)
+                .environment(music)
+                .environment(radio)
+                .preferredColorScheme(.dark)
+        } label: {
+            Image(systemName: radio.station != nil ? "dot.radiowaves.left.and.right" : "music.note")
+        }
+        .menuBarExtraStyle(.window)
+
         Settings {
             MacSettingsView(updater: updater.updater)
                 .environment(plex)
@@ -106,6 +132,7 @@ private struct MacPlaybackCommands: Commands {
     var music: MacMusicPlayback
     var radio: MacRadioPlayback
     private let store = LiveTVDataStore.shared
+    @Environment(\.openWindow) private var openWindow
 
     /// A station loaded with no Plex title up; it answers Play/Pause and Stop.
     private var radioInFront: Bool { vod.session == nil && radio.station != nil }
@@ -175,6 +202,11 @@ private struct MacPlaybackCommands: Commands {
                 Text("One").tag(MusicQueue.RepeatMode.one)
             }
             .disabled(!music.isActive)
+
+            Divider()
+
+            Button("Mini Player") { openWindow(id: MacMiniPlayer.windowID) }
+                .disabled(!radioInFront && !music.isActive)
 
             Divider()
 

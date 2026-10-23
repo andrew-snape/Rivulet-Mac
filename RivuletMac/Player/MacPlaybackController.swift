@@ -28,6 +28,8 @@ final class MacPlaybackController {
     @ObservationIgnored private var liveObservation: Task<Void, Never>?
     @ObservationIgnored private var musicObservations: [Task<Void, Never>] = []
     @ObservationIgnored private var musicArtwork: (key: String, artwork: MPMediaItemArtwork)?
+    /// The logo of the station or channel in front, on a square, for Now Playing.
+    @ObservationIgnored private var logoArtwork: (url: URL, artwork: MPMediaItemArtwork)?
     @ObservationIgnored private var videoShapeObservation: Task<Void, Never>?
     @ObservationIgnored private var hasConfiguredRemoteCommands = false
     /// The last title's volume and mute; the next title starts on them.
@@ -187,6 +189,7 @@ final class MacPlaybackController {
         observeLive()
         observeMusic()
         observeRadio()
+        observeLogo()
     }
 
     /// Music, when it is in front of any channel and no Plex title is up.
@@ -253,12 +256,41 @@ final class MacPlaybackController {
     private func observeRadio() {
         guard let radio = MacAppDelegate.radio else { return }
         musicObservations.append(Task { [weak self] in
-            for await _ in Observations({ _ = (radio.station?.name, radio.state, radio.streamTitle) }) {
+            for await _ in Observations({ _ = (radio.station?.name, radio.state, radio.streamTitle, radio.cover) }) {
                 guard let self, self.session == nil else { continue }
                 self.updateBackgroundNowPlaying()
                 self.updateRemoteCommandAvailability(for: nil)
             }
         })
+    }
+
+    /// A station's or channel's logo is what Now Playing shows when there is no better picture.
+    private func observeLogo() {
+        guard let radio = MacAppDelegate.radio, let live = MacAppDelegate.playback else { return }
+        musicObservations.append(Task { [weak self] in
+            for await _ in Observations({ _ = (radio.station?.tvgLogo, live.channel?.id) }) {
+                await self?.loadLogo()
+            }
+        })
+    }
+
+    private func loadLogo() async {
+        let url: URL?
+        if let station = MacAppDelegate.radio?.station {
+            url = station.tvgLogo.flatMap(URL.init(string:))
+        } else {
+            url = MacAppDelegate.playback?.channel?.logoURL
+        }
+        guard let url else {
+            logoArtwork = nil
+            return
+        }
+        guard logoArtwork?.url != url else { return }
+        // The last logo is the wrong one for this station or channel.
+        logoArtwork = nil
+        guard let image = await MacArtworkCache.shared.image(for: url) else { return }
+        logoArtwork = (url, Self.artwork(from: image.centredOnSquare()))
+        if session == nil { updateBackgroundNowPlaying() }
     }
 
     /// Now Playing with no Plex title up: a station, else music in front, else the channel.
@@ -275,14 +307,23 @@ final class MacPlaybackController {
     private func updateRadioNowPlaying(_ radio: MacRadioPlayback) {
         let nowPlaying = MPNowPlayingInfoCenter.default()
         let stationName = radio.station?.name ?? ""
-        // The song the station names, if it sends one, with the station under it.
+        // The song the station names, if it sends one, with its artist and the
+        // station under it; else the station alone.
         var information: [String: Any] = [
-            MPMediaItemPropertyTitle: radio.streamTitle ?? stationName,
+            MPMediaItemPropertyTitle: radio.song?.title ?? stationName,
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
             MPNowPlayingInfoPropertyPlaybackRate: radio.state == .playing ? 1.0 : 0.0
         ]
-        if radio.streamTitle != nil { information[MPMediaItemPropertyArtist] = stationName }
+        if let song = radio.song {
+            information[MPMediaItemPropertyArtist] = song.artist ?? stationName
+            if song.artist != nil { information[MPMediaItemPropertyAlbumTitle] = stationName }
+        }
+        if let cover = radio.cover {
+            information[MPMediaItemPropertyArtwork] = Self.artwork(from: cover)
+        } else if let logoArtwork {
+            information[MPMediaItemPropertyArtwork] = logoArtwork.artwork
+        }
         nowPlaying.nowPlayingInfo = information
         switch radio.state {
         case .playing: nowPlaying.playbackState = .playing
@@ -300,6 +341,7 @@ final class MacPlaybackController {
             MPMediaItemPropertyArtist: track.trackArtist ?? "",
             MPMediaItemPropertyAlbumTitle: track.parentTitle ?? "",
             MPNowPlayingInfoPropertyElapsedPlaybackTime: player.currentTime.isFinite ? max(0, player.currentTime) : 0,
+            MPNowPlayingInfoPropertyPlaybackQueueCount: music.queue.entries.count,
             MPNowPlayingInfoPropertyPlaybackRate: player.state == .playing ? 1.0 : 0.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
@@ -308,6 +350,11 @@ final class MacPlaybackController {
         if duration.isFinite, duration > 0 {
             information[MPMediaItemPropertyPlaybackDuration] = duration
         }
+        if let index = music.queue.currentIndex {
+            information[MPNowPlayingInfoPropertyPlaybackQueueIndex] = index
+        }
+        if let albumArtist = track.grandparentTitle { information[MPMediaItemPropertyAlbumArtist] = albumArtist }
+        if let number = track.index { information[MPMediaItemPropertyAlbumTrackNumber] = number }
         if let musicArtwork, musicArtwork.key == track.ratingKey {
             information[MPMediaItemPropertyArtwork] = musicArtwork.artwork
         }
@@ -327,12 +374,14 @@ final class MacPlaybackController {
             return
         }
         let channel = playback.channel
-        nowPlaying.nowPlayingInfo = [
+        var information: [String: Any] = [
             MPMediaItemPropertyTitle: playback.programme?.displayTitle ?? channel?.name ?? "",
             MPMediaItemPropertyArtist: channel?.numberAndName ?? "",
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyPlaybackRate: playback.player.state == .playing ? 1.0 : 0.0
         ]
+        if let logoArtwork { information[MPMediaItemPropertyArtwork] = logoArtwork.artwork }
+        nowPlaying.nowPlayingInfo = information
         switch playback.player.state {
         case .playing: nowPlaying.playbackState = .playing
         case .ended, .failed, .idle: nowPlaying.playbackState = .stopped

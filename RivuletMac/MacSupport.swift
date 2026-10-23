@@ -104,6 +104,26 @@ actor MacArtworkCache {
     }
 }
 
+extension NSImage {
+    /// The image fitted inside a square on a dark ground, for Now Playing, which
+    /// crops a wide logo to fill its square.
+    func centredOnSquare(side: Int = 600) -> NSImage {
+        guard let source = cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return self }
+        let canvas = CGFloat(side)
+        context.setFillColor(CGColor(gray: 0.12, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
+        let scale = min(canvas * 0.8 / CGFloat(source.width), canvas * 0.8 / CGFloat(source.height))
+        let width = CGFloat(source.width) * scale
+        let height = CGFloat(source.height) * scale
+        context.draw(source, in: CGRect(x: (canvas - width) / 2, y: (canvas - height) / 2, width: width, height: height))
+        guard let squared = context.makeImage() else { return self }
+        return NSImage(cgImage: squared, size: NSSize(width: side, height: side))
+    }
+}
+
 /// A channel logo drawn whole (scaled to fit). On dark backgrounds a faint
 /// halo keeps black wordmarks legible, as on iOS.
 struct MacChannelLogo: View {
