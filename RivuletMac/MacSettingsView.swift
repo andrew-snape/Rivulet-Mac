@@ -389,6 +389,7 @@ private struct MacPlaybackSettings: View {
     /// Same key and meaning as tvOS and iOS: 0 lets the engine find the page.
     @AppStorage("liveTeletextPage") private var teletextPage = Locale.current.region?.identifier == "AU" ? 801 : 0
     @AppStorage(MacMusicPlayback.loudnessKey) private var loudnessLevelling = true
+    @AppStorage(MacMiniPlayer.menuBarKey) private var menuBarPlayer = false
     @AppStorage(MacPlexPlayback.autoPlayNextKey) private var autoPlayNext = true
     @AppStorage(MacSkipInterval.backKey) private var skipBack = MacSkipInterval.backDefault
     @AppStorage(MacSkipInterval.forwardKey) private var skipForward = MacSkipInterval.forwardDefault
@@ -412,6 +413,15 @@ private struct MacPlaybackSettings: View {
                 Text("Music")
             } footer: {
                 Text("Evens out volume between tracks, using the loudness analysis on your Plex server. An album played in order keeps its own quiet and loud songs. It applies from the next track.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Show in Menu Bar", isOn: $menuBarPlayer)
+            } header: {
+                Text("Mini Player")
+            } footer: {
+                Text("Music and radio in the menu bar, with the cover, song and controls. The Mini Player window, from the bar at the bottom of the window or the Playback menu, floats above other windows.")
                     .foregroundStyle(.secondary)
             }
 

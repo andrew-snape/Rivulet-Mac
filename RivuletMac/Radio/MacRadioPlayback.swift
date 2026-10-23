@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // Copyright (C) 2025-2026 Bain Gurley
 
+import AppKit
 @preconcurrency import AVFoundation
 import CoreAudioTypes
 @preconcurrency import CoreMedia
@@ -30,6 +31,15 @@ final class MacRadioPlayback {
     /// What the station says is on, from its stream's metadata (ICY on
     /// Shoutcast and Icecast, ID3 in HLS). Nil when it sends none.
     private(set) var streamTitle: String?
+    /// The cover of the song on, when it could be found; the station's logo stands in until then.
+    private(set) var cover: NSImage?
+    /// Songs the station has named since it was tuned, newest first.
+    private(set) var recentSongs: [RadioSong] = []
+    /// The song on, unless the station only names itself between songs.
+    var song: RadioSong? {
+        guard let text = streamTitle, text.caseInsensitiveCompare(station?.name ?? "") != .orderedSame else { return nil }
+        return RadioSong(text)
+    }
     /// The codec and bitrate the station plays at: the bitrate a Shoutcast or
     /// Icecast server announces, else what the player reports, and the codec
     /// from the decoded track. Nil until either is known.
@@ -52,6 +62,7 @@ final class MacRadioPlayback {
     @ObservationIgnored private var itemTask: Task<Void, Never>?
     @ObservationIgnored private var metadataReader: RadioMetadataReader?
     @ObservationIgnored private var qualityTask: Task<Void, Never>?
+    @ObservationIgnored private var coverTask: Task<Void, Never>?
 
     init() {
         statusTask = Task { [weak self, player] in
@@ -69,10 +80,12 @@ final class MacRadioPlayback {
         radioLog.notice("Play \(newStation.name, privacy: .public)")
         let item = AVPlayerItem(url: newStation.streamURL)
         streamTitle = nil
+        resetSongs()
         let reader = RadioMetadataReader { [weak self, weak item] title in
             // A late title from the station before is dropped.
             guard let self, let item, self.player.currentItem === item else { return }
             self.streamTitle = title
+            self.songChanged()
         }
         item.add(reader.output)
         metadataReader = reader
@@ -123,9 +136,32 @@ final class MacRadioPlayback {
         metadataReader = nil
         station = nil
         streamTitle = nil
+        resetSongs()
         headerQuality = nil
         trackQuality = nil
         state = .idle
+    }
+
+    private func resetSongs() {
+        coverTask?.cancel()
+        cover = nil
+        recentSongs = []
+    }
+
+    /// The station named a new song: note it, and look for its cover.
+    private func songChanged() {
+        coverTask?.cancel()
+        cover = nil
+        guard let song else { return }
+        recentSongs.removeAll { $0 == song }
+        recentSongs.insert(song, at: 0)
+        if recentSongs.count > 20 { recentSongs.removeLast() }
+        coverTask = Task { [weak self] in
+            guard let url = await RadioCoverLookup.coverURL(for: song),
+                  let image = await MacArtworkCache.shared.image(for: url),
+                  !Task.isCancelled, let self, self.song == song else { return }
+            self.cover = image
+        }
     }
 
     /// A key-value-observed property as an async sequence, starting with its current value.
@@ -251,6 +287,82 @@ nonisolated struct RadioQuality: Equatable, Sendable {
     /// "44.1 kHz", for the bar's tooltip.
     var sampleRateText: String? {
         sampleRate.map { ($0 / 1000).formatted(.number.precision(.fractionLength(0...1))) + " kHz" }
+    }
+}
+
+/// A song a station names. Shoutcast and Icecast send "Artist - Title" as one
+/// string; with no " - " in it, the whole text is the title.
+nonisolated struct RadioSong: Equatable, Sendable {
+    let text: String
+    let artist: String?
+    let title: String
+
+    init(_ text: String) {
+        self.text = text
+        if let split = text.range(of: " - ") {
+            let artist = text[..<split.lowerBound].trimmingCharacters(in: .whitespaces)
+            let title = text[split.upperBound...].trimmingCharacters(in: .whitespaces)
+            if !artist.isEmpty, !title.isEmpty {
+                self.artist = artist
+                self.title = title
+                return
+            }
+        }
+        artist = nil
+        title = text
+    }
+}
+
+/// Finds a song's cover in the iTunes Search API. Only a hit that names both the
+/// artist and the title counts, so a wrong cover is rarer than a missing one.
+/// The song's text goes to Apple; nothing else does.
+nonisolated enum RadioCoverLookup {
+    private nonisolated struct Response: Decodable, Sendable {
+        let results: [Hit]
+    }
+
+    private nonisolated struct Hit: Decodable, Sendable {
+        let artistName: String?
+        let trackName: String?
+        let artworkUrl100: String?
+    }
+
+    @concurrent
+    static func coverURL(for song: RadioSong) async -> URL? {
+        guard let artist = song.artist else { return nil }
+        var parts = URLComponents(string: "https://itunes.apple.com/search")
+        parts?.queryItems = [
+            URLQueryItem(name: "term", value: "\(artist) \(song.title)"),
+            URLQueryItem(name: "media", value: "music"),
+            URLQueryItem(name: "entity", value: "song"),
+            URLQueryItem(name: "limit", value: "5")
+        ]
+        guard let url = parts?.url else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let found = try? JSONDecoder().decode(Response.self, from: data) else { return nil }
+        let wantedArtist = normalised(artist)
+        let wantedTitle = normalised(song.title)
+        guard !wantedArtist.isEmpty, !wantedTitle.isEmpty else { return nil }
+        let hit = found.results.first { hit in
+            let hitArtist = normalised(hit.artistName ?? "")
+            let hitTitle = normalised(hit.trackName ?? "")
+            return !hitArtist.isEmpty && !hitTitle.isEmpty
+                && (hitArtist.contains(wantedArtist) || wantedArtist.contains(hitArtist))
+                && (hitTitle.contains(wantedTitle) || wantedTitle.contains(hitTitle))
+        }
+        // The API hands back 100 pixel art; the same path serves larger.
+        return hit?.artworkUrl100
+            .map { $0.replacingOccurrences(of: "100x100bb", with: "600x600bb") }
+            .flatMap(URL.init(string:))
+    }
+
+    /// Letters and digits only, without case or accents.
+    private static func normalised(_ text: String) -> String {
+        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .filter { $0.isLetter || $0.isNumber }
     }
 }
 

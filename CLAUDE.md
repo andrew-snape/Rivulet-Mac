@@ -110,6 +110,16 @@ from the app, the app injects it at launch, before touching the stores:
   the lists show it before it plays again.
 - **AU teletext captions** are on page 801 without being flagged; the
   `liveTeletextPage` setting overrides (0 is auto).
+- **Now Playing and the mini player**: a station's Now Playing shows the song
+  (ICY "Artist - Title" split at the first " - " into `RadioSong`), the artist, the
+  station as the album, and a cover found through the iTunes Search API
+  (`RadioCoverLookup`: a hit must name both artist and title, so a wrong cover is
+  rarer than a missing one; the song text goes to Apple). The station's logo, or
+  a Live TV channel's, stands in on a square (`NSImage.centredOnSquare`). The system
+  widget's `--:--` for a live stream and its title cropping are not ours to change.
+  `MacMiniPlayerView` is one card for music and radio, in a floating `Mini Player`
+  window and in the optional menu bar extra (`menuBarPlayer`). Both live only while
+  the app does: closing the main window still quits.
 - **One stream at a time**, Multiview aside: starting a Plex title stops Live TV
   and every Multiview tile and internet radio, and pauses music (so do tuning a
   channel and starting a station; starting music stops Live TV and radio), and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
@@ -154,7 +164,7 @@ grep its key: a single hit means it is dead. Keys read today:
 `homeStreamingQuality`, `awayStreamingQuality`, `autoSkipIntro`,
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
 `liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
-`musicLoudnessLevelling`, `autoPlayNextEpisode`, `skipBackSeconds`,
+`musicLoudnessLevelling`, `menuBarPlayer`, `autoPlayNextEpisode`, `skipBackSeconds`,
 `skipForwardSeconds`, `radioLayout`, `radioSort`. Sparkle keeps its own (the Updates tab).
 
 ### AirPlay

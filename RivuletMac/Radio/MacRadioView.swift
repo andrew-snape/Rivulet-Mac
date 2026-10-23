@@ -410,22 +410,31 @@ private enum MacRadioAddKind: Hashable, Identifiable {
 /// laid out like it. Only while a station is loaded.
 struct MacRadioBar: View {
     @Environment(MacRadioPlayback.self) private var radio
+    @Environment(\.openWindow) private var openWindow
+    @State private var showsDetails = false
 
     var body: some View {
         if let station = radio.station {
             HStack(spacing: 16) {
-                HStack(spacing: 10) {
-                    MacChannelLogo(url: station.tvgLogo.flatMap(URL.init(string:)), placeholder: "radio")
-                        .frame(width: 42, height: 42)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(station.name).font(.callout.weight(.semibold)).lineLimit(1)
-                        Text(statusText)
-                            .font(.caption)
-                            .foregroundStyle(isFailed ? Color.orange : Color.secondary)
-                            .lineLimit(1)
+                Button { showsDetails.toggle() } label: {
+                    HStack(spacing: 10) {
+                        MacRadioArtwork(radio: radio, size: 42)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(radio.song?.title ?? station.name)
+                                .font(.callout.weight(.semibold))
+                                .lineLimit(1)
+                            Text(radio.statusText)
+                                .font(.caption)
+                                .foregroundStyle(radio.isFailed ? Color.orange : Color.secondary)
+                                .lineLimit(1)
+                        }
                     }
+                    .frame(width: 240, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .frame(width: 240, alignment: .leading)
+                .buttonStyle(.plain)
+                .help("Show Recent Songs")
+                .popover(isPresented: $showsDetails, arrowEdge: .top) { MacRadioDetails() }
 
                 Button { radio.togglePlayPause() } label: {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
@@ -448,13 +457,18 @@ struct MacRadioBar: View {
                     MacAirPlayButton(player: radio.routingPlayer, tint: .secondaryLabelColor)
                         .frame(width: 22, height: 22)
                         .help("AirPlay")
+                    Button { openWindow(id: MacMiniPlayer.windowID) } label: {
+                        Image(systemName: "pip.enter")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Mini Player")
                     Button { radio.stop() } label: {
                         Image(systemName: "stop.fill")
                     }
                     .buttonStyle(.borderless)
                     .help("Stop")
                 }
-                .frame(width: 196, alignment: .trailing)
+                .frame(width: 240, alignment: .trailing)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
@@ -464,20 +478,100 @@ struct MacRadioBar: View {
     }
 
     private var isPlaying: Bool { radio.state == .playing || radio.state == .loading }
+}
 
-    private var isFailed: Bool {
-        if case .failed = radio.state { return true }
+extension MacRadioPlayback {
+    var isFailed: Bool {
+        if case .failed = state { return true }
         return false
     }
 
-    private var statusText: String {
-        switch radio.state {
+    /// Under the title: the artist and station while a song is on, else how the station is doing.
+    var statusText: String {
+        switch state {
         case .idle: ""
         case .loading: "Connecting…"
-        case .playing: radio.streamTitle ?? "Playing"
+        case .playing:
+            if let song {
+                [song.artist, station?.name].compactMap { $0 }.joined(separator: " · ")
+            } else {
+                "Playing"
+            }
         case .paused: "Paused"
         case .failed(let message): message
         }
+    }
+}
+
+/// The song's cover when it has been found, else the station's logo.
+struct MacRadioArtwork: View {
+    let radio: MacRadioPlayback
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            if let cover = radio.cover {
+                Image(nsImage: cover).resizable().scaledToFill()
+            } else {
+                MacChannelLogo(url: radio.station?.tvgLogo.flatMap(URL.init(string:)), placeholder: "radio")
+                    .padding(size * 0.12)
+            }
+        }
+        .frame(width: size, height: size)
+        .background(.quaternary)
+        .clipShape(RoundedRectangle(cornerRadius: size > 100 ? MacTheme.cardCorner : 6, style: .continuous))
+    }
+}
+
+/// From the radio bar: the station and song on, and the songs before it.
+private struct MacRadioDetails: View {
+    @Environment(MacRadioPlayback.self) private var radio
+
+    var body: some View {
+        VStack(spacing: 14) {
+            MacRadioArtwork(radio: radio, size: 200)
+            VStack(spacing: 3) {
+                Text(radio.song?.title ?? radio.station?.name ?? "").font(.headline).lineLimit(2)
+                if let artist = radio.song?.artist {
+                    Text(artist).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Text(radio.song == nil ? "" : radio.station?.name ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                if let quality = radio.quality, let summary = quality.summary {
+                    Text(quality.sampleRateText.map { summary + " · " + $0 } ?? summary)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+            }
+            .multilineTextAlignment(.center)
+
+            let earlier = Array(radio.recentSongs.dropFirst())
+            if !earlier.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Earlier").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(earlier, id: \.text) { song in
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(song.title).lineLimit(1)
+                                    if let artist = song.artist {
+                                        Text(artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 160)
+                }
+            }
+        }
+        .padding(18)
+        .frame(width: 260)
     }
 }
 
