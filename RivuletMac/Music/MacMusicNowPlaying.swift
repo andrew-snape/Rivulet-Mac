@@ -41,7 +41,7 @@ struct MacMusicBar: View {
 
                 HStack(spacing: 12) {
                     MacMusicVolume().frame(width: 110)
-                    MacAirPlayButton(player: music.player.routingPlayer, tint: .secondaryLabelColor)
+                    MacAirPlayButton(tint: .secondaryLabelColor)
                         .frame(width: 22, height: 22)
                         .help("AirPlay")
                     Button { openWindow(id: MacMiniPlayer.windowID) } label: {

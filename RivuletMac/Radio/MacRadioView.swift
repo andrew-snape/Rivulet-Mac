@@ -454,7 +454,7 @@ struct MacRadioBar: View {
                             .lineLimit(1)
                             .help(quality.sampleRateText.map { summary + " · " + $0 } ?? summary)
                     }
-                    MacAirPlayButton(player: radio.routingPlayer, tint: .secondaryLabelColor)
+                    MacAirPlayButton(tint: .secondaryLabelColor)
                         .frame(width: 22, height: 22)
                         .help("AirPlay")
                     Button { openWindow(id: MacMiniPlayer.windowID) } label: {
