@@ -56,8 +56,6 @@ final class MacRadioPlayback {
 
     @ObservationIgnored private let player = AVPlayer()
 
-    /// For the AirPlay button, which sends the station to a speaker or Apple TV.
-    var routingPlayer: AVPlayer { player }
     @ObservationIgnored private var statusTask: Task<Void, Never>?
     @ObservationIgnored private var itemTask: Task<Void, Never>?
     @ObservationIgnored private var metadataReader: RadioMetadataReader?
