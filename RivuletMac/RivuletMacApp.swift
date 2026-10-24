@@ -89,22 +89,10 @@ struct RivuletMacApp: App {
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
-        // Music and radio in a small floating window. Opened from the bars or the
-        // Playback menu, never at launch.
-        Window("Mini Player", id: MacMiniPlayer.windowID) {
-            MacMiniPlayerWindow()
-                .environment(plex)
-                .environment(music)
-                .environment(radio)
-                .preferredColorScheme(.dark)
-        }
-        .windowResizability(.contentSize)
-        .defaultLaunchBehavior(.suppressed)
-        .restorationBehavior(.disabled)
-
-        // The same card from the menu bar, when Settings turns it on.
+        // Music and radio from the menu bar, when Settings turns it on. The window can
+        // then close and leave them playing.
         MenuBarExtra(isInserted: $showsMenuBarPlayer) {
-            MacMiniPlayerView(inMenuBar: true)
+            MacMiniPlayerView()
                 .environment(plex)
                 .environment(music)
                 .environment(radio)
@@ -132,7 +120,6 @@ private struct MacPlaybackCommands: Commands {
     var music: MacMusicPlayback
     var radio: MacRadioPlayback
     private let store = LiveTVDataStore.shared
-    @Environment(\.openWindow) private var openWindow
 
     /// A station loaded with no Plex title up; it answers Play/Pause and Stop.
     private var radioInFront: Bool { vod.session == nil && radio.station != nil }
@@ -205,11 +192,6 @@ private struct MacPlaybackCommands: Commands {
 
             Divider()
 
-            Button("Mini Player") { openWindow(id: MacMiniPlayer.windowID) }
-                .disabled(!radioInFront && !music.isActive)
-
-            Divider()
-
             Button("Next Channel") { playback.step(by: 1) }
                 .keyboardShortcut(.downArrow, modifiers: [.command, .option])
                 .disabled(vod.session != nil || playback.lineup.isEmpty)
@@ -274,8 +256,30 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     /// Set by the app: refetches Plex Home and libraries.
     static var refreshPlex: (() async -> Void)?
     private var keyMonitor: Any?
+    private var closeObserver: Any?
+    private var settingsObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The window's close button: with the menu bar player on it leaves music and
+        // radio playing there, and the Dock icon may go with it.
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: nil, queue: .main
+        ) { note in
+            MainActor.assumeIsolated {
+                guard (note.object as? NSWindow) === Self.mainWindow, MacMiniPlayer.isInMenuBar else { return }
+                // Video and channels need the window; music and radio do not.
+                Self.vod?.close()
+                Self.multiview?.stopAll()
+                if Self.playback?.isPoppedOut != true { Self.playback?.stop() }
+                // The window is still visible as it closes, so look once it has gone.
+                DispatchQueue.main.async { MacMiniPlayer.applyDockPolicy() }
+            }
+        }
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { MacMiniPlayer.applyDockPolicy() }
+        }
         // Space plays and pauses wherever focus is in the main window, except
         // while typing. With a Plex title up, the arrows skip and Esc closes it.
         // A sheet or Settings keeps these keys for its own controls.
@@ -315,9 +319,10 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// One window: closing it stops the stream and quits, as a player should.
+    /// One window: closing it stops the stream and quits, as a player should,
+    /// unless the menu bar player is on to keep music and radio going.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        !MacMiniPlayer.isInMenuBar
     }
 
     /// Plex hears that playback stopped before the app goes: a title's resume

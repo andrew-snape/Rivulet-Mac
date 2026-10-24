@@ -410,7 +410,6 @@ private enum MacRadioAddKind: Hashable, Identifiable {
 /// laid out like it. Only while a station is loaded.
 struct MacRadioBar: View {
     @Environment(MacRadioPlayback.self) private var radio
-    @Environment(\.openWindow) private var openWindow
     @State private var showsDetails = false
 
     var body: some View {
@@ -457,18 +456,13 @@ struct MacRadioBar: View {
                     MacAirPlayButton(player: radio.routingPlayer, tint: .secondaryLabelColor)
                         .frame(width: 22, height: 22)
                         .help("AirPlay")
-                    Button { openWindow(id: MacMiniPlayer.windowID) } label: {
-                        Image(systemName: "pip.enter")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Mini Player")
                     Button { radio.stop() } label: {
                         Image(systemName: "stop.fill")
                     }
                     .buttonStyle(.borderless)
                     .help("Stop")
                 }
-                .frame(width: 240, alignment: .trailing)
+                .frame(width: 196, alignment: .trailing)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

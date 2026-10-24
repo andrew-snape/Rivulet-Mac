@@ -10,7 +10,6 @@ import SwiftUI
 /// The artwork and title open Now Playing.
 struct MacMusicBar: View {
     @Environment(MacMusicPlayback.self) private var music
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         if let track = music.track {
@@ -44,18 +43,13 @@ struct MacMusicBar: View {
                     MacAirPlayButton(player: music.player.routingPlayer, tint: .secondaryLabelColor)
                         .frame(width: 22, height: 22)
                         .help("AirPlay")
-                    Button { openWindow(id: MacMiniPlayer.windowID) } label: {
-                        Image(systemName: "pip.enter")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Mini Player")
                     Button { music.isNowPlayingShown = true } label: {
                         Image(systemName: "list.bullet")
                     }
                     .buttonStyle(.borderless)
                     .help("Queue")
                 }
-                .frame(width: 240, alignment: .trailing)
+                .frame(width: 196, alignment: .trailing)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
