@@ -117,9 +117,11 @@ from the app, the app injects it at launch, before touching the stores:
   rarer than a missing one; the song text goes to Apple). The station's logo, or
   a Live TV channel's, stands in on a square (`NSImage.centredOnSquare`). The system
   widget's `--:--` for a live stream and its title cropping are not ours to change.
-  `MacMiniPlayerView` is one card for music and radio, in a floating `Mini Player`
-  window and in the optional menu bar extra (`menuBarPlayer`). Both live only while
-  the app does: closing the main window still quits.
+  `MacMiniPlayerView` is the card in the optional menu bar extra (`menuBarPlayer`).
+  With it on, closing the main window leaves music and radio playing (a Plex title,
+  channel or Multiview stops, since they need the window) and the app stays;
+  `hideDockIcon` then makes it an accessory app while the window is closed
+  (`MacMiniPlayer.applyDockPolicy`). With it off, closing the window quits.
 - **One stream at a time**, Multiview aside: starting a Plex title stops Live TV
   and every Multiview tile and internet radio, and pauses music (so do tuning a
   channel and starting a station; starting music stops Live TV and radio), and leaving the Live TV page stops its channel (and the tiles), unless the picture is popped out into
@@ -164,7 +166,7 @@ grep its key: a single hit means it is dead. Keys read today:
 `homeStreamingQuality`, `awayStreamingQuality`, `autoSkipIntro`,
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
 `liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
-`musicLoudnessLevelling`, `menuBarPlayer`, `autoPlayNextEpisode`, `skipBackSeconds`,
+`musicLoudnessLevelling`, `menuBarPlayer`, `hideDockIcon`, `autoPlayNextEpisode`, `skipBackSeconds`,
 `skipForwardSeconds`, `radioLayout`, `radioSort`. Sparkle keeps its own (the Updates tab).
 
 ### AirPlay

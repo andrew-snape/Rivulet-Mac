@@ -5,37 +5,31 @@ import AppKit
 import SwiftUI
 
 enum MacMiniPlayer {
-    static let windowID = "mini-player"
-    /// The setting that puts the mini player in the menu bar.
+    /// The setting that puts the player in the menu bar. With it on, closing the
+    /// window leaves music and radio playing there; with it off, closing quits.
     static let menuBarKey = "menuBarPlayer"
-}
+    /// With the menu bar player on, the Dock icon goes while the window is closed.
+    static let hideDockKey = "hideDockIcon"
 
-/// The mini player in its own small window, floating above other windows. It
-/// closes itself once nothing is left to play.
-struct MacMiniPlayerWindow: View {
-    @Environment(MacMusicPlayback.self) private var music
-    @Environment(MacRadioPlayback.self) private var radio
-    @Environment(\.dismissWindow) private var dismissWindow
+    static var isInMenuBar: Bool { UserDefaults.standard.bool(forKey: menuBarKey) }
 
-    var body: some View {
-        MacMiniPlayerView(inMenuBar: false)
-            .background(MacWindowReader { window in
-                window.level = .floating
-                window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
-                window.isMovableByWindowBackground = true
-            })
-            .onChange(of: radio.station == nil && !music.isActive) { _, idle in
-                if idle { dismissWindow(id: MacMiniPlayer.windowID) }
-            }
+    /// A regular app while its window is open, so it has a Dock icon and menus.
+    /// With the menu bar player and Hide Dock Icon on, an accessory app while it is closed.
+    @MainActor
+    static func applyDockPolicy() {
+        let hidden = isInMenuBar && UserDefaults.standard.bool(forKey: hideDockKey)
+            && MacAppDelegate.mainWindow?.isVisible != true
+        let policy: NSApplication.ActivationPolicy = hidden ? .accessory : .regular
+        if NSApp.activationPolicy() != policy { NSApp.setActivationPolicy(policy) }
     }
 }
 
 /// A card for what is playing: a station if one is loaded, else music. It sits
-/// in the mini player window and in the menu bar's popover.
+/// in the menu bar's popover.
 struct MacMiniPlayerView: View {
-    let inMenuBar: Bool
     @Environment(MacMusicPlayback.self) private var music
     @Environment(MacRadioPlayback.self) private var radio
+    @Environment(\.openWindow) private var openWindow
 
     private static let artwork: CGFloat = 88
 
@@ -50,17 +44,21 @@ struct MacMiniPlayerView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: Self.artwork)
             }
-            if inMenuBar {
-                HStack {
-                    Spacer()
-                    Button("Show Rivulet") {
-                        NSApp.activate()
-                        MacAppDelegate.mainWindow?.makeKeyAndOrderFront(nil)
+            HStack {
+                Button("Show Rivulet") {
+                    NSApp.setActivationPolicy(.regular)
+                    NSApp.activate()
+                    if let window = MacAppDelegate.mainWindow {
+                        window.makeKeyAndOrderFront(nil)
+                    } else {
+                        openWindow(id: "main")
                     }
-                    .buttonStyle(.link)
-                    .font(.caption)
                 }
+                Spacer()
+                Button("Quit") { NSApp.terminate(nil) }
             }
+            .buttonStyle(.link)
+            .font(.caption)
         }
         .padding(14)
         .frame(width: 340)

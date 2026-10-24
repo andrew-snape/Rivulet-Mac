@@ -390,6 +390,7 @@ private struct MacPlaybackSettings: View {
     @AppStorage("liveTeletextPage") private var teletextPage = Locale.current.region?.identifier == "AU" ? 801 : 0
     @AppStorage(MacMusicPlayback.loudnessKey) private var loudnessLevelling = true
     @AppStorage(MacMiniPlayer.menuBarKey) private var menuBarPlayer = false
+    @AppStorage(MacMiniPlayer.hideDockKey) private var hideDockIcon = false
     @AppStorage(MacPlexPlayback.autoPlayNextKey) private var autoPlayNext = true
     @AppStorage(MacSkipInterval.backKey) private var skipBack = MacSkipInterval.backDefault
     @AppStorage(MacSkipInterval.forwardKey) private var skipForward = MacSkipInterval.forwardDefault
@@ -418,10 +419,12 @@ private struct MacPlaybackSettings: View {
 
             Section {
                 Toggle("Show in Menu Bar", isOn: $menuBarPlayer)
+                Toggle("Hide Dock Icon When the Window Is Closed", isOn: $hideDockIcon)
+                    .disabled(!menuBarPlayer)
             } header: {
-                Text("Mini Player")
+                Text("Menu Bar")
             } footer: {
-                Text("Music and radio in the menu bar, with the cover, song and controls. The Mini Player window, from the bar at the bottom of the window or the Playback menu, floats above other windows.")
+                Text("Music and radio in the menu bar, with the cover, song and controls. Closing the window then leaves them playing there instead of quitting Rivulet. A video or channel stops when the window closes.")
                     .foregroundStyle(.secondary)
             }
 
