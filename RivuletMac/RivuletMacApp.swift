@@ -256,25 +256,15 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     /// Set by the app: refetches Plex Home and libraries.
     static var refreshPlex: (() async -> Void)?
     private var keyMonitor: Any?
-    private var closeObserver: Any?
     private var settingsObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The window's close button: with the menu bar player on it leaves music and
         // radio playing there, and the Dock icon may go with it.
-        closeObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification, object: nil, queue: .main
-        ) { note in
-            MainActor.assumeIsolated {
-                guard (note.object as? NSWindow) === Self.mainWindow, MacMiniPlayer.isInMenuBar else { return }
-                // Video and channels need the window; music and radio do not.
-                Self.vod?.close()
-                Self.multiview?.stopAll()
-                if Self.playback?.isPoppedOut != true { Self.playback?.stop() }
-                // The window is still visible as it closes, so look once it has gone.
-                DispatchQueue.main.async { MacMiniPlayer.applyDockPolicy() }
-            }
-        }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(windowWillClose(_:)),
+            name: NSWindow.willCloseNotification, object: nil
+        )
         settingsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { _ in
@@ -317,6 +307,16 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
             }
             return handled ? nil : event
         }
+    }
+
+    @objc private func windowWillClose(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === Self.mainWindow, MacMiniPlayer.isInMenuBar else { return }
+        // Video and channels need the window; music and radio do not.
+        Self.vod?.close()
+        Self.multiview?.stopAll()
+        if Self.playback?.isPoppedOut != true { Self.playback?.stop() }
+        // The window is still visible as it closes, so look once it has gone.
+        DispatchQueue.main.async { MacMiniPlayer.applyDockPolicy() }
     }
 
     /// One window: closing it stops the stream and quits, as a player should,
