@@ -374,16 +374,16 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/superuser404notfound/AetherEngine";
 			requirement = {
-				kind = exactVersion;
-				version = 7.47.0;
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.47.0;
 			};
 		};
 		B2000021AAAA000000000002 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
-				kind = exactVersion;
-				version = 2.10.0;
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
