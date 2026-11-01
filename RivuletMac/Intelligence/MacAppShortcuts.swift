@@ -6,7 +6,7 @@ import Observation
 
 /// Siri phrases. Every one names Rivulet, so none competes with the Music or
 /// TV apps, and no two share a pattern Siri would have to guess between.
-nonisolated struct MacAppShortcuts: AppShortcutsProvider {
+struct MacAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: ResumeWatchingIntent(),

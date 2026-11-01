@@ -10,9 +10,13 @@ import MediaPlayer
 // and channels need the window and bring it forward; music and radio play
 // without it.
 
+//
+// The intents keep the app's default MainActor isolation: `@Parameter` stores
+// mutable, non-Sendable state, which a `nonisolated` struct cannot hold.
+
 // MARK: - Video
 
-nonisolated struct PlayVideoIntent: AppIntent {
+struct PlayVideoIntent: AppIntent {
     static let title: LocalizedStringResource = "Play Movie or Show"
     static let description = IntentDescription("Plays a movie or an episode. A show plays its next episode.")
     static let openAppWhenRun = true
@@ -27,7 +31,7 @@ nonisolated struct PlayVideoIntent: AppIntent {
     }
 }
 
-nonisolated struct ResumeWatchingIntent: AppIntent {
+struct ResumeWatchingIntent: AppIntent {
     static let title: LocalizedStringResource = "Resume Watching"
     static let description = IntentDescription("Plays the first title in Continue Watching.")
     static let openAppWhenRun = true
@@ -40,7 +44,7 @@ nonisolated struct ResumeWatchingIntent: AppIntent {
 
 // MARK: - Live TV
 
-nonisolated struct TuneChannelIntent: AppIntent {
+struct TuneChannelIntent: AppIntent {
     static let title: LocalizedStringResource = "Watch Channel"
     static let description = IntentDescription("Opens Live TV and tunes a channel.")
     static let openAppWhenRun = true
@@ -57,7 +61,7 @@ nonisolated struct TuneChannelIntent: AppIntent {
 
 // MARK: - Radio and music
 
-nonisolated struct PlayStationIntent: AudioPlaybackIntent {
+struct PlayStationIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Play Radio Station"
     static let description = IntentDescription("Plays an internet radio station.")
 
@@ -71,7 +75,7 @@ nonisolated struct PlayStationIntent: AudioPlaybackIntent {
     }
 }
 
-nonisolated struct PlayMusicIntent: AudioPlaybackIntent {
+struct PlayMusicIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Play Music"
     static let description = IntentDescription("Plays an artist, album, song or playlist from Plex.")
 
@@ -88,7 +92,7 @@ nonisolated struct PlayMusicIntent: AudioPlaybackIntent {
     }
 }
 
-nonisolated struct StartMusicRadioIntent: AudioPlaybackIntent {
+struct StartMusicRadioIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Start Music Radio"
     static let description = IntentDescription("Plays music that sounds like an artist, album, song or playlist.")
 
@@ -105,7 +109,7 @@ nonisolated struct StartMusicRadioIntent: AudioPlaybackIntent {
 // MARK: - Transport
 
 /// Pause, resume, next and previous act on what is in front, as the media keys do.
-nonisolated struct PausePlaybackIntent: AudioPlaybackIntent {
+struct PausePlaybackIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Pause"
     static let description = IntentDescription("Pauses whatever Rivulet is playing.")
 
@@ -115,7 +119,7 @@ nonisolated struct PausePlaybackIntent: AudioPlaybackIntent {
     }
 }
 
-nonisolated struct ResumePlaybackIntent: AudioPlaybackIntent {
+struct ResumePlaybackIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Resume"
     static let description = IntentDescription("Resumes whatever Rivulet was playing.")
 
@@ -125,7 +129,7 @@ nonisolated struct ResumePlaybackIntent: AudioPlaybackIntent {
     }
 }
 
-nonisolated struct NextTrackIntent: AudioPlaybackIntent {
+struct NextTrackIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Next"
     static let description = IntentDescription("Skips to the next song or episode.")
 
@@ -135,7 +139,7 @@ nonisolated struct NextTrackIntent: AudioPlaybackIntent {
     }
 }
 
-nonisolated struct PreviousTrackIntent: AudioPlaybackIntent {
+struct PreviousTrackIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Previous"
     static let description = IntentDescription("Goes back to the previous song.")
 
