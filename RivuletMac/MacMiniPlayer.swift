@@ -29,7 +29,6 @@ enum MacMiniPlayer {
 struct MacMiniPlayerView: View {
     @Environment(MacMusicPlayback.self) private var music
     @Environment(MacRadioPlayback.self) private var radio
-    @Environment(\.openWindow) private var openWindow
 
     private static let artwork: CGFloat = 88
 
@@ -46,13 +45,7 @@ struct MacMiniPlayerView: View {
             }
             HStack {
                 Button("Show Rivulet") {
-                    NSApp.setActivationPolicy(.regular)
-                    NSApp.activate()
-                    if let window = MacAppDelegate.mainWindow {
-                        window.makeKeyAndOrderFront(nil)
-                    } else {
-                        openWindow(id: "main")
-                    }
+                    MacAppDelegate.showMainWindow()
                 }
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }

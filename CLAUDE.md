@@ -52,6 +52,9 @@ RivuletMac/
 │                       #   MacRadioView (list or grid) and the radio bar
 ├── LiveTV/             # MacLiveTVView: channel list + inline player; MacMultiview (up to
 │                       #   four channels, sound follows the clicked tile)
+├── Intelligence/       # App Intents for Siri, Spotlight and Shortcuts: entities (Plex video
+│                       #   and music, channels, stations), play and transport intents,
+│                       #   MacAppShortcuts (the Siri phrases)
 └── Player/             # AetherPlayer (the only file naming engine types),
                         #   MacPlexPlayback (Plex reporting, markers, Up Next, quality),
                         #   MacPlayerPanes (Info, Chapters, Details, the Up Next card),
@@ -128,6 +131,20 @@ from the app, the app injects it at launch, before touching the stores:
   its floating window (`MacLivePlayback.isPoppedOut`). The engine's surface can
   be on screen in one place only, so the page shows a stand-in meanwhile;
   closing the window off the Live TV page stops the channel.
+
+### Siri, Spotlight and Shortcuts
+
+- **Intents start playback through the views' own paths**: `MacPlaybackController.play(item:)`,
+  `MacLivePlayback.play`, `MacRadioPlayback.play` (which stops Live TV and a Plex title
+  itself), `MacMusicPlayback.perform`, and the media keys' `remotePlay` / `remotePause` / ….
+  Never a second way to start a stream.
+- Video and channels need the window: their intents call `MacAppDelegate.showMainWindow()`
+  (reopening it through `openMainWindow` if closed), and a channel then
+  `MacAppDelegate.navigate(.liveTV)`, since it plays only on that page.
+- **Entity images travel as PNG data, never a URL**: Plex image URLs carry the server
+  token, and Spotlight and Shortcuts keep what they are given. A station's identifier
+  is a hash of its stream address for the same reason.
+- Every Siri phrase names Rivulet (`\(.applicationName)`), and no two share a pattern.
 
 ### Music
 

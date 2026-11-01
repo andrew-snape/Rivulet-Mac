@@ -25,6 +25,7 @@ struct MacRootView: View {
     @Environment(MacRadioPlayback.self) private var radio
     @ObservedObject private var profiles = PlexUserProfileManager.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openWindow) private var openWindow
     @AppStorage(MacSidebarLayout.orderKey) private var sidebarOrder = ""
     @AppStorage(MacSidebarLayout.hiddenKey) private var sidebarHidden = ""
     @State private var section: MacSection? = .home
@@ -80,6 +81,8 @@ struct MacRootView: View {
             playback.plex = plex
             let section = $section
             MacAppDelegate.navigate = { section.wrappedValue = $0 }
+            let openWindow = openWindow
+            MacAppDelegate.openMainWindow = { openWindow(id: "main") }
             playback.onStart = { [live, multiview, radio, music] in
                 live.stop()
                 multiview.stopAll()

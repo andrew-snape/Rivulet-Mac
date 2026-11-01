@@ -13,9 +13,6 @@ struct MacRadioView: View {
     /// The window's search field, which filters the stations by name.
     let query: String
     @Environment(MacRadioPlayback.self) private var radio
-    @Environment(MacLivePlayback.self) private var live
-    @Environment(MacMultiview.self) private var multiview
-    @Environment(MacPlaybackController.self) private var vod
     private let store = RadioStore.shared
     @AppStorage("radioLayout") private var layoutRaw = "list"
     @AppStorage("radioSort") private var sortRaw = "playlist"
@@ -323,7 +320,7 @@ struct MacRadioView: View {
 
     @ViewBuilder
     private func menu(for station: M3UParser.ParsedChannel) -> some View {
-        Button("Play") { play(station) }
+        Button("Play") { radio.play(station) }
         if store.isHidden(station) {
             Button("Unhide Station") { store.setHidden(false, station) }
         } else {
@@ -338,7 +335,7 @@ struct MacRadioView: View {
 
     /// Plays the station, or while selecting, adds it to the selection or takes it out.
     private func tap(_ station: M3UParser.ParsedChannel) {
-        guard selecting else { play(station); return }
+        guard selecting else { radio.play(station); return }
         if selection.contains(station.streamURL) {
             selection.remove(station.streamURL)
         } else {
@@ -373,14 +370,6 @@ struct MacRadioView: View {
         case .playing, .paused, .idle:
             Image(systemName: "speaker.wave.2.fill").foregroundStyle(.tint)
         }
-    }
-
-    /// Radio takes the sound from Live TV and a Plex title, as Live TV does from them.
-    private func play(_ station: M3UParser.ParsedChannel) {
-        live.stop()
-        multiview.stopAll()
-        vod.close()
-        radio.play(station)
     }
 }
 

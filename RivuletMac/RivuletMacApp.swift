@@ -54,6 +54,7 @@ struct RivuletMacApp: App {
         _radio = State(initialValue: radio)
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
+        MacAppShortcuts.refreshParametersOnChange()
     }
 
     var body: some Scene {
@@ -256,9 +257,23 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     /// Opens a sidebar page in the main window; set by `MacRootView`. Siri uses it
     /// to bring up Live TV before tuning, since a channel plays only on that page.
     static var navigate: ((MacSection) -> Void)?
+    /// Opens the main window after it was closed; set by `MacRootView`.
+    static var openMainWindow: (() -> Void)?
     /// Set by the app: refetches Plex Home and libraries.
     static var refreshPlex: (() async -> Void)?
     private var keyMonitor: Any?
+
+    /// Brings the main window forward, opening it again if it was closed, and
+    /// shows the Dock icon while it is up.
+    static func showMainWindow() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+        if let window = mainWindow {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            openMainWindow?()
+        }
+    }
     private var settingsObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {

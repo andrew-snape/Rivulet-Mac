@@ -71,7 +71,11 @@ final class MacRadioPlayback {
     }
 
     func play(_ newStation: M3UParser.ParsedChannel) {
-        // One stream at a time: a station pauses music.
+        // One stream at a time: a station takes the sound from Live TV and a
+        // Plex title, as Live TV does from them, and pauses music.
+        MacAppDelegate.playback?.stop()
+        MacAppDelegate.multiview?.stopAll()
+        MacAppDelegate.vod?.close()
         MacAppDelegate.music?.pause()
         station = newStation
         state = .loading
