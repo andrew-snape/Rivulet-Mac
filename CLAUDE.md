@@ -54,7 +54,7 @@ RivuletMac/
 │                       #   four channels, sound follows the clicked tile)
 ├── Intelligence/       # App Intents for Siri, Spotlight and Shortcuts: entities (Plex video
 │                       #   and music, channels, stations), play and transport intents,
-│                       #   MacAppShortcuts (the Siri phrases)
+│                       #   MacAppShortcuts (the Siri phrases), MacSpotlightIndex
 └── Player/             # AetherPlayer (the only file naming engine types),
                         #   MacPlexPlayback (Plex reporting, markers, Up Next, quality),
                         #   MacPlayerPanes (Info, Chapters, Details, the Up Next card),
@@ -145,6 +145,13 @@ from the app, the app injects it at launch, before touching the stores:
   token, and Spotlight and Shortcuts keep what they are given. A station's identifier
   is a hash of its stream address for the same reason.
 - Every Siri phrase names Rivulet (`\(.applicationName)`), and no two share a pattern.
+- **Spotlight holds Continue Watching and favourite channels only** (`MacSpotlightIndex`),
+  replaced whenever either list changes. Continue Watching empties on sign-out and on a
+  server or profile switch, so the index follows and one profile's titles never show for
+  another. Choosing an item plays it (`OpenVideoIntent`, `OpenChannelIntent`).
+- Intents and the Spotlight open intents keep the default MainActor isolation: `@Parameter`
+  storage is mutable and non-Sendable, which a `nonisolated` struct cannot hold. The entity
+  and query structs, all `let`s, are `nonisolated`.
 
 ### Music
 
