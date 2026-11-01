@@ -155,16 +155,23 @@ extension MacPlexSession {
 
     // MARK: - Search
 
+    /// Video results only: movies, shows, seasons and episodes.
     func search(_ query: String) async throws -> [PlexMetadata] {
+        try await search(query, types: ["movie", "show", "season", "episode"])
+    }
+
+    /// Music results only: artists, albums, tracks and playlists.
+    func searchMusic(_ query: String) async throws -> [PlexMetadata] {
+        try await search(query, types: ["artist", "album", "track", "playlist"])
+    }
+
+    /// One row per item: /search returns every matching type and can repeat
+    /// an item across result groups.
+    private func search(_ query: String, types: Set<String>) async throws -> [PlexMetadata] {
         let (serverURL, token) = try configuration()
         let results = try await network.search(serverURL: serverURL, authToken: token, query: query, size: 80)
-        // Video results only, one row per item: /search returns every
-        // matching type and can repeat an item across result groups.
         var seen = Set<String>()
-        return results.filter {
-            ["movie", "show", "season", "episode"].contains($0.type ?? "")
-                && seen.insert($0.id).inserted
-        }
+        return results.filter { types.contains($0.type ?? "") && seen.insert($0.id).inserted }
     }
 
     // MARK: - Watched

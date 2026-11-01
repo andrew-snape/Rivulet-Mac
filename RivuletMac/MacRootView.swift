@@ -78,6 +78,8 @@ struct MacRootView: View {
         })
         .onAppear {
             playback.plex = plex
+            let section = $section
+            MacAppDelegate.navigate = { section.wrappedValue = $0 }
             playback.onStart = { [live, multiview, radio, music] in
                 live.stop()
                 multiview.stopAll()

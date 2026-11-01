@@ -20,7 +20,8 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// The one place Plex playback starts. Applied once, around the split view
+    /// Plex actions for every view (playback itself starts in
+    /// `MacPlaybackController.play(item:)`). Applied once, around the split view
     /// (pushed pages miss what is set inside its detail column); `open` pushes
     /// a detail page onto that column's stack.
     func macPlexActionHost(open: @escaping (PlexMetadata) -> Void) -> some View {
@@ -62,8 +63,7 @@ private struct MacPlexActionHost: ViewModifier {
         Task {
             defer { preparingID = nil }
             do {
-                let target = try await plex.playableTarget(for: item)
-                playback.play(try await plex.playback(for: target))
+                try await playback.play(item: item)
             } catch let error where isCancellationError(error) {
             } catch {
                 failure = ("Couldn't Play", error.localizedDescription)

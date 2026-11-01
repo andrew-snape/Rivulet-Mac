@@ -253,6 +253,9 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
 
     /// The window `MacRootView` sits in; set by the view.
     static weak var mainWindow: NSWindow?
+    /// Opens a sidebar page in the main window; set by `MacRootView`. Siri uses it
+    /// to bring up Live TV before tuning, since a channel plays only on that page.
+    static var navigate: ((MacSection) -> Void)?
     /// Set by the app: refetches Plex Home and libraries.
     static var refreshPlex: (() async -> Void)?
     private var keyMonitor: Any?

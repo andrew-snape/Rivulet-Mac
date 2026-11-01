@@ -36,6 +36,14 @@ final class MacPlaybackController {
     @ObservationIgnored private var volume: Float = 1
     @ObservationIgnored private var isMuted = false
 
+    /// Plays a Plex item: a show or season resolves to its next-up episode.
+    /// The one way a title starts, from a tile, a menu or Siri.
+    func play(item: PlexMetadata) async throws {
+        guard let plex else { throw MacPlexSessionError.notConfigured }
+        let target = try await plex.playableTarget(for: item)
+        play(try await plex.playback(for: target))
+    }
+
     func play(_ request: MacPlexPlaybackRequest) {
         guard let plex else { return }
         end()
@@ -516,7 +524,7 @@ final class MacPlaybackController {
         commands.previousTrackCommand.isEnabled = musicUp != nil
     }
 
-    private func remotePlay() -> MPRemoteCommandHandlerStatus {
+    func remotePlay() -> MPRemoteCommandHandlerStatus {
         if let radio {
             if radio.state != .playing, radio.state != .loading { radio.togglePlayPause() }
             return .success
@@ -537,7 +545,7 @@ final class MacPlaybackController {
         }
     }
 
-    private func remotePause() -> MPRemoteCommandHandlerStatus {
+    func remotePause() -> MPRemoteCommandHandlerStatus {
         if let radio {
             if radio.state == .playing || radio.state == .loading { radio.togglePlayPause() }
             return .success
@@ -551,7 +559,7 @@ final class MacPlaybackController {
         return .success
     }
 
-    private func remoteToggle() -> MPRemoteCommandHandlerStatus {
+    func remoteToggle() -> MPRemoteCommandHandlerStatus {
         if let radio {
             radio.togglePlayPause()
             return .success
@@ -591,7 +599,7 @@ final class MacPlaybackController {
         return .success
     }
 
-    private func remoteNext() -> MPRemoteCommandHandlerStatus {
+    func remoteNext() -> MPRemoteCommandHandlerStatus {
         if session == nil, let music, music.queue.hasNext {
             music.skipToNext()
             return .success
@@ -601,7 +609,7 @@ final class MacPlaybackController {
         return .success
     }
 
-    private func remotePrevious() -> MPRemoteCommandHandlerStatus {
+    func remotePrevious() -> MPRemoteCommandHandlerStatus {
         guard session == nil, let music else { return .commandFailed }
         music.skipToPrevious()
         return .success
