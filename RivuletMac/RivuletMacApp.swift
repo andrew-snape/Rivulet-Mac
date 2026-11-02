@@ -55,6 +55,7 @@ struct RivuletMacApp: App {
         // Warms the channel list and guide so the window opens with data.
         LiveTVDataStore.shared.startBackgroundPreload()
         MacAppShortcuts.refreshParametersOnChange()
+        MacSpotlightIndex.start(plex: plex)
     }
 
     var body: some Scene {

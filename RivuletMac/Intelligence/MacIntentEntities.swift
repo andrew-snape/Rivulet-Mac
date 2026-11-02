@@ -333,7 +333,7 @@ enum IntentStore {
         await visibleChannels().first { $0.id == id }
     }
 
-    private static func channelEntity(_ channel: UnifiedChannel, withImage: Bool) async -> ChannelEntity {
+    static func channelEntity(_ channel: UnifiedChannel, withImage: Bool) async -> ChannelEntity {
         let image = withImage ? await imageData(channel.logoURL) : nil
         return ChannelEntity(
             id: channel.id, name: channel.name, number: channel.channelNumber,
