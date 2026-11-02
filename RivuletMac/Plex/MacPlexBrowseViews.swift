@@ -351,6 +351,8 @@ struct MacPlexSearchView: View {
     @Binding var query: String
     @Environment(MacPlexSession.self) private var plex
     @State private var results: [PlexMetadata] = []
+    /// A described request read by the on-device model, above the keyword results.
+    @State private var smart: MacSmartSearch.Result?
     @State private var isSearching = false
     @State private var error: String?
 
@@ -374,15 +376,20 @@ struct MacPlexSearchView: View {
                 ContentUnavailableView(
                     "Search Your Plex Libraries",
                     systemImage: "magnifyingglass",
-                    description: Text("Type in the search field to find movies, TV shows and episodes.")
+                    description: Text(MacSmartSearch.isAvailable
+                        ? "Search for a title, or describe what you'd like to watch."
+                        : "Type in the search field to find movies, TV shows and episodes.")
                 )
             } else if let error {
                 ContentUnavailableView("Couldn't Search", systemImage: "exclamationmark.triangle", description: Text(error))
-            } else if groups.isEmpty {
+            } else if groups.isEmpty, smart == nil {
                 if isSearching { ProgressView() } else { ContentUnavailableView.search(text: trimmedQuery) }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
+                        if let smart {
+                            MacPlexRail(title: smart.label, items: smart.items) { MacPlexPosterCard(item: $0) }
+                        }
                         ForEach(groups, id: \.title) { group in
                             MacPlexRail(title: group.title, items: group.items) { item in
                                 if item.type == "episode" {
@@ -399,6 +406,20 @@ struct MacPlexSearchView: View {
         }
         .navigationTitle("Search")
         .task(id: query) { await search() }
+        .task(id: query) { await smartSearch() }
+    }
+
+    /// Runs beside the keyword search once typing pauses. Any failure leaves
+    /// the keyword results on their own.
+    private func smartSearch() async {
+        smart = nil
+        let value = trimmedQuery
+        guard MacSmartSearch.readsAsRequest(value), plex.isConfigured else { return }
+        try? await Task.sleep(for: .milliseconds(600))
+        guard !Task.isCancelled else { return }
+        let found = try? await MacSmartSearch.results(for: value, plex: plex)
+        guard !Task.isCancelled else { return }
+        smart = found
     }
 
     private func search() async {
