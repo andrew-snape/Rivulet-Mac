@@ -385,6 +385,22 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         return container.MediaContainer.Directory ?? []
     }
 
+    /// A library's genres, each with its ID in that library.
+    func getGenres(
+        serverURL: String,
+        authToken: String,
+        sectionId: String
+    ) async throws -> [PlexGenre] {
+        guard let url = URL(string: "\(serverURL)/library/sections/\(sectionId)/genre") else {
+            throw PlexAPIError.invalidURL
+        }
+        let container: PlexGenreContainer = try await request(
+            url,
+            headers: plexHeaders(authToken: authToken)
+        )
+        return container.MediaContainer.Directory ?? []
+    }
+
     /// Get item metadata by rating key
     func getMetadata(
         serverURL: String,

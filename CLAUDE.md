@@ -54,7 +54,8 @@ RivuletMac/
 │                       #   four channels, sound follows the clicked tile)
 ├── Intelligence/       # App Intents for Siri, Spotlight and Shortcuts: entities (Plex video
 │                       #   and music, channels, stations), play and transport intents,
-│                       #   MacAppShortcuts (the Siri phrases), MacSpotlightIndex
+│                       #   MacAppShortcuts (the Siri phrases), MacSpotlightIndex,
+│                       #   MacSmartSearch (Foundation Models request → Plex filter)
 └── Player/             # AetherPlayer (the only file naming engine types),
                         #   MacPlexPlayback (Plex reporting, markers, Up Next, quality),
                         #   MacPlayerPanes (Info, Chapters, Details, the Up Next card),
@@ -153,6 +154,18 @@ from the app, the app injects it at launch, before touching the stores:
   storage is mutable and non-Sendable, which a `nonisolated` struct cannot hold. The entity
   and query structs, all `let`s, are `nonisolated`.
 
+### Smart search
+
+- `MacSmartSearch` runs on the Search page beside the keyword search, never instead of it:
+  only when `SystemLanguageModel.default` is available (it follows the system Apple
+  Intelligence switch; there is no Rivulet setting) and the query has three words or more.
+- The model only reads the request into `MediaRequest` (kind, genres, length, years,
+  unwatched, order, title words). Plex finds the titles through
+  `/library/sections/{key}/all` filters. Genres come from each library's
+  `/library/sections/{key}/genre` (IDs differ per library), and any genre the model
+  invents is dropped. The row is headed with how the request was read.
+- A fresh `LanguageModelSession` per query: the context window is small.
+
 ### Music
 
 - Music libraries (`type == "artist"`) are in `plex.libraries` for the sidebar
@@ -223,6 +236,10 @@ external GUID to a discover `ratingKey` before PUT actions.
   nothing.
 - **Neither `updatedAt` nor `scannedAt` on `/library/sections` detects new
   content.** The working signal is the newest item on `/library/recentlyAdded`.
+
+- **Library filter operators**: `>>=` is "greater than" and `<<=` "less than"
+  (`year>>=1989`, `duration<<=5400001`, in ms). Send them pre-encoded (`%3E%3E=`,
+  `%3C%3C=`) in a hub key: `hubItemsURL` parses the key with `URLComponents`.
 
 ## Plex Live TV
 
