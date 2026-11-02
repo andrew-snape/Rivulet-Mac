@@ -92,7 +92,7 @@ final class MacMusicPlayer {
         applyVolume()
         wantsToPlay = autoplay
         state = .loading
-        if autoplay { player.play() } else { player.pause() }
+        if autoplay { startPlaying() } else { player.pause() }
         updateState()
     }
 
@@ -169,8 +169,15 @@ final class MacMusicPlayer {
     func play() {
         wantsToPlay = true
         guard player.currentItem != nil else { return }
-        player.play()
+        startPlaying()
         updateState()
+    }
+
+    /// Starts on the first data in. Plain `play()` holds a direct file back until
+    /// AVPlayer predicts it can reach the end without stalling, which for a large
+    /// lossless file is many seconds. A later stall still waits and resumes on its own.
+    private func startPlaying() {
+        player.playImmediately(atRate: 1)
     }
 
     func pause() {
