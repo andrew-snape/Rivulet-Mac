@@ -478,14 +478,17 @@ private struct MacGuideInfoBar: View {
 // MARK: - Empty state
 
 private struct MacNoSourcesView: View {
+    @Environment(\.openSettings) private var openSettings
+
     var body: some View {
         ContentUnavailableView {
             Label("No Live TV Sources", systemImage: "antenna.radiowaves.left.and.right")
         } description: {
             Text("Add an M3U playlist, a Dispatcharr server or your Plex server's tuners to start watching.")
         } actions: {
-            SettingsLink {
-                Text("Add a Source…")
+            Button("Add a Source…") {
+                UserDefaults.standard.set(MacSettingsPane.liveTV.rawValue, forKey: MacSettingsPane.storageKey)
+                openSettings()
             }
             .buttonStyle(.borderedProminent)
         }

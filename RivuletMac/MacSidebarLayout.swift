@@ -61,14 +61,19 @@ struct MacSidebarSettings: View {
 
     var body: some View {
         let items = MacSidebarLayout.plexItems(libraries: plex.libraries, order: order)
-        List {
-            Section("Plex") {
+        Form {
+            Section {
                 ForEach(items) { item in
                     Toggle(isOn: visibility(of: item.id)) {
                         Label(item.title, systemImage: item.icon)
                     }
                 }
                 .reorderable()
+            } header: {
+                Text("Plex")
+            } footer: {
+                Text("Drag to change the order. Switch a row off to hide it.")
+                    .foregroundStyle(.secondary)
             }
             Section("Live TV") {
                 Toggle(isOn: visibility(of: MacSidebarLayout.liveTVID)) {
@@ -91,7 +96,7 @@ struct MacSidebarSettings: View {
             ids.insert(contentsOf: difference.sources, at: index)
             order = ids.joined(separator: ",")
         }
-        .frame(height: 380)
+        .formStyle(.grouped)
     }
 
     private func visibility(of id: String) -> Binding<Bool> {

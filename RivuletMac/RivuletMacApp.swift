@@ -109,6 +109,7 @@ struct RivuletMacApp: App {
                 .environment(plex)
                 .preferredColorScheme(.dark)
         }
+        .windowResizability(.contentSize)
     }
 }
 
