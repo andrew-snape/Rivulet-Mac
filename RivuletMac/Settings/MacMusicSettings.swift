@@ -86,7 +86,7 @@ struct MacMusicSettings: View {
             } header: {
                 Text("Music Details")
             } footer: {
-                Text("When Plex has no biography, photo or cover, Rivulet looks for one on MusicBrainz, Wikipedia and TheAudioDB. The artist and album names, or their MusicBrainz IDs, are sent to them; nothing else is. Radio covers come from Apple's iTunes search, which is sent the song's name. Turning this off forgets what was found.")
+                Text("When Plex has no biography, photo, cover or links, Rivulet looks for them on MusicBrainz, Wikipedia and TheAudioDB. The artist and album names, or their MusicBrainz IDs, are sent to them; nothing else is. Radio covers come from Apple's iTunes search, which is sent the song's name. Turning this off forgets what was found.")
                     .foregroundStyle(.secondary)
             }
         }

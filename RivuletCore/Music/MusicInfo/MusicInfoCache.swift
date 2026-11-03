@@ -10,7 +10,7 @@ actor MusicInfoCache {
     static let shared = MusicInfoCache()
 
     private struct Entry<T: Codable & Sendable>: Codable, Sendable {
-        var version = 1
+        var version = 2
         var fetchedAt: Date
         var value: T?
     }
@@ -39,7 +39,7 @@ actor MusicInfoCache {
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
-        guard let entry = try? decoder.decode(Entry<T>.self, from: data), entry.version == 1 else { return nil }
+        guard let entry = try? decoder.decode(Entry<T>.self, from: data), entry.version == 2 else { return nil }
         let lifetime: TimeInterval = (entry.value == nil ? 7 : 30) * 86_400
         guard Date().timeIntervalSince(entry.fetchedAt) < lifetime else { return nil }
         memory[key] = data
