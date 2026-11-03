@@ -227,19 +227,29 @@ struct MacMusicHero<Content: View>: View {
     }
 }
 
+// MARK: - Elsewhere
+
+/// Pages about the artist or album on other sites; nothing when there are none.
+struct MacMusicLinksMenu: View {
+    let links: [MusicLink]
+
+    var body: some View {
+        if !links.isEmpty {
+            Menu("Elsewhere", systemImage: "link") {
+                ForEach(links, id: \.self) { link in
+                    Button(link.title) { NSWorkspace.shared.open(link.url) }
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Open this on another site")
+        }
+    }
+}
+
 // MARK: - Online gaps
 
 extension PlexMetadata {
-    /// Plex lacks the biography or the picture, so an online lookup could help.
-    var needsOnlineArtistInfo: Bool {
-        (summary ?? "").isEmpty || (art == nil && thumb == nil)
-    }
-
-    /// Plex lacks the summary or the cover.
-    var needsOnlineAlbumInfo: Bool {
-        (summary ?? "").isEmpty || squareArtPath == nil
-    }
-
     /// Plex has no genre or style of its own.
     var hasNoMusicStyles: Bool {
         (Genre ?? []).isEmpty && (Style ?? []).isEmpty

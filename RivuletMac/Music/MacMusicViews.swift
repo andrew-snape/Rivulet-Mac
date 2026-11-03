@@ -332,7 +332,10 @@ struct MacMusicArtistView: View {
                             Text(shown.displayTitle).font(.largeTitle.bold()).lineLimit(2)
                             MacMusicChips(texts: chips)
                             MacMusicRatingBadge(item: shown)
-                            MacMusicPlayButtons(item: shown)
+                            HStack(spacing: 12) {
+                                MacMusicPlayButtons(item: shown)
+                                MacMusicLinksMenu(links: online?.links ?? [])
+                            }
                         }
                     }
                     .padding(.bottom, 8)
@@ -406,7 +409,7 @@ struct MacMusicArtistView: View {
             let color = await plex.artworkTint(of: loaded)
             guard !Task.isCancelled else { return }
             tint = color
-            if onlineInfo, loaded.needsOnlineArtistInfo {
+            if onlineInfo {
                 let info = await MusicInfoStore.shared.artistInfo(name: loaded.displayTitle, musicBrainzID: loaded.musicBrainzID)
                 guard !Task.isCancelled else { return }
                 online = info
@@ -518,7 +521,11 @@ struct MacMusicAlbumView: View {
                                 if let quality { MacMusicQualityBadge(quality: quality) }
                                 MacMusicRatingBadge(item: shown)
                             }
-                            MacMusicPlayButtons(item: shown).padding(.top, 6)
+                            HStack(spacing: 12) {
+                                MacMusicPlayButtons(item: shown)
+                                MacMusicLinksMenu(links: online?.links ?? [])
+                            }
+                            .padding(.top, 6)
                         }
                     }
                     .padding(.bottom, 8)
@@ -594,7 +601,7 @@ struct MacMusicAlbumView: View {
             guard !Task.isCancelled else { return }
             tint = color
             let source = detail ?? item
-            if onlineInfo, source.needsOnlineAlbumInfo {
+            if onlineInfo {
                 let info = await MusicInfoStore.shared.albumInfo(
                     title: source.displayTitle, artist: source.parentTitle ?? "", musicBrainzID: source.musicBrainzID)
                 guard !Task.isCancelled else { return }

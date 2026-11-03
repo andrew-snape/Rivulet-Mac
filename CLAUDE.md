@@ -191,8 +191,10 @@ from the app, the app injects it at launch, before touching the stores:
   Track popularity is `ratingCount`, drawn log-scaled against the list's top track.
   The hero tint is the cover's dominant colour (`MacArtworkTint`), from a 120 px
   thumb, held in memory by `ratingKey|path`, never by URL (URLs carry the token).
-- **Online details are opt-in** (`musicOnlineInfo`, default off) and only fill what Plex
-  lacks (bio, artist photo, cover, genres); Plex values are never overwritten. Only
+- **Online details are opt-in** (`musicOnlineInfo`, default off). With it on, every artist and
+  album is looked up (the cache keeps it cheap): it fills what Plex lacks (bio, artist photo,
+  cover, genres) and always adds the "Elsewhere" links menu, MusicBrainz's url-rels kept as
+  `MusicLink` (https only, max 8). Plex values are never overwritten. Only
   names or MusicBrainz IDs leave the Mac. The MBID comes from Plex's `mbid://` Guid, else
   one exact MusicBrainz name match (score 90+) or nothing. MusicBrainz is held to one
   request per 1.1 s with Rivulet's User-Agent. Hits cache 30 days and misses 7, in

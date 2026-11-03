@@ -8,6 +8,7 @@ nonisolated struct MBEntity: Sendable {
     let id: String
     let wikidataID: String?
     let genres: [String]
+    let links: [MusicLink]
 }
 
 /// MusicBrainz asks for at most one request a second, so every call waits its turn.
@@ -135,7 +136,28 @@ actor MusicBrainzClient {
         let wikidata = raw.relations?.first { $0.type == "wikidata" }?.url?.resource
             .flatMap { URL(string: $0)?.lastPathComponent }
         let genres = (raw.genres ?? []).sorted { ($0.count ?? 0) > ($1.count ?? 0) }.prefix(5).map(\.name)
-        return MBEntity(id: raw.id, wikidataID: wikidata, genres: genres)
+        return MBEntity(id: raw.id, wikidataID: wikidata, genres: genres, links: links(from: raw.relations ?? []))
+    }
+
+    private static let linkKinds: [String: MusicLink.Kind] = [
+        "official homepage": .officialSite, "bandcamp": .bandcamp, "discogs": .discogs, "allmusic": .allMusic,
+        "youtube": .youtube, "social network": .social, "streaming": .streaming, "free streaming": .streaming,
+        "wikipedia": .wikipedia
+    ]
+
+    /// https links only, one per address, at most eight, in a fixed order.
+    private static func links(from relations: [Entity.Relation]) -> [MusicLink] {
+        var seen = Set<URL>()
+        var found: [MusicLink] = []
+        for relation in relations {
+            guard let type = relation.type, let kind = linkKinds[type],
+                  let text = relation.url?.resource, let url = URL(string: text),
+                  url.scheme?.lowercased() == "https", url.host() != nil, seen.insert(url).inserted else { continue }
+            found.append(MusicLink(kind: kind, url: url))
+        }
+        let order: [MusicLink.Kind] = [.officialSite, .bandcamp, .wikipedia, .discogs, .allMusic, .youtube, .social, .streaming]
+        let ranked = order.flatMap { kind in found.filter { $0.kind == kind } }
+        return Array(ranked.prefix(8))
     }
 
     func artist(id: String) async -> MusicLookup<MBEntity> {

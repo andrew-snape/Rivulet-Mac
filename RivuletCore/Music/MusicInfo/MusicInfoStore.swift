@@ -70,6 +70,7 @@ actor MusicInfoStore {
         switch await MusicBrainzClient.shared.artist(id: id) {
         case .found(let entity):
             info.genres = entity.genres
+            info.links = entity.links
             wikidata = entity.wikidataID
         case .notFound: break
         case .unavailable: complete = false
@@ -93,6 +94,7 @@ actor MusicInfoStore {
         }
         guard !Task.isCancelled else { return nil }
         let empty = info.biography == nil && info.imageURL == nil && info.backdropURL == nil && info.genres.isEmpty
+            && info.links.isEmpty
         if complete { await cache.set(key, value: empty ? nil : info) }
         return empty ? nil : info
     }
@@ -122,6 +124,7 @@ actor MusicInfoStore {
             info.releaseGroupID = entity.id
             info.coverURL = URL(string: "https://coverartarchive.org/release-group/\(entity.id)/front-500")
             info.genres = entity.genres
+            info.links = entity.links
             wikidata = entity.wikidataID
         case .notFound: break
         case .unavailable: complete = false
