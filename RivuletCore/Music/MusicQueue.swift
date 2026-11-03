@@ -87,6 +87,23 @@ nonisolated struct MusicQueue: Sendable {
         return repeatMode == .all ? entries.first : nil
     }
 
+    /// The entries an automatic advance would play after the current one, in order.
+    func upcoming(_ count: Int) -> [Entry] {
+        guard let currentIndex, count > 0, repeatMode != .one else { return [] }
+        var result: [Entry] = []
+        var index = currentIndex + 1
+        while result.count < count {
+            if index >= entries.count {
+                guard repeatMode == .all else { break }
+                index = 0
+            }
+            if index == currentIndex { break }
+            result.append(entries[index])
+            index += 1
+        }
+        return result
+    }
+
     /// The current track ended on its own.
     @discardableResult
     mutating func advance() -> Entry? {

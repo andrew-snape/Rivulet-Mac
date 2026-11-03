@@ -13,8 +13,18 @@ nonisolated struct MacMusicSource: Sendable {
     let token: String
     /// Set for a transcode, to stop it on the server afterwards.
     let transcodeSessionID: String?
+    /// Names the file in the music cache; nil for a transcode.
+    var cacheKey: MacMusicCacheKey? = nil
 
     var isTranscode: Bool { transcodeSessionID != nil }
+    /// Plays from a file on this Mac.
+    var isCached: Bool { url.isFileURL }
+
+    /// The same track, played from `file`.
+    func withURL(_ file: URL) -> MacMusicSource {
+        MacMusicSource(entryID: entryID, track: track, url: file, serverURL: serverURL, token: token,
+                       transcodeSessionID: nil, cacheKey: cacheKey)
+    }
 }
 
 /// What a music library page lists.
@@ -191,10 +201,17 @@ extension MacPlexSession {
         let full = try await network.getMetadata(serverURL: serverURL, authToken: token, ratingKey: ratingKey)
 
         let media = full.Media?.first
+        let key = Self.avFoundationPlays(media) ? MacMusicCacheKey(ratingKey: ratingKey, media: media) : nil
+        // A kept file plays even on a relay connection.
+        if !forceTranscode, let key, let file = await MacMusicCache.shared.file(for: key) {
+            return MacMusicSource(entryID: entryID, track: full, url: file, serverURL: serverURL, token: token,
+                                  transcodeSessionID: nil, cacheKey: key)
+        }
         if !forceTranscode, !PlexRelay.isRelayURL(serverURL), Self.avFoundationPlays(media),
            let partKey = media?.Part?.first?.key,
            let url = Self.directPlayURL(serverURL: serverURL, token: token, partKey: partKey) {
-            return MacMusicSource(entryID: entryID, track: full, url: url, serverURL: serverURL, token: token, transcodeSessionID: nil)
+            return MacMusicSource(entryID: entryID, track: full, url: url, serverURL: serverURL, token: token,
+                                  transcodeSessionID: nil, cacheKey: key)
         }
         let session = UUID().uuidString
         guard let url = network.buildMusicTranscodeURL(

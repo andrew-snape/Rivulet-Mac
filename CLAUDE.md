@@ -46,7 +46,9 @@ RivuletMac/
 ├── Plex/               # MacPlexSession (+Content, +Account, +Playback): the content
 │                       #   store, ported from the iOS app's IOSPlexSession; the views
 │                       #   (Home, Library, See All, Search, Detail, sign-in, profiles)
-├── Music/              # MacMusicPlayer (AVQueuePlayer), MacMusicPlayback (queue, radio,
+├── Music/              # MacMusicPlayer (AVQueuePlayer), MacMusicCache / MacMusicPrecache
+│                       #   (downloaded files, download ahead), MacAudioOutput (device sample
+│                       #   rate), MacMusicPlayback (queue, radio,
 │                       #   Plex reporting), library / artist / album pages, the bottom
 │                       #   bar and Now Playing
 ├── Radio/              # RadioStore (playlists, single stations, hidden stations, last
@@ -197,6 +199,24 @@ from the app, the app injects it at launch, before touching the stores:
   Caches/MusicInfo; transient failures are not cached; turning the setting off clears
   it. Wikipedia text always shows its "From Wikipedia" link (CC BY-SA). TheAudioDB uses
   its public free key `123`; if it stops answering the lookup just misses.
+- **Downloaded music** is kept in Caches/MusicFiles, named `ratingKey-partID-size.ext`
+  (never a URL or token), least-recently-used first by modification date, capped by
+  `musicCacheLimitMB` (Off to 100 GB). Off keeps only the playing and upcoming files.
+  Transcodes are never kept. A cached file plays as `file://` (no Plex trust delegate),
+  even on relay, and a failing one is evicted and retried from the server. Cleared on
+  sign-out.
+- **Download Ahead** (`musicPrecacheCount`) fetches the next N tracks (then the playing
+  one, Home only) one at a time, through its own `URLSession` with
+  `PlexCertificateDelegate` and no `URLCache`, only while the player is playing or
+  paused. A stall cancels it. Nothing downloads on an away path or relay. Log `URLError`
+  codes only: their user info carries the token-bearing URL.
+- **Output sample rate** (`musicOutputSampleRate`: Don't Change, Match Each Track, or a
+  fixed rate) sets the default output device's nominal rate through CoreAudio. Only
+  built-in, USB, FireWire, Thunderbolt, PCI, HDMI and DisplayPort outputs are touched
+  (Bluetooth can drop to its call mode); transcodes never change it. Originals are
+  restored on stop and quit (not after a crash) and when the default output changes.
+  Tracks at different rates have a short gap. Unverified on hardware: whether the
+  sandbox allows the call (no entitlement is added).
 - Radio refills Up Next below 5 tracks: sonically similar (`/nearest`) when the
   server has analysed the library, else random tracks from it.
 - Now Playing and the media keys: Plex title first, then music when it is
@@ -222,8 +242,9 @@ grep its key: a single hit means it is dead. Keys read today:
 `musicLoudnessLevelling`, `menuBarPlayer`, `hideDockIcon`, `autoPlayNextEpisode`, `skipBackSeconds`,
 `skipForwardSeconds`, `radioLayout`, `radioSort`, `musicOnlineInfo`, `sidebarOrder`,
 `sidebarHidden`, `settingsPane` (the selected Settings pane), `macChannelSort`,
-`macLiveTVLayout`, `macLiveTVShowsList`. Some are reached through a constant
-(`MusicInfoStore.enabledKey`, `MacSettingsPane.storageKey`), so grep both. Sparkle keeps
+`macLiveTVLayout`, `macLiveTVShowsList`, `musicOutputSampleRate`, `musicCacheLimitMB`,
+`musicPrecacheCount`. Some are reached through a constant
+(`MusicInfoStore.enabledKey`, `MacSettingsPane.storageKey`, `MacMusicCache.limitKey`), so grep both. Sparkle keeps
 its own (Settings > General).
 
 Settings is a sidebar of panes (`MacSettingsPane`, iPad-style icon tiles in system

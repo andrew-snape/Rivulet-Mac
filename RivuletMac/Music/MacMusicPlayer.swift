@@ -142,7 +142,9 @@ final class MacMusicPlayer {
     private func makeItem(for source: MacMusicSource, gain: Float) -> Loaded {
         let asset = AVURLAsset(url: source.url)
         // Same trust as the Plex API session: a raw-IP or private certificate plays.
-        asset.resourceLoader.setDelegate(MacMusicTrust.shared, queue: MacMusicTrust.queue)
+        if !source.url.isFileURL {
+            asset.resourceLoader.setDelegate(MacMusicTrust.shared, queue: MacMusicTrust.queue)
+        }
         let item = AVPlayerItem(asset: asset)
         let id = ObjectIdentifier(item)
         let entry = Loaded(

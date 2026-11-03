@@ -21,6 +21,7 @@ final class MacMusicPlayback {
     static let loudnessKey = "musicLoudnessLevelling"
 
     let player = MacMusicPlayer()
+    @ObservationIgnored private let output = MacAudioOutput()
     private(set) var queue = MusicQueue()
     private(set) var radio: Radio?
     /// A track that could not be played, shown in the bar until the next one starts.
@@ -29,7 +30,9 @@ final class MacMusicPlayback {
     var isNowPlayingShown = false
 
     /// Needed to fetch and report; the app sets it.
-    @ObservationIgnored weak var plex: MacPlexSession?
+    @ObservationIgnored weak var plex: MacPlexSession? {
+        didSet { precache.plex = plex }
+    }
     @ObservationIgnored var onStart: (() -> Void)?
 
     /// The playing track's source, with its full metadata.
@@ -40,13 +43,16 @@ final class MacMusicPlayback {
     @ObservationIgnored private var nextTask: Task<Void, Never>?
     @ObservationIgnored private var refillTask: Task<Void, Never>?
     @ObservationIgnored private var observationTasks: [Task<Void, Never>] = []
+    @ObservationIgnored private let precache = MacMusicPrecache()
     @ObservationIgnored private var reportedStopped = true
     @ObservationIgnored private var lastReportBucket = -1
 
     init() {
         player.onAdvance = { [weak self] in self?.playerAdvanced(to: $0) }
         player.onFailure = { [weak self] in self?.playerFailed($0) }
+        precache.onCached = { [weak self] in self?.precached($0, file: $1) }
         observePlayer()
+        Task { await MacMusicCache.shared.purgeLeftovers() }
     }
 
     /// The track playing or paused, nil when nothing is queued.
@@ -175,6 +181,9 @@ final class MacMusicPlayback {
         nextTask?.cancel()
         refillTask?.cancel()
         player.stop()
+        precache.stop()
+        output.restore()
+        Task { await MacMusicCache.shared.trim() }
         queue.clear()
         radio = nil
         current = nil
@@ -205,6 +214,8 @@ final class MacMusicPlayback {
                 let source = try await plex.musicSource(for: entry.id, track: entry.track, forceTranscode: forceTranscode)
                 guard generation == self.generation else { return }
                 current = source
+                await output.apply(for: source)
+                guard generation == self.generation else { return }
                 reportedStopped = false
                 lastReportBucket = -1
                 // A pause while the track was being fetched holds.
@@ -219,6 +230,7 @@ final class MacMusicPlayback {
 
     /// The queued follow-on no longer matches the queue: queue the right one.
     private func queueChanged() {
+        defer { updatePrecache() }
         refillRadioIfNeeded()
         guard let current else { return }
         let wanted = queue.entryAfterCurrent
@@ -242,6 +254,23 @@ final class MacMusicPlayback {
             next = source
             player.setNext(source, gain: gain(for: source))
         }
+    }
+
+    private func updatePrecache() {
+        precache.update(
+            current: current,
+            upcoming: queue.upcoming(MacMusicPrecache.count),
+            canDownload: player.state == .playing || player.state == .paused)
+    }
+
+    /// A queued song finished downloading: swap its network URL for the file,
+    /// unless it is about to start.
+    private func precached(_ id: UUID, file: URL) {
+        guard let next, next.entryID == id, !next.isCached, player.nextID == id,
+              player.duration - player.currentTime > 10 else { return }
+        let cached = next.withURL(file)
+        self.next = cached
+        player.setNext(cached, gain: gain(for: cached))
     }
 
     private func gain(for source: MacMusicSource) -> Float {
@@ -279,6 +308,7 @@ final class MacMusicPlayback {
         problem = nil
         report("playing")
         queueChanged()
+        if let current { Task { await output.apply(for: current) } }
     }
 
     /// Nothing was queued behind the track that finished: the queue ran
@@ -293,7 +323,17 @@ final class MacMusicPlayback {
     private func playerFailed(_ id: UUID) {
         if let current, current.entryID == id {
             guard let entry = queue.current, entry.id == id else { return }
-            if current.isTranscode {
+            if current.isCached {
+                // The kept file is bad: forget it and play from the server.
+                let time = player.currentTime
+                let generation = generation
+                let key = current.cacheKey
+                Task {
+                    if let key { await MacMusicCache.shared.remove(key) }
+                    guard generation == self.generation, queue.current?.id == id else { return }
+                    loadCurrent(at: time)
+                }
+            } else if current.isTranscode {
                 skipUnplayable(entry)
             } else {
                 loadCurrent(forceTranscode: true, at: player.currentTime)
@@ -303,8 +343,11 @@ final class MacMusicPlayback {
             player.setNext(nil, gain: 1)
             guard !next.isTranscode, let plex, let wanted = queue.entryAfterCurrent, wanted.id == id else { return }
             let generation = generation
+            let wasCached = next.isCached
+            let key = next.cacheKey
             nextTask = Task {
-                guard let source = try? await plex.musicSource(for: wanted.id, track: wanted.track, forceTranscode: true),
+                if wasCached, let key { await MacMusicCache.shared.remove(key) }
+                guard let source = try? await plex.musicSource(for: wanted.id, track: wanted.track, forceTranscode: !wasCached),
                       generation == self.generation, queue.entryAfterCurrent?.id == wanted.id else { return }
                 self.next = source
                 player.setNext(source, gain: gain(for: source))
@@ -355,6 +398,7 @@ final class MacMusicPlayback {
     }
 
     private func stateChanged(_ state: MacMusicPlayer.State) {
+        updatePrecache()
         switch state {
         case .playing: report("playing")
         case .paused: report("paused")
