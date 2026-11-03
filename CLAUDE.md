@@ -34,12 +34,14 @@ RivuletCore/            # Plex and Live TV logic, no views. The ONE Plex client
 │                       #   version ranking, stall tracker), LiveTV/ (LiveTVDataStore,
 │                       #   Plex + IPTV providers, LiveTVSourceConnector), IPTV/ (M3U,
 │                       #   XMLTV, Dispatcharr), Security/ (Keychain), CaptionAppearance,
-│                       #   Music/ (MusicQueue, LoudnessLevelling).
+│                       #   Music/ (MusicQueue, LoudnessLevelling, MusicAudioQuality, MusicNameMatch,
+│                       #   MusicInfo/: MusicBrainz, Wikipedia and TheAudioDB lookups + cache).
 RivuletMac/
 ├── RivuletMacApp.swift # App, Playback menu, MacAppDelegate (Space / arrows / Esc monitor,
 │                       #   quit waits up to 3 s for Plex's stopped reports)
 ├── MacRootView.swift   # Sidebar shell: Home, Search, libraries, Live TV; VOD overlay
-├── MacSettingsView.swift # Plex (account, server, quality, skipping), Sources, Playback
+├── Settings/           # MacSettingsView (NavigationSplitView of MacSettingsPane: Plex, Video,
+│                       #   Live TV, Music, Sidebar, General), one file per pane, Live TV source forms
 ├── MacSupport.swift    # MacArtworkCache, channel logo, CaptionStyle.font(ofSize:), MacWindowReader
 ├── Plex/               # MacPlexSession (+Content, +Account, +Playback): the content
 │                       #   store, ported from the iOS app's IOSPlexSession; the views
@@ -118,7 +120,7 @@ from the app, the app injects it at launch, before touching the stores:
   (ICY "Artist - Title" split at the first " - " into `RadioSong`), the artist, the
   station as the album, and a cover found through the iTunes Search API
   (`RadioCoverLookup`: a hit must name both artist and title, so a wrong cover is
-  rarer than a missing one; the song text goes to Apple). The station's logo, or
+  rarer than a missing one; the song text goes to Apple, as Settings > Music says). The station's logo, or
   a Live TV channel's, stands in on a square (`NSImage.centredOnSquare`). The system
   widget's `--:--` for a live stream and its title cropping are not ours to change.
   `MacMiniPlayerView` is the card in the optional menu bar extra (`menuBarPlayer`).
@@ -181,6 +183,20 @@ from the app, the app injects it at launch, before touching the stores:
 - Loudness levelling uses Plex's `gain` / `albumGain` / `peak` on the audio
   stream (only in full metadata, so each track's source fetches it). Album gain
   for an album in order, track gain otherwise; the player can only turn down.
+- **Music pages read Plex first**, from `MacPlexSession.musicDetail` (`includeGuids`,
+  `includeReviews`): summary, Genre / Style / Mood / Country, critic `rating` (0-10) and
+  `userRating`, `Review`, `Similar`, and the artist and album hubs from `/related`.
+  Track popularity is `ratingCount`, drawn log-scaled against the list's top track.
+  The hero tint is the cover's dominant colour (`MacArtworkTint`), from a 120 px
+  thumb, held in memory by `ratingKey|path`, never by URL (URLs carry the token).
+- **Online details are opt-in** (`musicOnlineInfo`, default off) and only fill what Plex
+  lacks (bio, artist photo, cover, genres); Plex values are never overwritten. Only
+  names or MusicBrainz IDs leave the Mac. The MBID comes from Plex's `mbid://` Guid, else
+  one exact MusicBrainz name match (score 90+) or nothing. MusicBrainz is held to one
+  request per 1.1 s with Rivulet's User-Agent. Hits cache 30 days and misses 7, in
+  Caches/MusicInfo; transient failures are not cached; turning the setting off clears
+  it. Wikipedia text always shows its "From Wikipedia" link (CC BY-SA). TheAudioDB uses
+  its public free key `123`; if it stops answering the lookup just misses.
 - Radio refills Up Next below 5 tracks: sonically similar (`/nearest`) when the
   server has analysed the library, else random tracks from it.
 - Now Playing and the media keys: Plex title first, then music when it is
@@ -204,7 +220,15 @@ grep its key: a single hit means it is dead. Keys read today:
 `autoSkipRecap`, `autoSkipCredits`, `autoSkipAds`, `useIntroDB`,
 `liveTeletextPage`, `macLibrarySort.<key>`, `macChannelFilter`,
 `musicLoudnessLevelling`, `menuBarPlayer`, `hideDockIcon`, `autoPlayNextEpisode`, `skipBackSeconds`,
-`skipForwardSeconds`, `radioLayout`, `radioSort`. Sparkle keeps its own (the Updates tab).
+`skipForwardSeconds`, `radioLayout`, `radioSort`, `musicOnlineInfo`, `sidebarOrder`,
+`sidebarHidden`, `settingsPane` (the selected Settings pane), `macChannelSort`,
+`macLiveTVLayout`, `macLiveTVShowsList`. Some are reached through a constant
+(`MusicInfoStore.enabledKey`, `MacSettingsPane.storageKey`), so grep both. Sparkle keeps
+its own (Settings > General).
+
+Settings is a sidebar of panes (`MacSettingsPane`, iPad-style icon tiles in system
+colours). A new setting goes in the pane for its subject as a one-line row, with any
+explanation in the section footer. No new pane for one or two controls, and no search.
 
 ### AirPlay
 
