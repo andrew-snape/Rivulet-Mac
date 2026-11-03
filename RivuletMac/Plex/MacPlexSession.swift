@@ -70,7 +70,10 @@ final class MacPlexSession {
         // The auth manager owns identity and hands content off to the host's
         // store: this object.
         PlexAuthManager.onAuthenticated = { [weak self] in await self?.refresh() }
-        PlexAuthManager.onSignedOut = { [weak self] in self?.clearContent() }
+        PlexAuthManager.onSignedOut = { [weak self] in
+            self?.clearContent()
+            Task { await MacMusicCache.shared.clear() }
+        }
 
         auth.$state
             .sink { [weak self] in self?.apply(authState: $0) }
