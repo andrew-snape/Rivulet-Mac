@@ -64,6 +64,15 @@ nonisolated struct PlexTag: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// A published review of an album or artist.
+nonisolated struct PlexReview: Codable, Hashable, Sendable {
+    var id: Int?
+    var tag: String?
+    var text: String?
+    var source: String?
+    var link: String?
+}
+
 /// External ID reference (e.g. "tmdb://12345", "tvdb://67890", "imdb://tt1234567")
 nonisolated struct PlexGuid: Codable, Sendable {
     var id: String?
@@ -382,6 +391,19 @@ nonisolated struct PlexMetadata: Codable, Identifiable, Hashable, Sendable {
     var playlistType: String? = nil
     /// A playlist's tiled artwork.
     var composite: String? = nil
+    /// An artist's or album's styles, moods and similar artists.
+    var Style: [PlexTag]? = nil
+    var Mood: [PlexTag]? = nil
+    var Similar: [PlexTag]? = nil
+    var ratingCount: Int? = nil
+    var Review: [PlexReview]? = nil
+
+    /// The MusicBrainz ID in the item's `mbid://` guid.
+    var musicBrainzID: String? {
+        guard let id = Guid?.compactMap(\.id).first(where: { $0.hasPrefix("mbid://") }) else { return nil }
+        let value = String(id.dropFirst("mbid://".count))
+        return UUID(uuidString: value) == nil ? nil : value.lowercased()
+    }
 
     // MARK: - Hashable
     func hash(into hasher: inout Hasher) {

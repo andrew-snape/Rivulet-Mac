@@ -45,6 +45,33 @@ extension PlexNetworkManager {
         ])
     }
 
+    /// An artist or album with its guids and reviews, for the music pages.
+    func getMusicMetadata(serverURL: String, authToken: String, ratingKey: String) async throws -> PlexMetadata {
+        guard var components = URLComponents(string: "\(serverURL)/library/metadata/\(ratingKey)") else {
+            throw PlexAPIError.invalidURL
+        }
+        components.queryItems = [
+            URLQueryItem(name: "includeGuids", value: "1"),
+            URLQueryItem(name: "includeReviews", value: "1")
+        ]
+        guard let url = components.url else { throw PlexAPIError.invalidURL }
+        let container: PlexMediaContainerWrapper = try await request(url, headers: plexHeaders(authToken: authToken))
+        guard var item = container.MediaContainer.Metadata?.first else { throw PlexAPIError.notFound }
+        if item.librarySectionID == nil { item.librarySectionID = container.MediaContainer.librarySectionID }
+        if item.librarySectionTitle == nil { item.librarySectionTitle = container.MediaContainer.librarySectionTitle }
+        return item
+    }
+
+    /// Artists in a music section whose title matches `title`.
+    func getLibraryArtists(serverURL: String, authToken: String, sectionId: String, title: String) async throws -> [PlexMetadata] {
+        try await musicItems(serverURL: serverURL, authToken: authToken, path: "/library/sections/\(sectionId)/all", query: [
+            URLQueryItem(name: "type", value: "8"),
+            URLQueryItem(name: "title", value: title),
+            URLQueryItem(name: "X-Plex-Container-Start", value: "0"),
+            URLQueryItem(name: "X-Plex-Container-Size", value: "5")
+        ])
+    }
+
     /// Tracks that sound like `ratingKey`, from the server's sonic analysis.
     /// Empty (or an error) when the library has not been analysed.
     func getSonicallySimilarTracks(

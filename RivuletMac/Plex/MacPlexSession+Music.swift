@@ -101,6 +101,68 @@ extension MacPlexSession {
         return try await network.getPopularTracks(serverURL: serverURL, authToken: token, sectionId: sectionKey, artistKey: key)
     }
 
+    /// An artist or album with its guids, styles, moods and reviews.
+    func musicDetail(for item: PlexMetadata) async throws -> PlexMetadata {
+        guard let key = item.ratingKey else { return item }
+        let (serverURL, token) = try configuration()
+        return try await network.getMusicMetadata(serverURL: serverURL, authToken: token, ratingKey: key)
+    }
+
+    /// Plex's related rows for an artist or album, keeping those that hold
+    /// only `kind` (so "artist" or "album"), at most two.
+    func musicRelated(to item: PlexMetadata, kind: String) async -> [PlexHub] {
+        guard let key = item.ratingKey, let (serverURL, token) = try? configuration(),
+              let hubs = try? await network.getRelatedItems(serverURL: serverURL, authToken: token, ratingKey: key)
+        else { return [] }
+        var kept: [PlexHub] = []
+        for var hub in hubs {
+            let items = (hub.Metadata ?? []).filter { $0.ratingKey != key }
+            guard !items.isEmpty, items.allSatisfy({ $0.type == kind }) else { continue }
+            hub.Metadata = items
+            kept.append(hub)
+            if kept.count == 2 { break }
+        }
+        return kept
+    }
+
+    /// Library artists with these names, in order; a name with no exact match is skipped.
+    func libraryArtists(named names: [String], sectionKey: String) async -> [PlexMetadata] {
+        guard let (serverURL, token) = try? configuration() else { return [] }
+        let wanted = Array(names.prefix(8))
+        let network = self.network
+        let candidates = await withTaskGroup(of: (Int, [PlexMetadata]).self) { group in
+            for (index, name) in wanted.enumerated() {
+                group.addTask {
+                    (index, (try? await network.getLibraryArtists(
+                        serverURL: serverURL, authToken: token, sectionId: sectionKey, title: name)) ?? [])
+                }
+            }
+            var results: [Int: [PlexMetadata]] = [:]
+            for await (index, matches) in group { results[index] = matches }
+            return results
+        }
+        return wanted.enumerated().compactMap { index, name in
+            let target = MusicNameMatch.normalised(name)
+            return candidates[index]?.first { MusicNameMatch.normalised($0.displayTitle) == target }
+        }.uniqued()
+    }
+
+    /// Lossless or Hi-Res Lossless when every track is lossless; the first
+    /// track's stream decides Hi-Res.
+    func albumQuality(of tracks: [PlexMetadata]) async -> MusicAudioQuality? {
+        guard !tracks.isEmpty,
+              tracks.allSatisfy({ MusicAudioQuality.isLossless(codec: $0.Media?.first?.audioCodec) }),
+              let first = tracks.first, let key = first.ratingKey else { return nil }
+        guard let (serverURL, token) = try? configuration(),
+              let full = try? await network.getMetadata(serverURL: serverURL, authToken: token, ratingKey: key) else {
+            return .lossless
+        }
+        let stream = full.audioStream
+        return MusicAudioQuality.classify(
+            codec: full.Media?.first?.audioCodec ?? stream?.codec,
+            bitDepth: stream?.bitDepth, samplingRate: stream?.samplingRate) ?? .lossless
+    }
+
     /// Radio's next tracks after `seed`: sonically similar when the server has
     /// analysed the library, otherwise random tracks from the seed's library.
     func radioTracks(after seed: PlexMetadata, sectionKey: String?) async -> [PlexMetadata] {

@@ -361,10 +361,8 @@ nonisolated enum RadioCoverLookup {
             .flatMap(URL.init(string:))
     }
 
-    /// Letters and digits only, without case or accents.
     private static func normalised(_ text: String) -> String {
-        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
-            .filter { $0.isLetter || $0.isNumber }
+        MusicNameMatch.normalised(text)
     }
 }
 
