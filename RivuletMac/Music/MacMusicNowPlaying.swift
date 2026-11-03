@@ -262,9 +262,12 @@ struct MacMusicNowPlayingView: View {
                     .tint(.white)
                 MacMusicTransport(size: .large)
                 HStack {
-                    Text(formatDetail ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    HStack(spacing: 8) {
+                        if let quality = formatQuality { MacMusicQualityBadge(quality: quality) }
+                        Text(formatDetail ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                     Spacer()
                     MacMusicVolume().frame(width: 150)
                 }
@@ -289,6 +292,15 @@ struct MacMusicNowPlayingView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// Lossless or Hi-Res Lossless for a file played as it is.
+    private var formatQuality: MusicAudioQuality? {
+        guard let source = music.current, !source.isTranscode else { return nil }
+        let stream = source.track.audioStream
+        return MusicAudioQuality.classify(
+            codec: source.track.Media?.first?.audioCodec ?? stream?.codec,
+            bitDepth: stream?.bitDepth, samplingRate: stream?.samplingRate)
+    }
+
     private func open(_ item: PlexMetadata) {
         music.isNowPlayingShown = false
         actions.open(item)
@@ -300,10 +312,11 @@ struct MacMusicNowPlayingView: View {
 private struct MacMusicBackdrop: View {
     let track: PlexMetadata
     @Environment(MacPlexSession.self) private var plex
+    @State private var tint: Color?
 
     var body: some View {
         ZStack {
-            MacTheme.background
+            tint ?? MacTheme.background
             MacPlexImage(url: plex.imageURL(path: track.squareArtPath, width: 240, height: 240))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .scaleEffect(1.4)
@@ -315,6 +328,12 @@ private struct MacMusicBackdrop: View {
             LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
         }
         .animation(.easeInOut(duration: 0.6), value: track.ratingKey)
+        .animation(.easeInOut(duration: 0.6), value: tint)
+        .task(id: track.ratingKey) {
+            let color = await plex.artworkTint(of: track)
+            guard !Task.isCancelled else { return }
+            tint = color
+        }
         .clipped()
         .ignoresSafeArea()
         .allowsHitTesting(false)

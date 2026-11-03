@@ -66,14 +66,16 @@ struct MacMusicItemMenu: View {
 struct MacMusicArtwork: View {
     let item: PlexMetadata
     let size: CGFloat
+    /// Used when Plex has no art of its own.
+    var fallbackURL: URL?
     @Environment(MacPlexSession.self) private var plex
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let pixels = max(1, Int((size * displayScale / 120).rounded(.up))) * 120
-        MacPlexImage(url: plex.imageURL(path: item.squareArtPath, width: pixels, height: pixels))
+        MacPlexImage(url: item.squareArtPath == nil ? fallbackURL : plex.imageURL(path: item.squareArtPath, width: pixels, height: pixels))
             .overlay {
-                if item.squareArtPath == nil {
+                if item.squareArtPath == nil, fallbackURL == nil {
                     Image(systemName: item.type == "artist" ? "music.mic" : "music.note")
                         .font(.system(size: size * 0.3))
                         .foregroundStyle(.tertiary)
@@ -303,29 +305,49 @@ struct MacMusicArtistView: View {
     @State private var full: PlexMetadata?
     @State private var popular: [PlexMetadata] = []
     @State private var albums: [PlexMetadata] = []
+    @State private var similar: [PlexHub] = []
+    @State private var fallbackSimilar: [PlexMetadata] = []
+    @State private var tint: Color?
+    @State private var online: MusicArtistInfo?
     @State private var error: String?
+    @AppStorage(MusicInfoStore.enabledKey) private var onlineInfo = false
 
     private var shown: PlexMetadata { full ?? artist }
+
+    private var chips: [String] {
+        var styles = Array(((shown.Genre ?? []) + (shown.Style ?? [])).compactMap(\.tag).prefix(4))
+        if shown.hasNoMusicStyles, let genres = online?.genres { styles = Array(genres.prefix(4)) }
+        let country = shown.Country?.compactMap(\.tag) ?? []
+        let moods = (shown.Mood ?? []).compactMap(\.tag).prefix(2)
+        return styles + country + Array(moods)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                HStack(alignment: .center, spacing: 24) {
-                    MacMusicArtwork(item: shown, size: 180)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(shown.displayTitle).font(.largeTitle.bold()).lineLimit(2)
-                        if let genres = shown.Genre?.compactMap(\.tag).prefix(3), !genres.isEmpty {
-                            Text(genres.joined(separator: " · ")).foregroundStyle(.secondary)
+                MacMusicHero(tint: tint, backdrop: shown.art != nil ? plex.imageURL(path: shown.art, width: 1600, height: 900) : online?.backdropURL) {
+                    HStack(alignment: .center, spacing: 24) {
+                        MacMusicArtwork(item: shown, size: 180, fallbackURL: online?.imageURL)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(shown.displayTitle).font(.largeTitle.bold()).lineLimit(2)
+                            MacMusicChips(texts: chips)
+                            MacMusicRatingBadge(item: shown)
+                            MacMusicPlayButtons(item: shown)
                         }
-                        MacMusicPlayButtons(item: shown)
                     }
+                    .padding(.bottom, 8)
                 }
-                .padding(.horizontal, MacTile.margin)
 
+                if let summary = shown.summary, !summary.isEmpty {
+                    MacMusicBio(text: summary).padding(.horizontal, MacTile.margin)
+                } else if let bio = online?.biography {
+                    MacMusicBio(text: bio.text, sourceName: bio.source.displayName, sourceURL: bio.url)
+                        .padding(.horizontal, MacTile.margin)
+                }
                 if !popular.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Popular").font(.title2.bold()).padding(.horizontal, MacTile.margin)
-                        MacMusicTrackList(tracks: popular, showsArtwork: true)
+                        MacMusicTrackList(tracks: popular, showsArtwork: true, showsPopularity: true)
                     }
                 }
                 if !albums.isEmpty {
@@ -337,21 +359,59 @@ struct MacMusicArtistView: View {
                     MacPlexErrorView(title: "Couldn't Load Artist", message: error) { await load() }
                         .frame(maxWidth: .infinity)
                 }
+                ForEach(similar) { hub in
+                    MacShelfRow(items: hub.items) {
+                        Text(hub.displayTitle).font(.title2.bold())
+                    } tile: { item in
+                        MacMusicTileLink(item: item)
+                    }
+                }
+                if similar.isEmpty, !fallbackSimilar.isEmpty {
+                    MacShelfRow(items: fallbackSimilar) {
+                        Text("Similar Artists").font(.title2.bold())
+                    } tile: { item in
+                        MacMusicTileLink(item: item)
+                    }
+                }
             }
-            .padding(.vertical, 24)
+            .padding(.bottom, 24)
         }
         .navigationTitle(shown.displayTitle)
-        .task(id: artist.ratingKey) { await load() }
+        .task(id: "\(artist.ratingKey ?? "")|\(onlineInfo)") { await load() }
     }
 
     private func load() async {
         do {
-            let loaded = try await plex.metadata(for: artist)
+            let loaded = try await plex.musicDetail(for: artist)
+            guard !Task.isCancelled else { return }
             full = loaded
-            albums = try await plex.albums(of: loaded)
+            let loadedAlbums = try await plex.albums(of: loaded)
+            guard !Task.isCancelled else { return }
+            albums = loadedAlbums
             error = nil
             if let section = loaded.librarySectionID {
-                popular = Array(((try? await plex.popularTracks(of: loaded, sectionKey: String(section))) ?? []).prefix(5))
+                let tracks = Array(((try? await plex.popularTracks(of: loaded, sectionKey: String(section))) ?? []).prefix(5))
+                guard !Task.isCancelled else { return }
+                popular = tracks
+            }
+            let related = await plex.musicRelated(to: loaded, kind: "artist")
+            guard !Task.isCancelled else { return }
+            similar = related
+            let names = (loaded.Similar ?? []).compactMap(\.tag)
+            if related.isEmpty, !names.isEmpty, let section = loaded.librarySectionID {
+                let found = await plex.libraryArtists(named: names, sectionKey: String(section))
+                guard !Task.isCancelled else { return }
+                fallbackSimilar = found
+            }
+            let color = await plex.artworkTint(of: loaded)
+            guard !Task.isCancelled else { return }
+            tint = color
+            if onlineInfo, loaded.needsOnlineArtistInfo {
+                let info = await MusicInfoStore.shared.artistInfo(name: loaded.displayTitle, musicBrainzID: loaded.musicBrainzID)
+                guard !Task.isCancelled else { return }
+                online = info
+            } else {
+                online = nil
             }
         } catch let error where isCancellationError(error) {
         } catch {
@@ -402,44 +462,67 @@ struct MacMusicAlbumView: View {
     @Environment(\.plexActions) private var actions
     @State private var full: PlexMetadata?
     @State private var tracks: [PlexMetadata] = []
+    @State private var quality: MusicAudioQuality?
+    @State private var related: [PlexHub] = []
+    @State private var tint: Color?
+    @State private var online: MusicAlbumInfo?
     @State private var error: String?
     @State private var isLoading = true
+    @AppStorage(MusicInfoStore.enabledKey) private var onlineInfo = false
 
     private var shown: PlexMetadata { full ?? item }
     private var isPlaylist: Bool { item.type == "playlist" }
 
-    private var info: String {
+    private var chips: [String] {
         let minutes = tracks.compactMap(\.duration).reduce(0, +) / 60_000
         let count = tracks.count == 1 ? "1 song" : "\(tracks.count) songs"
         let length = minutes >= 60 ? "\(minutes / 60) hr \(minutes % 60) min" : "\(minutes) min"
-        return [shown.year.map(String.init), tracks.isEmpty ? nil : count, minutes > 0 ? length : nil]
-            .compactMap { $0 }
-            .joined(separator: " · ")
+        var genres = Array(((shown.Genre ?? []) + (shown.Style ?? [])).compactMap(\.tag).prefix(3))
+        if shown.hasNoMusicStyles, let found = online?.genres { genres = Array(found.prefix(3)) }
+        let moods = (shown.Mood ?? []).compactMap(\.tag).prefix(2)
+        return [shown.year.map(String.init), tracks.isEmpty ? nil : count, minutes > 0 ? length : nil].compactMap { $0 }
+            + Array(genres) + Array(moods)
+    }
+
+    private var review: PlexReview? {
+        shown.Review?.first { !($0.text ?? "").isEmpty }
+    }
+
+    private var releaseLine: String? {
+        let date = shown.originallyAvailableAt.flatMap(MacPlexInformationSection.formattedDate)
+        let parts = [date.map { "Released \($0)" }, shown.studio].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .bottom, spacing: 24) {
-                    MacMusicArtwork(item: shown, size: 220)
-                        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(isPlaylist ? "Playlist" : "Album")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-                        Text(shown.displayTitle).font(.largeTitle.bold()).lineLimit(2)
-                        if !isPlaylist, let artist = shown.artistStub {
-                            Button(artist.displayTitle) { actions.open(artist) }
-                                .buttonStyle(.plain)
-                                .font(.title3)
-                                .foregroundStyle(.tint)
+                MacMusicHero(tint: tint) {
+                    HStack(alignment: .bottom, spacing: 24) {
+                        MacMusicArtwork(item: shown, size: 220, fallbackURL: online?.coverURL)
+                            .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(isPlaylist ? "Playlist" : "Album")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                            Text(shown.displayTitle).font(.largeTitle.bold()).lineLimit(2)
+                            if !isPlaylist, let artist = shown.artistStub {
+                                Button(artist.displayTitle) { actions.open(artist) }
+                                    .buttonStyle(.plain)
+                                    .font(.title3)
+                                    .foregroundStyle(.tint)
+                            }
+                            MacMusicChips(texts: chips)
+                            HStack(spacing: 12) {
+                                if let quality { MacMusicQualityBadge(quality: quality) }
+                                MacMusicRatingBadge(item: shown)
+                            }
+                            MacMusicPlayButtons(item: shown).padding(.top, 6)
                         }
-                        Text(info).foregroundStyle(.secondary)
-                        MacMusicPlayButtons(item: shown).padding(.top, 6)
                     }
+                    .padding(.bottom, 8)
                 }
-                .padding(.horizontal, MacTile.margin)
 
                 if let error, tracks.isEmpty {
                     MacPlexErrorView(title: "Couldn't Load", message: error) { await load() }
@@ -451,21 +534,42 @@ struct MacMusicAlbumView: View {
                         tracks: tracks,
                         isAlbum: !isPlaylist,
                         showsArtwork: isPlaylist,
-                        albumArtist: isPlaylist ? nil : shown.parentTitle
+                        albumArtist: isPlaylist ? nil : shown.parentTitle,
+                        showsPopularity: !isPlaylist
                     )
                 }
                 if let summary = shown.summary, !summary.isEmpty {
-                    Text(summary)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: 700, alignment: .leading)
+                    MacMusicBio(text: summary).padding(.horizontal, MacTile.margin)
+                } else if let text = online?.summary {
+                    MacMusicBio(text: text.text, sourceName: text.source.displayName, sourceURL: text.url)
                         .padding(.horizontal, MacTile.margin)
                 }
+                if let review, let text = review.text {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Review").font(.title2.bold())
+                        MacMusicBio(text: text, sourceName: review.source ?? review.tag,
+                                    sourceURL: review.link.flatMap(URL.init(string:)))
+                    }
+                    .padding(.horizontal, MacTile.margin)
+                }
+                if let releaseLine {
+                    Text(releaseLine)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, MacTile.margin)
+                }
+                ForEach(related) { hub in
+                    MacShelfRow(items: hub.items) {
+                        Text(hub.displayTitle).font(.title2.bold())
+                    } tile: { item in
+                        MacMusicTileLink(item: item)
+                    }
+                }
             }
-            .padding(.vertical, 24)
+            .padding(.bottom, 24)
         }
         .navigationTitle(shown.displayTitle)
-        .task(id: item.ratingKey) { await load() }
+        .task(id: "\(item.ratingKey ?? "")|\(onlineInfo)") { await load() }
     }
 
     private func load() async {
@@ -473,9 +577,31 @@ struct MacMusicAlbumView: View {
         defer { isLoading = false }
         do {
             async let loadedTracks = plex.tracks(of: item)
-            if !isPlaylist { full = try? await plex.metadata(for: item) }
-            tracks = try await loadedTracks
+            let detail = isPlaylist ? nil : try? await plex.musicDetail(for: item)
+            let loaded = try await loadedTracks
+            guard !Task.isCancelled else { return }
+            if let detail { full = detail }
+            tracks = loaded
             error = nil
+            guard !isPlaylist else { return }
+            let found = await plex.albumQuality(of: loaded)
+            guard !Task.isCancelled else { return }
+            quality = found
+            let hubs = await plex.musicRelated(to: item, kind: "album")
+            guard !Task.isCancelled else { return }
+            related = hubs
+            let color = await plex.artworkTint(of: detail ?? item)
+            guard !Task.isCancelled else { return }
+            tint = color
+            let source = detail ?? item
+            if onlineInfo, source.needsOnlineAlbumInfo {
+                let info = await MusicInfoStore.shared.albumInfo(
+                    title: source.displayTitle, artist: source.parentTitle ?? "", musicBrainzID: source.musicBrainzID)
+                guard !Task.isCancelled else { return }
+                online = info
+            } else {
+                online = nil
+            }
         } catch let error where isCancellationError(error) {
         } catch {
             self.error = error.localizedDescription
@@ -493,7 +619,15 @@ struct MacMusicTrackList: View {
     var showsArtwork = false
     /// Hidden on rows by the same artist.
     var albumArtist: String?
+    var showsPopularity = false
     @Environment(MacMusicPlayback.self) private var music
+
+    /// Play counts on a log scale against the most played; nil with no counts.
+    private func popularity(of track: PlexMetadata) -> Double? {
+        guard showsPopularity,
+              let top = tracks.compactMap(\.ratingCount).max(), top > 0 else { return nil }
+        return log1p(Double(track.ratingCount ?? 0)) / log1p(Double(top))
+    }
 
     private struct Row: Identifiable {
         let offset: Int
@@ -532,6 +666,7 @@ struct MacMusicTrackList: View {
                         number: isAlbum ? row.track.index : row.offset + 1,
                         showsArtwork: showsArtwork,
                         showsArtist: row.track.trackArtist != albumArtist,
+                        popularity: popularity(of: row.track),
                         play: { music.play(tracks, from: row.offset, isAlbum: isAlbum) }
                     )
                 }
@@ -546,6 +681,7 @@ struct MacMusicTrackRow: View {
     let number: Int?
     var showsArtwork = false
     var showsArtist = true
+    var popularity: Double?
     let play: () -> Void
     @Environment(MacMusicPlayback.self) private var music
     @State private var hovering = false
@@ -580,6 +716,7 @@ struct MacMusicTrackRow: View {
                 }
             }
             Spacer(minLength: 12)
+            if let popularity { MacMusicPopularityBar(fraction: popularity) }
             if let time = track.trackTime {
                 Text(time).foregroundStyle(.secondary).monospacedDigit()
             }

@@ -389,6 +389,7 @@ private struct MacPlaybackSettings: View {
     /// Same key and meaning as tvOS and iOS: 0 lets the engine find the page.
     @AppStorage("liveTeletextPage") private var teletextPage = Locale.current.region?.identifier == "AU" ? 801 : 0
     @AppStorage(MacMusicPlayback.loudnessKey) private var loudnessLevelling = true
+    @AppStorage(MusicInfoStore.enabledKey) private var onlineInfo = false
     @AppStorage(MacMiniPlayer.menuBarKey) private var menuBarPlayer = false
     @AppStorage(MacMiniPlayer.hideDockKey) private var hideDockIcon = false
     @AppStorage(MacPlexPlayback.autoPlayNextKey) private var autoPlayNext = true
@@ -414,6 +415,18 @@ private struct MacPlaybackSettings: View {
                 Text("Music")
             } footer: {
                 Text("Evens out volume between tracks, using the loudness analysis on your Plex server. An album played in order keeps its own quiet and loud songs. It applies from the next track.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Look Up Missing Artist and Album Details", isOn: $onlineInfo)
+                    .onChange(of: onlineInfo) { _, on in
+                        if !on { Task { await MusicInfoStore.shared.clear() } }
+                    }
+            } header: {
+                Text("Music Details")
+            } footer: {
+                Text("When Plex has no biography, photo or cover, Rivulet looks for one on MusicBrainz, Wikipedia and TheAudioDB. The artist and album names, or their MusicBrainz IDs, are sent to them; nothing else is. Radio covers come from Apple's iTunes search, which is sent the song's name. Turning this off forgets what was found.")
                     .foregroundStyle(.secondary)
             }
 
