@@ -26,6 +26,8 @@ final class MacMusicPlayback {
     private(set) var radio: Radio?
     /// A track that could not be played, shown in the bar until the next one starts.
     private(set) var problem: String?
+    /// The sound output's rate and depth for the playing track, e.g. "96 kHz · 24-bit".
+    private(set) var outputDescription: String?
     /// The full Now Playing view is open.
     var isNowPlayingShown = false
 
@@ -183,6 +185,7 @@ final class MacMusicPlayback {
         player.stop()
         precache.stop()
         output.restore()
+        outputDescription = nil
         Task { await MacMusicCache.shared.trim() }
         queue.clear()
         radio = nil
@@ -216,6 +219,7 @@ final class MacMusicPlayback {
                 current = source
                 await output.apply(for: source)
                 guard generation == self.generation else { return }
+                outputDescription = output.describe()
                 reportedStopped = false
                 lastReportBucket = -1
                 // A pause while the track was being fetched holds.
@@ -308,7 +312,12 @@ final class MacMusicPlayback {
         problem = nil
         report("playing")
         queueChanged()
-        if let current { Task { await output.apply(for: current) } }
+        if let current {
+            Task {
+                await output.apply(for: current)
+                outputDescription = output.describe()
+            }
+        }
     }
 
     /// Nothing was queued behind the track that finished: the queue ran

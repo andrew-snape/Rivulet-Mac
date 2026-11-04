@@ -217,6 +217,9 @@ from the app, the app injects it at launch, before touching the stores:
   built-in, USB, FireWire, Thunderbolt, PCI, HDMI and DisplayPort outputs are touched
   (Bluetooth can drop to its call mode); transcodes never change it. Originals are
   restored on stop and quit (not after a crash) and when the default output changes.
+  With a rate set, the stream's physical format is also raised to the deepest linear PCM
+  depth at that rate (24-bit and up, never lowered) and put back with the rate. Now Playing
+  shows the chain, "ALAC · 24-bit · 96 kHz → 96 kHz · 24-bit" (`MacAudioOutput.describe`).
   Tracks at different rates have a short gap. Unverified on hardware: whether the
   sandbox allows the call (no entitlement is added).
 - Radio refills Up Next below 5 tracks: sonically similar (`/nearest`) when the

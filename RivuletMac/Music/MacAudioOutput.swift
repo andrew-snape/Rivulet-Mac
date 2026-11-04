@@ -48,6 +48,8 @@ final class MacAudioOutput {
 
     /// Device UID to the rate it had before the first change.
     private var original: [String: Double] = [:]
+    /// Device UID to the stream format it had before its bit depth was raised.
+    private var originalFormat: [String: (stream: AudioObjectID, format: AudioStreamBasicDescription)] = [:]
     private var unsettable = Set<String>()
     private var lastRequest: MacMusicSource?
 
@@ -68,18 +70,44 @@ final class MacAudioOutput {
             return
         }
         let goal = Double(target)
-        guard CoreAudioDevice.nominalRate(device) != goal else { return }
-        if original[uid] == nil, let rate = CoreAudioDevice.nominalRate(device) { original[uid] = rate }
-        let status = CoreAudioDevice.setNominalRate(device, goal)
-        guard status == 0 else {
-            Self.log.error("Sample rate change failed, status \(status)")
-            unsettable.insert(uid)
-            return
+        if CoreAudioDevice.nominalRate(device) != goal {
+            if original[uid] == nil, let rate = CoreAudioDevice.nominalRate(device) { original[uid] = rate }
+            let status = CoreAudioDevice.setNominalRate(device, goal)
+            guard status == 0 else {
+                Self.log.error("Sample rate change failed, status \(status)")
+                unsettable.insert(uid)
+                return
+            }
+            for _ in 0..<25 {
+                if CoreAudioDevice.nominalRate(device) == goal { break }
+                try? await Task.sleep(for: .milliseconds(20))
+            }
         }
-        for _ in 0..<25 {
-            if CoreAudioDevice.nominalRate(device) == goal { return }
-            try? await Task.sleep(for: .milliseconds(20))
+        raiseBitDepth(device, uid: uid, rate: goal)
+    }
+
+    /// Asks the output for its deepest linear PCM format at this rate, so 24-bit
+    /// files are not cut to 16 bits. Only ever raises the depth.
+    private func raiseBitDepth(_ device: AudioObjectID, uid: String, rate: Double) {
+        guard let stream = CoreAudioDevice.outputStream(device),
+              let current = CoreAudioDevice.physicalFormat(stream),
+              let best = CoreAudioDevice.deepestFormat(stream, rate: rate, channels: current.mChannelsPerFrame),
+              best.mBitsPerChannel > current.mBitsPerChannel else { return }
+        if originalFormat[uid] == nil { originalFormat[uid] = (stream, current) }
+        if CoreAudioDevice.setPhysicalFormat(stream, best) != 0 {
+            Self.log.error("Bit depth change failed")
         }
+    }
+
+    /// What the default output is running at, for Now Playing, e.g. "96 kHz · 24-bit".
+    func describe() -> String? {
+        guard let device = CoreAudioDevice.defaultOutput(), let rate = CoreAudioDevice.nominalRate(device) else { return nil }
+        var parts = [MusicOutputRate.label(Int(rate.rounded()))]
+        if let stream = CoreAudioDevice.outputStream(device), let format = CoreAudioDevice.physicalFormat(stream),
+           format.mBitsPerChannel > 0 {
+            parts.append("\(format.mBitsPerChannel)-bit")
+        }
+        return parts.joined(separator: " · ")
     }
 
     /// Puts back every rate this changed.
@@ -88,6 +116,10 @@ final class MacAudioOutput {
             if let device = CoreAudioDevice.device(uid: uid) { _ = CoreAudioDevice.setNominalRate(device, rate) }
         }
         original = [:]
+        for (uid, saved) in originalFormat where CoreAudioDevice.device(uid: uid) != nil {
+            _ = CoreAudioDevice.setPhysicalFormat(saved.stream, saved.format)
+        }
+        originalFormat = [:]
         lastRequest = nil
     }
 
@@ -184,6 +216,50 @@ private nonisolated enum CoreAudioDevice {
         var address = address(kAudioDevicePropertyNominalSampleRate)
         var value = rate
         return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float64>.size), &value)
+    }
+
+    static func outputStream(_ device: AudioObjectID) -> AudioObjectID? {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams,
+                                                 mScope: kAudioObjectPropertyScopeOutput,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == 0, size > 0 else { return nil }
+        var streams = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &streams) == 0 else { return nil }
+        return streams.first
+    }
+
+    static func physicalFormat(_ stream: AudioObjectID) -> AudioStreamBasicDescription? {
+        var address = address(kAudioStreamPropertyPhysicalFormat)
+        var format = AudioStreamBasicDescription()
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        return AudioObjectGetPropertyData(stream, &address, 0, nil, &size, &format) == 0 ? format : nil
+    }
+
+    static func setPhysicalFormat(_ stream: AudioObjectID, _ format: AudioStreamBasicDescription) -> OSStatus {
+        var address = address(kAudioStreamPropertyPhysicalFormat)
+        var value = format
+        return AudioObjectSetPropertyData(stream, &address, 0, nil,
+                                          UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &value)
+    }
+
+    /// The linear PCM format with the most bits per channel that runs at this rate.
+    static func deepestFormat(_ stream: AudioObjectID, rate: Double, channels: UInt32) -> AudioStreamBasicDescription? {
+        var address = address(kAudioStreamPropertyAvailablePhysicalFormats)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(stream, &address, 0, nil, &size) == 0, size > 0 else { return nil }
+        var formats = [AudioStreamRangedDescription](
+            repeating: AudioStreamRangedDescription(), count: Int(size) / MemoryLayout<AudioStreamRangedDescription>.size)
+        guard AudioObjectGetPropertyData(stream, &address, 0, nil, &size, &formats) == 0 else { return nil }
+        let best = formats
+            .filter {
+                $0.mFormat.mFormatID == kAudioFormatLinearPCM && $0.mFormat.mChannelsPerFrame == channels
+                    && $0.mSampleRateRange.mMinimum <= rate && rate <= $0.mSampleRateRange.mMaximum
+            }
+            .max { $0.mFormat.mBitsPerChannel < $1.mFormat.mBitsPerChannel }
+        guard var format = best?.mFormat else { return nil }
+        format.mSampleRate = rate
+        return format
     }
 
     /// Wired outputs only; Bluetooth, AirPlay, aggregate and virtual devices keep their own rate.

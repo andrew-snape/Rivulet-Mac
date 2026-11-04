@@ -289,7 +289,10 @@ struct MacMusicNowPlayingView: View {
         let rate = stream?.samplingRate.map { String(format: "%g kHz", Double($0) / 1000) }
         let depth = stream?.bitDepth.map { "\($0)-bit" }
         let parts = [codec, depth, rate].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        guard !parts.isEmpty else { return nil }
+        let file = parts.joined(separator: " · ")
+        guard let output = music.outputDescription else { return file }
+        return "\(file) → \(output)"
     }
 
     /// Lossless or Hi-Res Lossless for a file played as it is.
