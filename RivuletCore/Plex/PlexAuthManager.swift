@@ -849,6 +849,12 @@ class PlexAuthManager: ObservableObject {
             isConnected = true
             connectionError = nil
 
+            // A remote URL still answers at home through the router's slow hairpin, and
+            // only a re-probe moves it back to the local connection (launch does this too).
+            if ServerLocation.classify(currentURL) == .remote {
+                await upgradeConnectionIfBetterExists(from: currentURL)
+            }
+
             // Fetch home users for profile switching (if not already loaded)
             if !PlexUserProfileManager.shared.hasLoadedProfiles {
                 await PlexUserProfileManager.shared.fetchHomeUsers()
