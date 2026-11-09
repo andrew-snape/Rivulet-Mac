@@ -5,7 +5,7 @@ import Foundation
 
 /// An integer that Plex sends either as a number or as a string ("1"). Decodes to nil
 /// for anything else, so one odd value never fails the whole guide.
-nonisolated struct GridEPGFlexibleInt: Decodable, Sendable {
+nonisolated struct GridEPGFlexibleInt: Codable, Sendable {
     let value: Int?
 
     init(from decoder: Decoder) throws {
@@ -16,6 +16,16 @@ nonisolated struct GridEPGFlexibleInt: Decodable, Sendable {
             value = Int(text)
         } else {
             value = nil
+        }
+    }
+
+    // GridEPGMedia is Codable, so this needs to encode too (the release build failed without it).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        if let value {
+            try container.encode(value)
+        } else {
+            try container.encodeNil()
         }
     }
 }

@@ -231,7 +231,7 @@ extension MacPlexSession {
 
     func reportMusic(_ source: MacMusicSource, time: TimeInterval, state: String) async {
         guard let key = source.track.ratingKey else { return }
-        try? await network.reportProgress(
+        _ = try? await network.reportProgress(
             serverURL: source.serverURL,
             authToken: source.token,
             ratingKey: key,
