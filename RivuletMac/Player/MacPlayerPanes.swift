@@ -319,6 +319,7 @@ private struct MacDetailsPane: View {
         if let depth = video.bitDepth { rows.append(Row(label: "Bit depth", value: "\(depth)-bit")) }
         if let range = Self.dynamicRange(video) { rows.append(Row(label: "Range", value: range)) }
         if let decoder = player.stats().videoDecoder { rows.append(Row(label: "Decoder", value: decoder)) }
+        if let upscale = player.upscaleSummary { rows.append(Row(label: "Upscaling", value: upscale)) }
         return DetailSection(title: "VIDEO", rows: rows)
     }
 

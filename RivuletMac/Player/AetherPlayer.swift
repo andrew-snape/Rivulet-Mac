@@ -601,6 +601,16 @@ final class AetherPlayer {
         var bufferSeconds: Double?
     }
 
+    /// "720p → 1080p (ML)" while the upscale stage runs; nil when it never started.
+    var upscaleSummary: String? {
+        guard let status = engine.activeUpscale else { return nil }
+        if status.disabledReason != nil { return String(localized: "Stopped") }
+        let size = "\(Int(status.sourceSize.height))p → \(Int(status.targetSize.height))p"
+        guard let ml = status.mlScale else { return "\(size) (MetalFX)" }
+        let mlOnly = status.degraded || abs(status.sourceSize.height * CGFloat(ml) - status.targetSize.height) < 2
+        return mlOnly ? "\(size) (ML)" : "\(size) (ML + MetalFX)"
+    }
+
     func stats() -> Stats {
         let telemetry = engine.liveTelemetry
         return Stats(
