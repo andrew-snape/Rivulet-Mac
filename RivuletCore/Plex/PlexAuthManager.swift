@@ -149,11 +149,11 @@ class PlexAuthManager: ObservableObject {
         if authToken != nil {
             state = .authenticated
 
-            // Check if saved URL is a bad Docker/internal address that slipped through
+            // A saved loopback address can never reach the server: clear it for re-selection.
             if let url = selectedServerURL,
                let host = URL(string: url)?.host,
-               isDockerOrInternalAddress(host) {
-                print("🔐 PlexAuthManager: ⚠️ Saved URL uses Docker/internal address, will re-select on next server fetch")
+               Self.isLoopbackAddress(host) {
+                print("🔐 PlexAuthManager: ⚠️ Saved URL is a loopback address, will re-select on next server fetch")
                 // Clear the bad URL - will trigger re-selection
                 selectedServerURL = nil
                 userDefaults.removeObject(forKey: serverURLKey)
@@ -326,7 +326,7 @@ class PlexAuthManager: ObservableObject {
         }
 
         let validConnections = (server.connections ?? [])
-            .filter { !isDockerOrInternalAddress($0.address) }
+            .filter { !Self.isLoopbackAddress($0.address) }
 
         // Sort by preference: local non-relay > remote > relay
         let sortedConnections = validConnections.sorted { conn1, conn2 in
@@ -485,6 +485,9 @@ class PlexAuthManager: ObservableObject {
             score += 500
             // For local: prefer HTTP (avoids certificate issues)
             if connection.protocolType == "http" { score += 50 }
+            // Docker's bridge range is also a normal LAN range (#510), so it is probed
+            // after the server's other local addresses.
+            if Self.looksLikeDockerBridge(connection.address) { score -= 100 }
         } else {
             // For remote: prefer HTTPS (required by ATS)
             if connection.protocolType == "https" { score += 100 }
@@ -506,30 +509,15 @@ class PlexAuthManager: ObservableObject {
         return "https://\(ipWithDashes).\(subdomainHash).plex.direct:\(port)"
     }
 
-    /// Check if address is a Docker/internal bridge network
-    private func isDockerOrInternalAddress(_ address: String) -> Bool {
-        // Docker default bridge networks (172.17-31.x.x range)
-        // Note: We intentionally do NOT filter 10.x.x.x as these are common home network ranges
-        let dockerPrefixes = [
-            "172.17.", "172.18.", "172.19.", "172.20.", "172.21.",
-            "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",
-            "172.27.", "172.28.", "172.29.", "172.30.", "172.31.",
-        ]
+    /// Loopback names the server's own machine, never a path from this device.
+    nonisolated static func isLoopbackAddress(_ address: String) -> Bool {
+        ["127.0.0.1", "localhost", "::1"].contains(address)
+    }
 
-        // Localhost variants (not useful for Apple TV)
-        let localhostAddresses = ["127.0.0.1", "localhost", "::1"]
-
-        for prefix in dockerPrefixes {
-            if address.hasPrefix(prefix) {
-                return true
-            }
-        }
-
-        if localhostAddresses.contains(address) {
-            return true
-        }
-
-        return false
+    /// Docker's default bridge range. It is also a normal LAN range (#510), so such an address is
+    /// probed like any other, only after the server's other local addresses.
+    nonisolated static func looksLikeDockerBridge(_ address: String) -> Bool {
+        (17...31).contains { address.hasPrefix("172.\($0).") }
     }
 
     /// Whether playback can use this URL directly: not relay, and not HTTPS
@@ -860,6 +848,12 @@ class PlexAuthManager: ObservableObject {
         if await testConnection(currentURL, serverToken: selectedServerToken) {
             isConnected = true
             connectionError = nil
+
+            // A remote URL still answers at home through the router's slow hairpin, and
+            // only a re-probe moves it back to the local connection (launch does this too).
+            if ServerLocation.classify(currentURL) == .remote {
+                await upgradeConnectionIfBetterExists(from: currentURL)
+            }
 
             // Fetch home users for profile switching (if not already loaded)
             if !PlexUserProfileManager.shared.hasLoadedProfiles {

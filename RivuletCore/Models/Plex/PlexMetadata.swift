@@ -71,6 +71,8 @@ nonisolated struct PlexReview: Codable, Hashable, Sendable {
     var text: String?
     var source: String?
     var link: String?
+    /// "rottentomatoes://image.review.fresh" or ".rotten" (video reviews).
+    var image: String?
 }
 
 /// External ID reference (e.g. "tmdb://12345", "tvdb://67890", "imdb://tt1234567")

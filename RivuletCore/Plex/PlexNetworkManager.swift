@@ -450,7 +450,8 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             URLQueryItem(name: "includeCollections", value: "1"),
             // Watchlist and Common Sense both key on the external tmdb:// guid,
             // and the Guid array is the only place a Plex-agent item carries one.
-            URLQueryItem(name: "includeGuids", value: "1")
+            URLQueryItem(name: "includeGuids", value: "1"),
+            URLQueryItem(name: "includeReviews", value: "1")
         ]
 
         guard let url = components.url else {
@@ -936,15 +937,18 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
     // MARK: - Progress Reporting
 
-    /// Report playback progress to Plex
+    /// Report playback progress to Plex. `sessionIdentifier` ties the timeline to a
+    /// direct-play session (#423). Returns the server's reason when it has ended the session.
+    @discardableResult
     func reportProgress(
         serverURL: String,
         authToken: String,
         ratingKey: String,
         timeMs: Int,
         state: String = "playing",
-        duration: Int? = nil
-    ) async throws {
+        duration: Int? = nil,
+        sessionIdentifier: String? = nil
+    ) async throws -> String? {
         guard var components = URLComponents(string: "\(serverURL)/:/timeline") else {
             throw PlexAPIError.invalidURL
         }
@@ -960,6 +964,9 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         if let dur = duration {
             queryItems.append(URLQueryItem(name: "duration", value: "\(dur)"))
         }
+        if let sessionIdentifier {
+            queryItems.append(URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier))
+        }
 
         components.queryItems = queryItems
 
@@ -973,13 +980,55 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         for (key, value) in plexHeaders(authToken: authToken) {
             request.addValue(value, forHTTPHeaderField: key)
         }
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (_, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             throw PlexAPIError.invalidResponse
         }
+        return Self.timelineTermination(in: data)
+    }
+
+    /// The timeline reply carries `terminationCode` / `terminationText` once the
+    /// server has ended the session (dashboard Stop, paused too long).
+    nonisolated static func timelineTermination(in data: Data) -> String? {
+        guard let container = try? JSONDecoder().decode(TimelineReply.self, from: data).MediaContainer,
+              container.terminationCode != nil || container.terminationText != nil else { return nil }
+        let text = container.terminationText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? "Your Plex server stopped this stream." : text
+    }
+
+    nonisolated private struct TimelineReply: Decodable {
+        nonisolated struct Container: Decodable {
+            let terminationCode: Int?
+            let terminationText: String?
+        }
+        let MediaContainer: Container
+    }
+
+    /// Opens a direct-play session on the server's dashboard with a decision call, so
+    /// the play shows its bandwidth and can be stopped there (#423).
+    func openDirectPlaySession(serverURL: String, authToken: String, ratingKey: String,
+                               mediaIndex: Int, sessionIdentifier: String) async {
+        guard var components = URLComponents(string: "\(serverURL)/video/:/transcode/universal/decision") else { return }
+        components.queryItems = [
+            URLQueryItem(name: "path", value: "/library/metadata/\(ratingKey)"),
+            URLQueryItem(name: "mediaIndex", value: String(mediaIndex)),
+            URLQueryItem(name: "partIndex", value: "0"),
+            URLQueryItem(name: "protocol", value: "http"),
+            URLQueryItem(name: "directPlay", value: "1"),
+            URLQueryItem(name: "directStream", value: "0"),
+            URLQueryItem(name: "X-Plex-Client-Profile-Name", value: "Generic"),
+            URLQueryItem(name: "X-Plex-Client-Profile-Extra",
+                         value: "add-direct-play-profile(type=videoProfile&protocol=http&container=*&videoCodec=*&audioCodec=*)"),
+            URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier)
+        ]
+        guard let url = components.url else { return }
+        var headers = plexHeaders(authToken: authToken)
+        headers["X-Plex-Session-Identifier"] = sessionIdentifier
+        _ = try? await requestData(url, method: "GET", headers: headers)
     }
 
     /// Mark item as watched
@@ -2592,6 +2641,8 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             let channelVcn: String?
             let beginsAt: Int?
             let endsAt: Int?
+            /// Per airing, as "1" (PMS 1.43.4); the program itself never carries it (#429).
+            let premiere: GridEPGFlexibleInt?
         }
 
         let results: [Result<GridEPGContainer, Error>] = await fetchConcurrently(
@@ -2644,7 +2695,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
                     endsAt: media.endsAt,
                     onAir: nil,
                     live: nil,
-                    premiere: nil,
+                    premiere: media.premiere?.value == 1,
                     Genre: program.Genre,
                     Media: nil,
                     index: program.index,

@@ -496,21 +496,25 @@ final class MacPlexSession {
             sourceKbps: chosen?.sourceKbps,
             mediaIndex: selection.serverIndex,
             transcodeSessionID: sessionID,
+            directPlaySessionID: sessionID == nil ? UUID().uuidString : nil,
             measuredKbps: measurement?.kbps,
             measuredAt: measurement?.at,
             startTime: startTime
         )
     }
 
-    func reportProgress(for request: MacPlexPlaybackRequest, time: TimeInterval, state: String) async {
-        guard let key = request.item.ratingKey else { return }
-        try? await network.reportProgress(
+    /// Returns the server's reason when it has ended this play session (dashboard Stop; #403).
+    @discardableResult
+    func reportProgress(for request: MacPlexPlaybackRequest, time: TimeInterval, state: String) async -> String? {
+        guard let key = request.item.ratingKey else { return nil }
+        return try? await network.reportProgress(
             serverURL: request.serverURL,
             authToken: request.token,
             ratingKey: key,
             timeMs: Int(time * 1000),
             state: state,
-            duration: request.item.duration
+            duration: request.item.duration,
+            sessionIdentifier: request.directPlaySessionID
         )
     }
 
@@ -583,6 +587,8 @@ nonisolated struct MacPlexPlaybackRequest: Identifiable, Sendable {
     let mediaIndex: Int
     /// The Plex transcode session to stop when this request is replaced.
     let transcodeSessionID: String?
+    /// A direct play's Plex session, so the server's dashboard shows it and can stop it (#423).
+    var directPlaySessionID: String? = nil
     var measuredKbps: Int?
     var measuredAt: Date?
     let startTime: TimeInterval?

@@ -501,23 +501,90 @@ struct MacPlexInformationSection: View {
         }
     }
 
+    private var reviews: [PlexReview] {
+        (item.Review ?? []).filter { !($0.text ?? "").isEmpty }
+    }
+
     var body: some View {
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Information").font(.title2.bold())
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), alignment: .topLeading), count: 3),
-                    alignment: .leading,
-                    spacing: 14
-                ) {
-                    ForEach(rows, id: \.0) { label, value in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(label).font(.subheadline.weight(.semibold))
-                            Text(value).font(.subheadline).foregroundStyle(.secondary)
+        if reviews.isEmpty && rows.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 28) {
+                if !reviews.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Critic Reviews").font(.title2.bold())
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 12) {
+                                // By position: Plex can send two identical reviews, which would share an id.
+                                ForEach(Array(reviews.enumerated()), id: \.offset) { _, review in
+                                    MacPlexReviewCard(review: review)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                    }
+                }
+                infoGrid
+            }
+        }
+    }
+
+    private var infoGrid: some View {
+        Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Information").font(.title2.bold())
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.flexible(), alignment: .topLeading), count: 3),
+                        alignment: .leading,
+                        spacing: 14
+                    ) {
+                        ForEach(rows, id: \.0) { label, value in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(label).font(.subheadline.weight(.semibold))
+                                Text(value).font(.subheadline).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/// One critic excerpt in the reviews row. Server text, shown verbatim.
+private struct MacPlexReviewCard: View {
+    let review: PlexReview
+
+    /// "fresh" or "rotten" from the review's image, when Plex gives one.
+    private var verdict: String? {
+        review.image?.split(separator: ".").last.map(String.init)
+    }
+
+    private var byline: String? {
+        let parts = [review.tag, review.source].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                switch verdict {
+                case "fresh":
+                    Image(systemName: "hand.thumbsup.fill").foregroundStyle(.green).accessibilityLabel("Fresh")
+                case "rotten":
+                    Image(systemName: "hand.thumbsdown.fill").foregroundStyle(.red).accessibilityLabel("Rotten")
+                default:
+                    EmptyView()
+                }
+                if let byline {
+                    Text(verbatim: byline).font(.subheadline.weight(.semibold)).lineLimit(1)
+                }
+            }
+            Text(verbatim: review.text ?? "").font(.subheadline).foregroundStyle(.secondary).lineLimit(4)
+        }
+        .frame(width: 280, alignment: .topLeading)
+        .padding(14)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
     }
 }
