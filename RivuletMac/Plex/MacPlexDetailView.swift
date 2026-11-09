@@ -506,18 +506,31 @@ struct MacPlexInformationSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            if !reviews.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Critic Reviews").font(.title2.bold())
-                    ScrollView(.horizontal) {
-                        HStack(alignment: .top, spacing: 12) {
-                            ForEach(reviews, id: \.self) { MacPlexReviewCard(review: $0) }
+        if reviews.isEmpty && rows.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 28) {
+                if !reviews.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Critic Reviews").font(.title2.bold())
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 12) {
+                                // By position: Plex can send two identical reviews, which would share an id.
+                                ForEach(Array(reviews.enumerated()), id: \.offset) { _, review in
+                                    MacPlexReviewCard(review: review)
+                                }
+                            }
                         }
+                        .scrollIndicators(.hidden)
                     }
-                    .scrollIndicators(.hidden)
                 }
+                infoGrid
             }
+        }
+    }
+
+    private var infoGrid: some View {
+        Group {
             if !rows.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Information").font(.title2.bold())
