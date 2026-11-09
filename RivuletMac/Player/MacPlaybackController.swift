@@ -704,7 +704,17 @@ struct MacVODPlayerView: View {
 
     @ViewBuilder
     private var status: some View {
-        if case .failed(let message) = player.state {
+        if let reason = session.serverStopReason {
+            VStack(spacing: 12) {
+                Image(systemName: "stop.circle.fill").font(.largeTitle)
+                Text("Playback Stopped").font(.headline)
+                Text(reason).multilineTextAlignment(.center).frame(maxWidth: 380)
+                Button("Close", action: close)
+            }
+            .foregroundStyle(.white)
+            .padding(24)
+            .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 14))
+        } else if case .failed(let message) = player.state {
             VStack(spacing: 12) {
                 Image(systemName: "exclamationmark.triangle").font(.largeTitle)
                 Text(message).multilineTextAlignment(.center).frame(maxWidth: 380)

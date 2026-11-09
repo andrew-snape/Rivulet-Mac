@@ -30,6 +30,10 @@ final class MacPlexPlayback {
     private var skippedMarkerIDs: Set<String> = []
     private var lastReportBucket = -1
     private var reportedStopped = false
+    /// Why the server ended this stream (dashboard Stop, paused too long); shown in place of playback.
+    private(set) var serverStopReason: String?
+    /// Paused timelines every 10 s, as Plex clients send, so the server can end a paused session.
+    private var pausedTimelineTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
     private var nextLookupTask: Task<Void, Never>?
     private var nextTask: Task<Void, Never>?
@@ -65,6 +69,7 @@ final class MacPlexPlayback {
         reloadTask?.cancel()
         longStallTask?.cancel()
         observationTasks.forEach { $0.cancel() }
+        pausedTimelineTask?.cancel()
         let finish = finishItem(at: player.currentTime)
         let plex = plex
         let request = request
@@ -89,7 +94,7 @@ final class MacPlexPlayback {
         // opens on its default tracks, so picks made on a transcode carry back.
         pendingEngineAudio = isTranscoding ? nil : chosenAudioID
         pendingEngineSubtitle = isTranscoding ? selectedSubtitleID : chosenSubtitleID
-        await plex.openTranscode(request)
+        await plex.openPlaySession(request)
         try? await player.load(
             url: request.url,
             headers: request.headers,
@@ -331,9 +336,11 @@ final class MacPlexPlayback {
         case .playing:
             hasPlayed = true
             reportedStopped = false
+            pausedTimelineTask?.cancel()
             report("playing")
         case .paused:
             report("paused")
+            startPausedTimeline()
         case .ended:
             finishItem(at: max(player.duration, player.currentTime))
             startUpNextCountdown()
@@ -356,11 +363,36 @@ final class MacPlexPlayback {
     }
 
     private func report(_ state: String) {
-        guard !reportedStopped else { return }
+        // A session must open with "playing": the engine holds paused while loading, and a
+        // "paused" first makes Plex fire media.pause and never media.play (#433).
+        guard !reportedStopped, state != "paused" || hasPlayed else { return }
         let request = request
         let time = player.currentTime
         let plex = plex
-        Task { await plex.reportProgress(for: request, time: time, state: state) }
+        Task { [weak self] in
+            guard let reason = await plex.reportProgress(for: request, time: time, state: state),
+                  let self, self.request.id == request.id, !self.reportedStopped else { return }
+            self.endForServerTermination(reason)
+        }
+    }
+
+    private func startPausedTimeline() {
+        pausedTimelineTask?.cancel()
+        pausedTimelineTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                guard !Task.isCancelled, let self else { return }
+                self.report("paused")
+            }
+        }
+    }
+
+    /// The server stopped this stream: stop here and show its reason, with nothing to retry.
+    private func endForServerTermination(_ reason: String) {
+        reportedStopped = true
+        pausedTimelineTask?.cancel()
+        player.stop()
+        serverStopReason = reason
     }
 
     /// Stopped, then a scrobble when the viewer got past the watched ceiling.
