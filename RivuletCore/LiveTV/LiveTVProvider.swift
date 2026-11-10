@@ -355,7 +355,7 @@ enum LiveTVProviderError: LocalizedError {
 // These live here rather than beside the parsers because they build the unified
 // model declared in this file, not because of any platform split: everything
 // involved is shared. Keeping them out of the parsers is what let those files
-// drop their `#if os(tvOS)` (see CLAUDE.md, Platform Boundary).
+// drop their `#if os(tvOS)` (see CLAUDE.md).
 
 extension M3UParser.ParsedChannel {
     /// What a channel's id is built from. Playlists repeat it (SD and HD feeds share a tvg-id).

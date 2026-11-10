@@ -136,10 +136,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         do {
             return try await Self.decodeDetached(data)
         } catch {
-            print("🌐 PlexNetwork: ❌ Decode error: \(error)")
-            if let responseStr = String(data: data, encoding: .utf8) {
-                print("🌐 PlexNetwork: Full response: \(responseStr)")
-            }
+            print("🌐 PlexNetwork: ❌ Decode error: \(SensitiveDataRedactor.redact("\(error)"))")
             throw error
         }
     }
@@ -2805,7 +2802,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
 
             print("🌐 PlexNetwork: ❌ Could not decode home users JSON response")
         } catch {
-            print("🌐 PlexNetwork: v2 endpoint failed: \(error)")
+            print("🌐 PlexNetwork: v2 endpoint failed: \(SensitiveDataRedactor.redact("\(error)"))")
         }
 
         // Fallback: try the XML endpoint and parse it
@@ -2968,10 +2965,10 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // the user as guest, returning 401 on per-section/streaming
             // endpoints. Returning nil instead lets the caller (selectUser)
             // keep the per-server token that selectServer set up at sign-in.
-            print("🌐 PlexNetwork: ⚠️ No per-server token found for serverURL=\(serverURL); returning nil to preserve existing selectedServerToken")
+            print("🌐 PlexNetwork: ⚠️ No per-server token found for serverURL=\(SensitiveDataRedactor.redact(serverURL)); returning nil to preserve existing selectedServerToken")
             return nil
         } catch {
-            print("🌐 PlexNetwork: ❌ Failed to get server access token: \(error) — returning nil")
+            print("🌐 PlexNetwork: ❌ Failed to get server access token: \(SensitiveDataRedactor.redact("\(error)")) — returning nil")
             return nil
         }
     }

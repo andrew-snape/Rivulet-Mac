@@ -128,7 +128,7 @@ class PlexUserProfileManager: ObservableObject {
 
             isLoadingUsers = false
         } catch {
-            print("👤 PlexUserProfileManager: Failed to fetch home users: \(error)")
+            print("👤 PlexUserProfileManager: Failed to fetch home users: \(SensitiveDataRedactor.redact("\(error)"))")
             usersError = "Failed to load profiles"
             isLoadingUsers = false
 
@@ -238,7 +238,7 @@ class PlexUserProfileManager: ObservableObject {
 
             return .entered
         } catch {
-            print("👤 PlexUserProfileManager: ❌ Switch failed: \(error)")
+            print("👤 PlexUserProfileManager: ❌ Switch failed: \(SensitiveDataRedactor.redact("\(error)"))")
             return .unavailable
         }
     }

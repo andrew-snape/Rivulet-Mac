@@ -6,7 +6,7 @@
 //  Rivulet
 //
 //  Adapted from plex_watchOS AuthManager
-//  Handles Plex PIN-based authentication flow for tvOS
+//  Handles Plex PIN-based authentication flow
 //
 
 import Foundation
@@ -187,7 +187,7 @@ class PlexAuthManager: ObservableObject {
               Self.isPlayableDirectURL(best),
               best != url,
               selectedServerURL == url else { return }
-        print("🔐 PlexAuthManager: Upgrading connection \(url) -> \(best)")
+        print("🔐 PlexAuthManager: Upgrading connection \(SensitiveDataRedactor.redact(url)) -> \(SensitiveDataRedactor.redact(best))")
         selectedServerURL = best
         userDefaults.set(best, forKey: serverURLKey)
     }
@@ -317,7 +317,7 @@ class PlexAuthManager: ObservableObject {
         // machineIdentifier, as plex.direct URLs do). Guards the switch-server
         // flow against reusing another server's URL.
         if reuseLastGood, let lastGood = selectedServerURL, urlBelongs(lastGood, to: server) {
-            print("🔐 PlexAuthManager: Trying last-known-good URL first: \(lastGood)")
+            print("🔐 PlexAuthManager: Trying last-known-good URL first: \(SensitiveDataRedactor.redact(lastGood))")
             if await testConnection(lastGood, serverToken: tokenToUse) {
                 print("🔐 PlexAuthManager: ✅ Last-known-good works — skipping the probe ladder")
                 return lastGood
@@ -357,7 +357,7 @@ class PlexAuthManager: ObservableObject {
         if let relayConnection = server.connections?.first(where: { $0.relay }) {
             chains.append { [weak self] in
                 guard let self else { return nil }
-                print("🔐 PlexAuthManager: Trying relay as fallback: \(relayConnection.uri)")
+                print("🔐 PlexAuthManager: Trying relay as fallback: \(SensitiveDataRedactor.redact(relayConnection.uri))")
                 if await self.testConnection(relayConnection.uri, serverToken: tokenToUse) {
                     return relayConnection.uri
                 }
@@ -411,13 +411,13 @@ class PlexAuthManager: ObservableObject {
         if await testConnection(connection.uri, serverToken: tokenToUse) {
             return connection.uri
         }
-        print("🔐 PlexAuthManager: ❌ Connection failed: \(connection.uri)")
+        print("🔐 PlexAuthManager: ❌ Connection failed: \(SensitiveDataRedactor.redact(connection.uri))")
 
         let host = connection.IPv6 ? "[\(connection.address)]" : connection.address
         guard connection.protocolType == "http" else {
             guard connection.local else { return nil }
             let rawHTTP = "http://\(host):\(connection.port)"
-            print("🔐 PlexAuthManager: Trying raw-address fallback: \(rawHTTP)")
+            print("🔐 PlexAuthManager: Trying raw-address fallback: \(SensitiveDataRedactor.redact(rawHTTP))")
             return await testConnection(rawHTTP, serverToken: tokenToUse) ? rawHTTP : nil
         }
 
@@ -433,7 +433,7 @@ class PlexAuthManager: ObservableObject {
         if await testConnection(plexDirectURI, serverToken: tokenToUse) {
             return plexDirectURI
         }
-        print("🔐 PlexAuthManager: ❌ plex.direct failed: \(plexDirectURI)")
+        print("🔐 PlexAuthManager: ❌ plex.direct failed: \(SensitiveDataRedactor.redact(plexDirectURI))")
         return nil
     }
 
@@ -446,7 +446,7 @@ class PlexAuthManager: ObservableObject {
     private func probeRawHTTPS(_ connection: PlexConnection, tokenToUse: String?) async -> String? {
         let host = connection.IPv6 ? "[\(connection.address)]" : connection.address
         let rawHTTPS = "https://\(host):\(connection.port)"
-        print("🔐 PlexAuthManager: Trying raw-address fallback: \(rawHTTPS)")
+        print("🔐 PlexAuthManager: Trying raw-address fallback: \(SensitiveDataRedactor.redact(rawHTTPS))")
         return await testConnection(rawHTTPS, serverToken: tokenToUse) ? rawHTTPS : nil
     }
 
@@ -835,7 +835,7 @@ class PlexAuthManager: ObservableObject {
                     state = .selectingServer(servers: servers)
                 }
             } catch {
-                print("🔐 PlexAuthManager: Failed to fetch servers: \(error)")
+                print("🔐 PlexAuthManager: Failed to fetch servers: \(SensitiveDataRedactor.redact("\(error)"))")
                 isConnected = false
                 connectionError = "Unable to reach Plex. Check your network connection."
             }
@@ -899,7 +899,7 @@ class PlexAuthManager: ObservableObject {
                     }
                 }
             } catch {
-                print("🔐 PlexAuthManager: Failed to fetch servers for re-selection: \(error)")
+                print("🔐 PlexAuthManager: Failed to fetch servers for re-selection: \(SensitiveDataRedactor.redact("\(error)"))")
                 // Keep existing credentials - just mark as not connected
                 // User can still see cached content
             }
@@ -1027,7 +1027,7 @@ class PlexAuthManager: ObservableObject {
             }
         } catch {
             // Non-critical error, just log it
-            print("Failed to fetch user info: \(error)")
+            print("Failed to fetch user info: \(SensitiveDataRedactor.redact("\(error)"))")
         }
     }
 

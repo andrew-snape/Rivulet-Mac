@@ -167,7 +167,6 @@ class LiveTVDataStore {
         let displayName: String
         let channelCount: Int
         let isConnected: Bool
-        let lastSync: Date?
 
         /// Dispatcharr channel profile scoping this source, nil for all channels.
         /// Shown read-only on the source detail page so a user can tell at a
@@ -398,7 +397,7 @@ class LiveTVDataStore {
     private func listSources() {
         sources = providers.map { id, provider in
             LiveTVSourceInfo(id: id, sourceType: provider.sourceType, displayName: provider.displayName,
-                             channelCount: 0, isConnected: false, lastSync: nil,
+                             channelCount: 0, isConnected: false,
                              channelProfile: (provider as? IPTVProvider)?.channelProfile)
         }.sorted { $0.displayName < $1.displayName }
 
@@ -530,61 +529,6 @@ class LiveTVDataStore {
         return changed
     }
 
-    // MARK: - Legacy iOS source
-
-    /// The single source the old iOS Live TV store kept in its own keys.
-    enum LegacyIOSSource: Equatable {
-        case dispatcharr(baseURL: URL, channelProfile: String?, apiToken: String?)
-        case m3u(m3uURL: URL, epgURL: URL?)
-    }
-
-    private static let legacyIOSKeys = ["m3uURL", "xmltvURL", "authorizationHeader", "userAgent", "referer"]
-        .map { "ios.liveTV.\($0)" }
-
-    /// What the old iOS store left in `defaults`. A Dispatcharr playlist URL
-    /// becomes a Dispatcharr source; its fetch headers have nowhere to go.
-    static func legacyIOSSource(in defaults: UserDefaults) -> LegacyIOSSource? {
-        func value(_ key: String) -> String? {
-            defaults.string(forKey: "ios.liveTV.\(key)")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        guard let m3uString = value("m3uURL"), let m3uURL = URL(string: m3uString), m3uURL.host != nil else {
-            return nil
-        }
-        if m3uURL.path.range(of: "/output/m3u", options: .caseInsensitive) != nil {
-            let split = DispatcharrService.splitEndpointPath(from: m3uString)
-            guard let base = URL(string: split.baseURL) else { return nil }
-            return .dispatcharr(baseURL: base, channelProfile: split.channelProfile,
-                                apiToken: apiKey(fromAuthorization: value("authorizationHeader")))
-        }
-        let epg = value("xmltvURL").flatMap { $0.isEmpty ? nil : URL(string: $0) }
-        return .m3u(m3uURL: m3uURL, epgURL: epg)
-    }
-
-    /// The key in an Authorization value, without its "ApiKey", "Bearer" or "Token" scheme.
-    static func apiKey(fromAuthorization header: String?) -> String? {
-        guard var value = header, !value.isEmpty else { return nil }
-        for scheme in ["ApiKey ", "Bearer ", "Token "] where value.lowercased().hasPrefix(scheme.lowercased()) {
-            value = value.dropFirst(scheme.count).trimmingCharacters(in: .whitespaces)
-            break
-        }
-        return value.isEmpty ? nil : value
-    }
-
-    /// Adds the source the old iOS store kept, then deletes its keys, so this
-    /// runs once. The iOS app calls it at launch.
-    func migrateLegacyIOSSource(defaults: UserDefaults = .standard) async {
-        let source = Self.legacyIOSSource(in: defaults)
-        Self.legacyIOSKeys.forEach(defaults.removeObject(forKey:))
-        switch source {
-        case .dispatcharr(let baseURL, let profile, let token):
-            await addDispatcharrSource(baseURL: baseURL, name: "Live TV", apiToken: token, channelProfile: profile)
-        case .m3u(let m3uURL, let epgURL):
-            await addM3USource(m3uURL: m3uURL, epgURL: epgURL, name: "IPTV")
-        case nil:
-            break
-        }
-    }
-
     /// Update source info for UI
     private func updateSourceInfo() async {
         var infos: [LiveTVSourceInfo] = []
@@ -606,7 +550,6 @@ class LiveTVDataStore {
                 displayName: provider.displayName,
                 channelCount: channelCounts[id] ?? 0,
                 isConnected: isConnected,
-                lastSync: nil,  // TODO: Track last sync time
                 channelProfile: (provider as? IPTVProvider)?.channelProfile
             ))
         }
@@ -650,7 +593,7 @@ class LiveTVDataStore {
                     allChannels.append(contentsOf: channels)
                 case .failure(let error):
                     errors.append("\(sourceId): \(error.localizedDescription)")
-                    print("📺 LiveTVDataStore: ❌ Failed to load from \(sourceId): \(error)")
+                    print("📺 LiveTVDataStore: ❌ Failed to load from \(sourceId): \(SensitiveDataRedactor.redact("\(error)"))")
                 }
             }
         }
@@ -835,7 +778,7 @@ class LiveTVDataStore {
                         if error is CancellationError || (error as NSError).code == NSURLErrorCancelled {
                             continue
                         }
-                        print("📺 LiveTVDataStore: ⚠️ EPG load failed for \(sourceId): \(error)")
+                        print("📺 LiveTVDataStore: ⚠️ EPG load failed for \(sourceId): \(SensitiveDataRedactor.redact("\(error)"))")
                         let sourceName = sourceNames[sourceId] ?? sourceId
                         issues.append(EPGFetchIssue(
                             sourceId: sourceId,
