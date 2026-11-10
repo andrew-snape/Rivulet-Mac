@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import OSLog
 import Combine
 
 /// Manages user profile selection for Plex Home accounts
@@ -128,7 +129,7 @@ class PlexUserProfileManager: ObservableObject {
 
             isLoadingUsers = false
         } catch {
-            print("👤 PlexUserProfileManager: Failed to fetch home users: \(SensitiveDataRedactor.redact("\(error)"))")
+            AppLog.plexProfile.error("Failed to fetch home users: \(SensitiveDataRedactor.redact("\(error)"))")
             usersError = "Failed to load profiles"
             isLoadingUsers = false
 
@@ -195,7 +196,7 @@ class PlexUserProfileManager: ObservableObject {
                 pin: pin,
                 authToken: authToken
             ) else {
-                print("👤 PlexUserProfileManager: Invalid PIN for \(user.displayName)")
+                AppLog.plexProfile.warning("Invalid PIN for \(user.displayName)")
                 return .rejected
             }
 
@@ -205,7 +206,7 @@ class PlexUserProfileManager: ObservableObject {
                 serverURL: serverURL,
                 serverName: PlexAuthManager.shared.savedServerName
             ) else {
-                print("👤 PlexUserProfileManager: Could not get server access token")
+                AppLog.plexProfile.error("Could not get server access token")
                 return .unavailable
             }
 
@@ -238,7 +239,7 @@ class PlexUserProfileManager: ObservableObject {
 
             return .entered
         } catch {
-            print("👤 PlexUserProfileManager: ❌ Switch failed: \(SensitiveDataRedactor.redact("\(error)"))")
+            AppLog.plexProfile.error("Switch failed: \(SensitiveDataRedactor.redact("\(error)"))")
             return .unavailable
         }
     }
@@ -319,7 +320,7 @@ class PlexUserProfileManager: ObservableObject {
         let entry = await enter(user, pin: savedPin)
         if entry == .rejected {
             forgetPin(for: user)
-            print("👤 PlexUserProfileManager: Remembered PIN invalid for \(user.displayName), cleared")
+            AppLog.plexProfile.info("Remembered PIN invalid for \(user.displayName), cleared")
         }
         return entry
     }

@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import OSLog
 import Observation
 
 @MainActor
@@ -344,7 +345,7 @@ class LiveTVDataStore {
     private func loadSavedSources() {
         guard let data = userDefaults.data(forKey: sourcesKey),
               var configs = try? JSONDecoder().decode([SourceConfiguration].self, from: data) else {
-            print("📺 LiveTVDataStore: No saved sources found")
+            AppLog.liveTV.info("No saved sources found")
             return
         }
         if Self.moveAPITokensToKeychain(&configs), let data = try? JSONEncoder().encode(configs) {
@@ -593,7 +594,7 @@ class LiveTVDataStore {
                     allChannels.append(contentsOf: channels)
                 case .failure(let error):
                     errors.append("\(sourceId): \(error.localizedDescription)")
-                    print("📺 LiveTVDataStore: ❌ Failed to load from \(sourceId): \(SensitiveDataRedactor.redact("\(error)"))")
+                    AppLog.liveTV.error("Failed to load from \(sourceId): \(SensitiveDataRedactor.redact("\(error)"))")
                 }
             }
         }
@@ -746,7 +747,7 @@ class LiveTVDataStore {
             await withTaskGroup(of: (String, Result<[String: [UnifiedProgram]], Error>).self) { group in
                 for (sourceId, sourceChannels) in channelsBySource {
                     guard let provider = providersById[sourceId] else {
-                        print("📺 LiveTVDataStore: ⚠️ No provider found for sourceId: \(sourceId)")
+                        AppLog.liveTV.warning("No provider found for sourceId: \(sourceId)")
                         continue
                     }
 
@@ -778,7 +779,7 @@ class LiveTVDataStore {
                         if error is CancellationError || (error as NSError).code == NSURLErrorCancelled {
                             continue
                         }
-                        print("📺 LiveTVDataStore: ⚠️ EPG load failed for \(sourceId): \(SensitiveDataRedactor.redact("\(error)"))")
+                        AppLog.liveTV.warning("EPG load failed for \(sourceId): \(SensitiveDataRedactor.redact("\(error)"))")
                         let sourceName = sourceNames[sourceId] ?? sourceId
                         issues.append(EPGFetchIssue(
                             sourceId: sourceId,
