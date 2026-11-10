@@ -33,7 +33,13 @@ final class MacMusicPrecache {
     private var worker: Task<Void, Never>?
     private var workingOn: UUID?
 
+    /// Bumped for each worker, so a worker that has been replaced or stopped
+    /// never clears the reference to its successor when it finally exits.
+    private var generation = 0
+    private var canDownloadNow = false
+
     func update(current: MacMusicSource?, upcoming: [MusicQueue.Entry], canDownload: Bool) {
+        canDownloadNow = canDownload
         window = upcoming.map { ($0.id, $0.track) }
         currentSource = current
         let ids = Set(window.map(\.id))
@@ -54,9 +60,17 @@ final class MacMusicPrecache {
         if let workingOn, !canDownload || !jobs.contains(where: { $0.id == workingOn }) {
             worker?.cancel()
         }
+        // A cancelled worker is still non-nil here, so a replacement is started
+        // by `run()` itself once it has wound down (see its `defer`).
         if canDownload, worker == nil, nextJob() != nil {
-            worker = Task { await run() }
+            startWorker()
         }
+    }
+
+    private func startWorker() {
+        generation += 1
+        let mine = generation
+        worker = Task { await run(generation: mine) }
     }
 
     /// Cancels the download and forgets everything; nothing stays pinned.
@@ -64,6 +78,8 @@ final class MacMusicPrecache {
         worker?.cancel()
         worker = nil
         workingOn = nil
+        generation += 1
+        canDownloadNow = false
         window = []
         jobs = []
         currentSource = nil
@@ -90,10 +106,19 @@ final class MacMusicPrecache {
         Task { await MacMusicCache.shared.pin(names) }
     }
 
-    private func run() async {
+    private func run(generation mine: Int) async {
         defer {
-            worker = nil
-            workingOn = nil
+            // Only the current worker clears the state. If it was cancelled
+            // because its job left the window, start the replacement now,
+            // since `update` could not while this task was still registered.
+            if generation == mine {
+                let wasCancelled = Task.isCancelled
+                worker = nil
+                workingOn = nil
+                if wasCancelled, canDownloadNow, nextJob() != nil {
+                    startWorker()
+                }
+            }
         }
         while !Task.isCancelled, let job = nextJob() {
             workingOn = job.id
