@@ -47,6 +47,7 @@ struct MacMusicBar: View {
                         Image(systemName: "list.bullet")
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityLabel("Queue")
                     .help("Queue")
                 }
                 .frame(width: 196, alignment: .trailing)
@@ -79,11 +80,13 @@ struct MacMusicTransport: View {
                 Image(systemName: "shuffle")
             }
             .foregroundStyle(music.queue.isShuffled ? Color.accentColor : .secondary)
+            .accessibilityLabel(music.queue.isShuffled ? "Shuffle Off" : "Shuffle")
             .help(music.queue.isShuffled ? "Shuffle Off" : "Shuffle")
 
             Button { music.skipToPrevious() } label: {
                 Image(systemName: "backward.fill")
             }
+            .accessibilityLabel("Previous")
             .help("Previous")
 
             Button { music.togglePlayPause() } label: {
@@ -91,18 +94,21 @@ struct MacMusicTransport: View {
                     .font(large ? .system(size: 34) : .title2)
                     .frame(width: large ? 44 : 28)
             }
+            .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
             .help(music.isPlaying ? "Pause" : "Play")
 
             Button { music.skipToNext() } label: {
                 Image(systemName: "forward.fill")
             }
             .disabled(!music.queue.hasNext)
+            .accessibilityLabel("Next")
             .help("Next")
 
             Button { music.cycleRepeat() } label: {
                 Image(systemName: repeatSymbol)
             }
             .foregroundStyle(music.queue.repeatMode == .off ? .secondary : Color.accentColor)
+            .accessibilityLabel(music.queue.repeatMode == .off ? "Repeat" : (music.queue.repeatMode == .all ? "Repeat One" : "Repeat Off"))
             .help(music.queue.repeatMode == .off ? "Repeat" : (music.queue.repeatMode == .all ? "Repeat One" : "Repeat Off"))
         }
         .font(large ? .title2 : .body)
@@ -161,6 +167,7 @@ struct MacMusicVolume: View {
                     .frame(width: 16)
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel(player.isMuted ? "Unmute" : "Mute")
             .help(player.isMuted ? "Unmute" : "Mute")
             Slider(value: Binding(get: { Double(player.volume) }, set: { player.setVolume(Float($0)) }), in: 0...1)
                 .controlSize(.mini)
@@ -224,6 +231,7 @@ struct MacMusicNowPlayingView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut(.cancelAction)
+        .accessibilityLabel("Close Now Playing")
         .help("Close Now Playing")
         .padding(.leading, 18)
         .padding(.top, Self.topInset)

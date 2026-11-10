@@ -195,18 +195,21 @@ private struct MacPlayerControls: View {
                 Image(systemName: player.state == .playing ? "pause.fill" : "play.fill")
                     .frame(width: 18)
             }
+            .accessibilityLabel(player.state == .playing ? "Pause" : "Play")
             .help(player.state == .playing ? "Pause" : "Play")
 
             if !compact {
                 Button { Task { await player.skip(by: -10) } } label: {
                     Image(systemName: "gobackward.10")
                 }
+                .accessibilityLabel("Back 10 Seconds")
                 .help("Back 10 Seconds")
                 .disabled(player.liveWindow.seekableRange == nil)
 
                 Button { Task { await player.skip(by: 10) } } label: {
                     Image(systemName: "goforward.10")
                 }
+                .accessibilityLabel("Forward 10 Seconds")
                 .help("Forward 10 Seconds")
                 .disabled(player.liveWindow.seekableRange == nil || player.liveWindow.isAtLiveEdge)
             }
@@ -220,6 +223,7 @@ private struct MacPlayerControls: View {
                 Button { store.toggleFavorite(channel) } label: {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                 }
+                .accessibilityLabel(isFavorite ? "Remove from Favourites" : "Add to Favourites")
                 .help(isFavorite ? "Remove from Favourites" : "Add to Favourites")
 
                 if !compact, !minimal, store.canRecord(channel), let program = playback.programme {
@@ -233,6 +237,7 @@ private struct MacPlayerControls: View {
                 Image(systemName: player.isMuted || player.volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .frame(width: 20)
             }
+            .accessibilityLabel(player.isMuted ? "Unmute" : "Mute")
             .help(player.isMuted ? "Unmute" : "Mute")
 
             if !compact && wide {
@@ -256,6 +261,7 @@ private struct MacPlayerControls: View {
                           ? "arrow.down.right.and.arrow.up.left.rectangle"
                           : "arrow.up.left.and.arrow.down.right.rectangle")
                 }
+                .accessibilityLabel(player.fillsWindow ? "Fit to Window" : "Fill Window")
                 .help(player.fillsWindow ? "Fit to Window" : "Fill Window")
             }
 
@@ -263,6 +269,7 @@ private struct MacPlayerControls: View {
                 Button { dismissWindow(id: MacLivePlayback.popOutWindowID) } label: {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
+                .accessibilityLabel("Back to the Main Window")
                 .help("Back to the Main Window")
             } else {
                 Button {
@@ -271,11 +278,13 @@ private struct MacPlayerControls: View {
                 } label: {
                     Image(systemName: "pip.exit")
                 }
+                .accessibilityLabel("Pop Out")
                 .help("Pop Out")
 
                 Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
+                .accessibilityLabel("Full Screen")
                 .help("Full Screen")
             }
         }
@@ -314,6 +323,7 @@ private struct MacPlayerControls: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel("Audio")
             .help("Audio")
         }
 
@@ -334,6 +344,7 @@ private struct MacPlayerControls: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel("Subtitles")
             .help("Subtitles")
         }
     }
@@ -373,6 +384,7 @@ private struct MacRecordButton: View {
         }
         .menuIndicator(.hidden)
         .fixedSize()
+        .accessibilityLabel(active == nil ? "Record" : "Recording")
         .help(active == nil ? "Record" : "Recording")
         .task(id: program.id) {
             await store.refreshScheduledRecordings()

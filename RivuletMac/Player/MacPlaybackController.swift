@@ -744,6 +744,7 @@ struct MacVODPlayerView: View {
                     .background(.regularMaterial, in: Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Back")
             .help("Back (Esc)")
 
             VStack(alignment: .leading, spacing: 2) {
@@ -831,19 +832,23 @@ struct MacVODPlayerView: View {
                 Button { Task { await player.skip(by: -Double(skipBack)) } } label: {
                     Image(systemName: "gobackward.\(skipBack)")
                 }
+                .accessibilityLabel("Back \(skipBack) Seconds")
                 .help("Back \(skipBack) Seconds (←)")
                 Button(action: player.togglePlayPause) {
                     Image(systemName: player.state == .playing ? "pause.fill" : "play.fill")
                         .font(.title2)
                         .frame(width: 26)
                 }
+                .accessibilityLabel(player.state == .playing ? "Pause" : "Play")
                 .help(player.state == .playing ? "Pause (Space)" : "Play (Space)")
                 Button { Task { await player.skip(by: Double(skipForward)) } } label: {
                     Image(systemName: "goforward.\(skipForward)")
                 }
+                .accessibilityLabel("Forward \(skipForward) Seconds")
                 .help("Forward \(skipForward) Seconds (→)")
                 if session.nextEpisode != nil {
                     Button { session.playNext() } label: { Image(systemName: "forward.end.fill") }
+                        .accessibilityLabel("Next Episode")
                         .help("Next Episode")
                 }
 
@@ -864,6 +869,7 @@ struct MacVODPlayerView: View {
                     }
                     .menuIndicator(.hidden)
                     .fixedSize()
+                    .accessibilityLabel("Info")
                     .help("Info")
                 } else {
                     ForEach(visiblePanes) { pane in
@@ -871,6 +877,7 @@ struct MacVODPlayerView: View {
                             Image(systemName: pane.icon)
                                 .foregroundStyle(session.pane == pane ? Color.accentColor : .primary)
                         }
+                        .accessibilityLabel(pane.rawValue)
                         .help(pane.rawValue)
                     }
                 }
@@ -879,6 +886,7 @@ struct MacVODPlayerView: View {
                     Image(systemName: player.isMuted || player.volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .frame(width: 20)
                 }
+                .accessibilityLabel(player.isMuted ? "Unmute" : "Mute")
                 .help(player.isMuted ? "Unmute" : "Mute")
                 if volumeSlider {
                     Slider(value: Binding(get: { Double(player.isMuted ? 0 : player.volume) },
@@ -897,6 +905,7 @@ struct MacVODPlayerView: View {
                 Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
+                .accessibilityLabel("Full Screen")
                 .help("Full Screen")
         }
         .font(.title3)
@@ -918,6 +927,7 @@ struct MacVODPlayerView: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel("Audio")
             .help("Audio")
         }
 
@@ -938,6 +948,7 @@ struct MacVODPlayerView: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel("Subtitles")
             .help("Subtitles")
         }
     }

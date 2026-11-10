@@ -49,6 +49,7 @@ struct MacPlayerPaneCard: View {
                 Button { pane = nil } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel("Close")
                     .help("Close (Esc)")
             }
             switch tab {
