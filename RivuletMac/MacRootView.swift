@@ -36,6 +36,7 @@ struct MacRootView: View {
     @State private var choosingProfile = false
     @State private var showingSignIn = false
     @State private var accountHovering = false
+    @State private var whatsNew: MacWhatsNew.Notice?
 
     var body: some View {
         ZStack {
@@ -178,6 +179,8 @@ struct MacRootView: View {
         }
         .sheet(isPresented: $choosingProfile) { MacProfilePickerSheet() }
         .sheet(isPresented: $showingSignIn) { MacPlexSignInSheet() }
+        .sheet(item: $whatsNew) { MacWhatsNewSheet(notice: $0) }
+        .task { whatsNew = MacWhatsNew.pending() }
     }
 
     // MARK: - Sidebar
