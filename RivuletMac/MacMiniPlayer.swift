@@ -79,10 +79,12 @@ struct MacMiniPlayerView: View {
                             .font(.title)
                             .frame(width: 30)
                     }
+                    .accessibilityLabel(radio.state == .playing || radio.state == .loading ? "Pause" : "Play")
                     .help(radio.state == .playing || radio.state == .loading ? "Pause" : "Play")
                     Button { radio.stop() } label: {
                         Image(systemName: "stop.fill").font(.title3)
                     }
+                    .accessibilityLabel("Stop")
                     .help("Stop")
                     Spacer(minLength: 0)
                     if let summary = radio.quality?.summary {
@@ -118,17 +120,20 @@ struct MacMiniPlayerView: View {
                         Button { music.skipToPrevious() } label: {
                             Image(systemName: "backward.fill").font(.title3)
                         }
+                        .accessibilityLabel("Previous")
                         .help("Previous")
                         Button { music.togglePlayPause() } label: {
                             Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.title)
                                 .frame(width: 30)
                         }
+                        .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
                         .help(music.isPlaying ? "Pause" : "Play")
                         Button { music.skipToNext() } label: {
                             Image(systemName: "forward.fill").font(.title3)
                         }
                         .disabled(!music.queue.hasNext)
+                        .accessibilityLabel("Next")
                         .help("Next")
                         Spacer(minLength: 0)
                     }

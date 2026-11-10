@@ -148,9 +148,11 @@ private struct MacMultiviewTile: View {
                     Image(systemName: hasSound ? "speaker.wave.2.fill" : "speaker.slash.fill")
                     if let channel = playback.channel {
                         Button { open(channel) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                            .accessibilityLabel("Watch Full Size")
                             .help("Watch Full Size")
                     }
                     Button { multiview.remove(tile.id) } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Remove")
                         .help("Remove")
                 }
                 .buttonStyle(.borderless)

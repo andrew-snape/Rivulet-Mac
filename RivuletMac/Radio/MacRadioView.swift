@@ -189,6 +189,7 @@ struct MacRadioView: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
+                .accessibilityLabel("More")
             }
         }
     }
@@ -430,6 +431,7 @@ struct MacRadioBar: View {
                         .frame(width: 28)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(isPlaying ? "Pause" : "Play")
                 .help(isPlaying ? "Pause" : "Play")
                 .frame(maxWidth: .infinity)
 
@@ -449,6 +451,7 @@ struct MacRadioBar: View {
                         Image(systemName: "stop.fill")
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityLabel("Stop")
                     .help("Stop")
                 }
                 .frame(width: 196, alignment: .trailing)

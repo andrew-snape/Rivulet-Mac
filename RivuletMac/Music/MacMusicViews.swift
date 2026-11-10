@@ -451,6 +451,7 @@ struct MacMusicPlayButtons: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel("More")
         }
         .controlSize(.large)
     }
@@ -701,6 +702,7 @@ struct MacMusicTrackRow: View {
                 if hovering {
                     Button(action: play) { Image(systemName: "play.fill") }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Play")
                         .help("Play")
                 } else if isCurrent {
                     Image(systemName: music.isPlaying ? "speaker.wave.2.fill" : "speaker.fill")

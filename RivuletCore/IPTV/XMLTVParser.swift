@@ -85,7 +85,7 @@ actor XMLTVParser {
 
     /// Largest guide we will inflate. A week of a few hundred channels is tens
     /// of megabytes; the cap stops a gzip bomb (deflate expands ~1000x) from
-    /// exhausting Apple TV memory.
+    /// exhausting memory.
     static let maxInflatedBytes = 256 * 1024 * 1024
 
     /// Inflates a gzip file (RFC 1952). `.xml.gz` guides are usually served as

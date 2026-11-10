@@ -16,6 +16,7 @@
 //
 
 import Foundation
+import OSLog
 
 // MARK: - Network Priority
 
@@ -124,22 +125,19 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            print("🌐 PlexNetwork: ❌ Invalid response type")
+            AppLog.plexNetwork.error("Invalid response type")
             throw PlexAPIError.invalidResponse
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            print("🌐 PlexNetwork: ❌ HTTP Error \(httpResponse.statusCode)")
+            AppLog.plexNetwork.error("HTTP Error \(httpResponse.statusCode)")
             throw PlexAPIError.httpError(statusCode: httpResponse.statusCode, data: data)
         }
 
         do {
             return try await Self.decodeDetached(data)
         } catch {
-            print("🌐 PlexNetwork: ❌ Decode error: \(error)")
-            if let responseStr = String(data: data, encoding: .utf8) {
-                print("🌐 PlexNetwork: Full response: \(responseStr)")
-            }
+            AppLog.plexNetwork.error("Decode error: \(SensitiveDataRedactor.redact("\(error)"))")
             throw error
         }
     }
@@ -920,7 +918,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // answers 404) and a key URLComponents cannot parse. Neither can
             // ever page, so this returns an empty page and the caller ends the
             // row, where an unparseable key used to throw.
-            print("⚠️ PlexNetworkManager: Cannot build a page URL for this hub")
+            AppLog.plexNetwork.warning("Cannot build a page URL for this hub")
             return (items: [], totalSize: nil)
         }
 
@@ -1744,7 +1742,9 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             components.queryItems?.append(URLQueryItem(name: "includeCodecs", value: "1"))
         }
 
-        print("[Plex HLS] Using \(clientProfileName) profile for \(effectiveUseDolbyVision ? "Dolby Vision" : "HDR/SDR")\(cap.map { " with cap \($0.label)" } ?? "") (session: \(sessionId))")
+        let hdrLabel = effectiveUseDolbyVision ? "Dolby Vision" : "HDR/SDR"
+        let capLabel = cap.map { " with cap \($0.label)" } ?? ""
+        AppLog.plexNetwork.debug("Using \(clientProfileName) profile for \(hdrLabel)\(capLabel) (session: \(sessionId))")
 
         guard let url = components.url else { return nil }
         return (url, headers)
@@ -1760,7 +1760,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         audioStreamID: Int
     ) async {
         guard var components = URLComponents(string: "\(serverURL)/library/parts/\(partId)") else {
-            print("[Plex] Failed to build audio stream selection URL")
+            AppLog.plexNetwork.error("Failed to build audio stream selection URL")
             return
         }
         components.queryItems = [
@@ -1768,7 +1768,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             URLQueryItem(name: "X-Plex-Token", value: authToken)
         ]
         guard let url = components.url else {
-            print("[Plex] Failed to build audio stream selection URL")
+            AppLog.plexNetwork.error("Failed to build audio stream selection URL")
             return
         }
 
@@ -1778,9 +1778,9 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         do {
             let (_, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            print("[Plex] Set audio stream \(audioStreamID) on part \(partId): HTTP \(status)")
+            AppLog.plexNetwork.info("Set audio stream \(audioStreamID) on part \(partId): HTTP \(status)")
         } catch {
-            print("[Plex] Failed to set audio stream: \(error.localizedDescription)")
+            AppLog.plexNetwork.error("Failed to set audio stream: \(error.localizedDescription)")
         }
     }
 
@@ -1794,7 +1794,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         subtitleStreamID: Int
     ) async {
         guard var components = URLComponents(string: "\(serverURL)/library/parts/\(partId)") else {
-            print("[Plex] Failed to build subtitle stream selection URL")
+            AppLog.plexNetwork.error("Failed to build subtitle stream selection URL")
             return
         }
         components.queryItems = [
@@ -1802,7 +1802,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             URLQueryItem(name: "X-Plex-Token", value: authToken)
         ]
         guard let url = components.url else {
-            print("[Plex] Failed to build subtitle stream selection URL")
+            AppLog.plexNetwork.error("Failed to build subtitle stream selection URL")
             return
         }
 
@@ -1812,9 +1812,9 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         do {
             let (_, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            print("[Plex] Set subtitle stream \(subtitleStreamID) on part \(partId): HTTP \(status)")
+            AppLog.plexNetwork.info("Set subtitle stream \(subtitleStreamID) on part \(partId): HTTP \(status)")
         } catch {
-            print("[Plex] Failed to set subtitle stream: \(error.localizedDescription)")
+            AppLog.plexNetwork.error("Failed to set subtitle stream: \(error.localizedDescription)")
         }
     }
 
@@ -1835,10 +1835,10 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         do {
             let (_, response) = try await session.data(for: request)
             if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
-                print("[Plex] Transcode decision returned HTTP \(status)")
+                AppLog.plexNetwork.warning("Transcode decision returned HTTP \(status)")
             }
         } catch {
-            print("[Plex] Decision request failed: \(error.localizedDescription)")
+            AppLog.plexNetwork.error("Decision request failed: \(error.localizedDescription)")
         }
     }
 
@@ -1860,7 +1860,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             _ = try await session.data(for: request)
         } catch {
             // Best-effort — don't block on failure
-            print("[Plex] Failed to stop transcode session \(sessionId): \(error.localizedDescription)")
+            AppLog.plexNetwork.error("Failed to stop transcode session \(sessionId): \(error.localizedDescription)")
         }
     }
 
@@ -2035,7 +2035,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             $0.lineup != nil && $0.key != nil
         }
         guard !dvrs.isEmpty else {
-            print("🌐 PlexNetwork: No DVR or lineup found for Live TV")
+            AppLog.plexNetwork.warning("No DVR or lineup found for Live TV")
             // Log missing DVR/lineup (GitHub #64 - DVB diagnostics)
             return []
         }
@@ -2099,7 +2099,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // Extract provider path using DVR key (e.g., tv.plex.providers.epg.xmltv:28)
             let providerPath = extractProviderPath(from: lineup, dvrKey: dvrKey)
             guard var components = URLComponents(string: "\(serverURL)/\(providerPath)/grid") else {
-                print("🌐 PlexNetwork: Could not build grid URL from lineup: \(lineup)")
+                AppLog.plexNetwork.warning("Could not build grid URL from lineup: \(lineup)")
                 return nil
             }
             components.queryItems = [
@@ -2597,7 +2597,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             return components.url
         }
         guard !gridURLs.isEmpty else {
-            print("🌐 PlexNetwork: No DVR or lineup found for Live TV guide")
+            AppLog.plexNetwork.warning("No DVR or lineup found for Live TV guide")
             return []
         }
 
@@ -2803,13 +2803,13 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
                 return users
             }
 
-            print("🌐 PlexNetwork: ❌ Could not decode home users JSON response")
+            AppLog.plexNetwork.error("Could not decode home users JSON response")
         } catch {
-            print("🌐 PlexNetwork: v2 endpoint failed: \(error)")
+            AppLog.plexNetwork.error("v2 endpoint failed: \(SensitiveDataRedactor.redact("\(error)"))")
         }
 
         // Fallback: try the XML endpoint and parse it
-        print("🌐 PlexNetwork: Trying XML endpoint...")
+        AppLog.plexNetwork.info("Trying XML endpoint...")
         let xmlURL = URL(string: "\(PlexAPI.baseUrl)/api/home/users")!
 
         let xmlData = try await requestData(xmlURL, headers: plexHeaders(authToken: authToken))
@@ -2830,7 +2830,7 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
         // Simple regex-based XML parsing for <user .../> elements
         let userPattern = "<user\\s+([^>]+)/>"
         guard let regex = try? NSRegularExpression(pattern: userPattern, options: []) else {
-            print("🌐 PlexNetwork: Failed to create user regex")
+            AppLog.plexNetwork.error("Failed to create user regex")
             return users
         }
 
@@ -2968,10 +2968,10 @@ class PlexNetworkManager: NSObject, @unchecked Sendable {
             // the user as guest, returning 401 on per-section/streaming
             // endpoints. Returning nil instead lets the caller (selectUser)
             // keep the per-server token that selectServer set up at sign-in.
-            print("🌐 PlexNetwork: ⚠️ No per-server token found for serverURL=\(serverURL); returning nil to preserve existing selectedServerToken")
+            AppLog.plexNetwork.warning("No per-server token found for serverURL=\(SensitiveDataRedactor.redact(serverURL)); returning nil to preserve existing selectedServerToken")
             return nil
         } catch {
-            print("🌐 PlexNetwork: ❌ Failed to get server access token: \(error) — returning nil")
+            AppLog.plexNetwork.error("Failed to get server access token: \(SensitiveDataRedactor.redact("\(error)")), returning nil")
             return nil
         }
     }

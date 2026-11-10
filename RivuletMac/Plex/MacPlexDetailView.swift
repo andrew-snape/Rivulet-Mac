@@ -301,6 +301,7 @@ private struct MacPlexDetailHeader: View {
                 Button { actions.setWatchlisted(item, !onList) } label: {
                     Image(systemName: onList ? "checkmark" : "plus")
                 }
+                .accessibilityLabel(onList ? "Remove from Watchlist" : "Add to Watchlist")
                 .help(onList ? "Remove from Watchlist" : "Add to Watchlist")
             }
 
@@ -311,6 +312,7 @@ private struct MacPlexDetailHeader: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel("More")
             .help("More")
         }
         .controlSize(.large)

@@ -90,7 +90,14 @@ actor M3UParser {
     /// - Parameter data: Raw M3U playlist data
     /// - Returns: Array of parsed channels
     func parse(data: Data) throws -> [ParsedChannel] {
-        guard let content = String(data: data, encoding: .utf8) else {
+        // Drop a raw UTF-8 byte order mark (EF BB BF) before decoding.
+        let bom: [UInt8] = [0xEF, 0xBB, 0xBF]
+        let body = data.starts(with: bom) ? data.dropFirst(bom.count) : data[...]
+        let bytes = Data(body)
+
+        // Older IPTV panels often serve ISO Latin-1, so fall back to it when UTF-8 fails.
+        guard let content = String(data: bytes, encoding: .utf8)
+                ?? String(data: bytes, encoding: .isoLatin1) else {
             throw M3UParseError.invalidEncoding
         }
 
@@ -101,7 +108,11 @@ actor M3UParser {
     /// - Parameter content: M3U playlist as string
     /// - Returns: Array of parsed channels
     func parse(content: String) throws -> [ParsedChannel] {
-        let lines = content.components(separatedBy: .newlines)
+        // A decoded byte order mark survives as U+FEFF and would hide the header.
+        let text = content.unicodeScalars.first == "\u{FEFF}"
+            ? String(String.UnicodeScalarView(content.unicodeScalars.dropFirst()))
+            : content
+        let lines = text.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 

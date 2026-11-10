@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import OSLog
 
 /// LiveTVProvider implementation for Plex Live TV
 actor PlexLiveTVProvider: LiveTVProvider {
@@ -185,7 +186,7 @@ actor PlexLiveTVProvider: LiveTVProvider {
 
         for guideChannel in guideChannels {
             guard let ratingKey = guideChannel.ratingKey else {
-                print("📺 PlexLiveTVProvider: Guide channel missing ratingKey")
+                AppLog.liveTV.warning("Guide channel missing ratingKey")
                 continue
             }
 
@@ -203,7 +204,7 @@ actor PlexLiveTVProvider: LiveTVProvider {
             let unifiedPrograms = programs.compactMap { plexProgram -> UnifiedProgram? in
                 let result = plexProgram.toUnifiedProgram(unifiedChannelId: unifiedChannelId, serverURL: serverURL, authToken: authToken)
                 if result == nil {
-                    print("📺 PlexLiveTVProvider: ⚠️ Failed to convert program '\(plexProgram.title)' - beginsAt: \(plexProgram.beginsAt as Any), endsAt: \(plexProgram.endsAt as Any)")
+                    AppLog.liveTV.warning("Failed to convert program '\(plexProgram.title)' - beginsAt: \(String(describing: plexProgram.beginsAt)), endsAt: \(String(describing: plexProgram.endsAt))")
                 }
                 return result
             }
@@ -261,7 +262,7 @@ actor PlexLiveTVProvider: LiveTVProvider {
 
         // Replace the session parameter with a fresh UUID
         guard var components = URLComponents(url: originalURL, resolvingAgainstBaseURL: false) else {
-            print("📺 PlexLiveTVProvider.buildStreamURL: Failed to parse URL components for '\(channel.name)'")
+            AppLog.liveTV.error("Failed to parse URL components for '\(channel.name)'")
 
             return originalURL
         }
